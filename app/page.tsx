@@ -2,11 +2,11 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
-import { addDoc, collection, doc, limit, onSnapshot, orderBy, query as fbQuery, runTransaction } from "firebase/firestore";
+import { addDoc, collection, doc, limit, onSnapshot, orderBy, query as fbQuery, runTransaction, updateDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
-type Medicine = { id:string; name:string; strength:string; form:string; unit:string; stock:number; minimumStock:number; lot:string; expiresAt:string };
-type Pharmacist = { id:string; name:string; email:string; license:string };
+type Medicine = { id:string; name:string; strength:string; form:string; unit:string; stock:number; minimumStock:number; lot:string; expiresAt:string; active?:boolean };
+type Pharmacist = { id:string; name:string; email:string; license:string; active?:boolean };
 type Movement = { id:string; type:"IN"|"OUT"; quantity:number; medicineName:string; prescriptionRef:string; pharmacistEmail:string; createdAt:string };
 
 function Login(){
@@ -39,6 +39,7 @@ export default function Home() {
   const [movements,setMovements]=useState<Movement[]>([]);
   const [query,setQuery]=useState("");
   const [modal,setModal]=useState<"movement"|"medicine"|"pharmacist"|null>(null);
+  const [editing,setEditing]=useState<Medicine|Pharmacist|null>(null);
   const [notice,setNotice]=useState("");
   const [busy,setBusy]=useState(false);
 
@@ -47,7 +48,7 @@ export default function Home() {
   useEffect(()=>{
     if(!user) return;
     const unsubMed=onSnapshot(collection(db,"medicines"),s=>setMedicines(
-      s.docs.map(d=>({id:d.id,...d.data()} as Medicine & {active?:boolean})).filter(m=>m.active!==false).sort((a,b)=>a.name.localeCompare(b.name))
+      s.docs.map(d=>({id:d.id,...d.data()} as Medicine)).sort((a,b)=>a.name.localeCompare(b.name))
     ));
     const unsubPh=onSnapshot(collection(db,"pharmacists"),s=>setPharmacists(
       s.docs.map(d=>({id:d.id,...d.data()} as Pharmacist)).sort((a,b)=>a.name.localeCompare(b.name))
@@ -59,8 +60,21 @@ export default function Home() {
   },[user]);
 
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
-  const filtered=useMemo(()=>medicines.filter(m=>`${m.name} ${m.strength}`.toLowerCase().includes(query.toLowerCase())),[medicines,query]);
-  const total=medicines.reduce((a,m)=>a+m.stock,0), low=medicines.filter(m=>m.stock<=m.minimumStock).length;
+  const activeMeds=useMemo(()=>medicines.filter(m=>m.active!==false),[medicines]);
+  const filtered=useMemo(()=>activeMeds.filter(m=>`${m.name} ${m.strength}`.toLowerCase().includes(query.toLowerCase())),[activeMeds,query]);
+  const total=activeMeds.reduce((a,m)=>a+m.stock,0), low=activeMeds.filter(m=>m.stock<=m.minimumStock).length;
+
+  const closeModal=useCallback(()=>{setModal(null);setEditing(null)},[]);
+  const openCreate=useCallback((kind:"medicine"|"pharmacist"|"movement")=>{setEditing(null);setModal(kind)},[]);
+  const openEdit=useCallback((kind:"medicine"|"pharmacist",item:Medicine|Pharmacist)=>{setEditing(item);setModal(kind)},[]);
+
+  const flash=useCallback((msg:string)=>{setNotice(msg);setTimeout(()=>setNotice(""),4000)},[]);
+
+  const setActive=useCallback(async(col:"medicines"|"pharmacists",id:string,active:boolean,label:string)=>{
+    if(!active&&!window.confirm(`¿Dar de baja "${label}"? Podrá reactivarlo luego.`)) return;
+    try{await updateDoc(doc(db,col,id),{active});flash(active?"Reactivado correctamente":"Dado de baja correctamente")}
+    catch{flash("No se pudo actualizar")}
+  },[flash]);
 
   const submit=useCallback(async(e:FormEvent<HTMLFormElement>, action:string)=>{
     e.preventDefault();setBusy(true);
@@ -71,11 +85,14 @@ export default function Home() {
       if(action==="medicine"){
         const name=g("name"), strength=g("strength");
         if(!name||!strength) throw new Error("Nombre y concentración son obligatorios.");
-        await addDoc(collection(db,"medicines"),{name,strength,form:g("form")||"Tableta",unit:g("unit")||"unidades",stock:Math.max(0,Number(form.get("stock"))||0),minimumStock:Math.max(0,Number(form.get("minimumStock"))||0),lot:g("lot"),expiresAt:g("expiresAt"),active:true,createdAt:now});
+        const fields={name,strength,form:g("form")||"Tableta",minimumStock:Math.max(0,Number(form.get("minimumStock"))||0),lot:g("lot"),expiresAt:g("expiresAt")};
+        if(editing) await updateDoc(doc(db,"medicines",editing.id),fields);
+        else await addDoc(collection(db,"medicines"),{...fields,unit:"unidades",stock:Math.max(0,Number(form.get("stock"))||0),active:true,createdAt:now});
       } else if(action==="pharmacist"){
         const name=g("name"), email=g("email").toLowerCase(), license=g("license");
         if(!name||!email||!license) throw new Error("Complete todos los datos del farmacéutico.");
-        await addDoc(collection(db,"pharmacists"),{name,email,license,active:true,createdAt:now});
+        if(editing) await updateDoc(doc(db,"pharmacists",editing.id),{name,email,license});
+        else await addDoc(collection(db,"pharmacists"),{name,email,license,active:true,createdAt:now});
       } else if(action==="movement"){
         const medicineId=g("medicineId");
         const quantity=Number(form.get("quantity"));
@@ -93,13 +110,15 @@ export default function Home() {
           tx.set(doc(collection(db,"movements")),{medicineId,medicineName:data.name,type,quantity,prescriptionRef:g("prescriptionRef"),pharmacistEmail:user?.email||"",createdAt:now});
         });
       }
-      setNotice("Registro guardado correctamente");setModal(null);
-    }catch(err){setNotice(err instanceof Error?err.message:"No se pudo guardar")}
-    finally{setBusy(false);setTimeout(()=>setNotice(""),4000)}
-  },[user]);
+      flash("Registro guardado correctamente");closeModal();
+    }catch(err){flash(err instanceof Error?err.message:"No se pudo guardar")}
+    finally{setBusy(false)}
+  },[user,editing,flash,closeModal]);
 
   if(!authReady) return <div className="auth-screen"><div className="auth-loading">Cargando…</div></div>;
   if(!user) return <Login/>;
+
+  const em=editing as Medicine|null, ep=editing as Pharmacist|null;
 
   return <main className="app-shell">
     <aside className="sidebar">
@@ -113,20 +132,23 @@ export default function Home() {
       <div className="profile"><div className="avatar">{(user.email||"?").slice(0,2).toUpperCase()}</div><div><strong>{user.email}</strong><small>Sesión autorizada</small></div><button className="logout" onClick={()=>void signOut(auth)} aria-label="Cerrar sesión" title="Cerrar sesión">⎋</button></div>
     </aside>
     <section className="content">
-      <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Vista actualizada de las existencias disponibles.":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>setModal("movement")} disabled={!medicines.length}>＋ Registrar movimiento</button>}</header>
+      <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Vista actualizada de las existencias disponibles.":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openCreate("movement")} disabled={!activeMeds.length}>＋ Registrar movimiento</button>}</header>
 
       {tab==="dashboard"&&<>
         <div className="stats"><article><span className="stat-icon blue">▤</span><div><small>Existencias totales</small><strong>{total.toLocaleString("es-CR")}</strong><em>unidades disponibles</em></div></article><article><span className="stat-icon amber">!</span><div><small>Stock bajo</small><strong>{low}</strong><em>requieren atención</em></div></article><article><span className="stat-icon green">⇄</span><div><small>Movimientos recientes</small><strong>{movements.length}</strong><em>últimos registros</em></div></article></div>
         <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar por medicamento o concentración..." value={query} onChange={e=>setQuery(e.target.value)}/></label><span>{filtered.length} medicamentos</span></div>
-        {medicines.length?<div className="medicine-grid">{filtered.map(m=>{const pct=Math.min(100,Math.round(m.stock/Math.max(m.minimumStock*2,1)*100));const status=m.stock<=m.minimumStock?"low":"ok";return <article className="medicine-card" key={m.id}><div className="card-head"><span className="pill-icon">✚</span><span className={`badge ${status}`}>{status==="low"?"Stock bajo":"Disponible"}</span></div><h2>{m.name}</h2><p>{m.strength} · {m.form}</p><div className="stock-row"><strong>{m.stock.toLocaleString("es-CR")}</strong><span>{m.unit}</span></div><div className="bar"><i className={status} style={{width:`${pct}%`}}/></div><div className="meta"><span>Lote<strong>{m.lot||"—"}</strong></span><span>Vence<strong>{m.expiresAt?new Date(m.expiresAt+"T12:00:00").toLocaleDateString("es-CR",{month:"short",year:"numeric"}):"—"}</strong></span></div><button className="card-action" onClick={()=>setModal("movement")}>Registrar movimiento <span>→</span></button></article>})}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos registrados. Agréguelos en Configuración.</div></div>}
+        {activeMeds.length?<div className="medicine-grid">{filtered.map(m=>{const pct=Math.min(100,Math.round(m.stock/Math.max(m.minimumStock*2,1)*100));const status=m.stock<=m.minimumStock?"low":"ok";return <article className="medicine-card" key={m.id}><div className="card-head"><span className="pill-icon">✚</span><span className={`badge ${status}`}>{status==="low"?"Stock bajo":"Disponible"}</span></div><h2>{m.name}</h2><p>{m.strength} · {m.form}</p><div className="stock-row"><strong>{m.stock.toLocaleString("es-CR")}</strong><span>{m.unit}</span></div><div className="bar"><i className={status} style={{width:`${pct}%`}}/></div><div className="meta"><span>Lote<strong>{m.lot||"—"}</strong></span><span>Vence<strong>{m.expiresAt?new Date(m.expiresAt+"T12:00:00").toLocaleDateString("es-CR",{month:"short",year:"numeric"}):"—"}</strong></span></div><button className="card-action" onClick={()=>openCreate("movement")}>Registrar movimiento <span>→</span></button></article>})}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}
 
       {tab==="movements"&&<div className="panel"><div className="panel-title"><div><h2>Actividad reciente</h2><p>Cada operación conserva responsable, fecha y referencia.</p></div></div><div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th></tr></thead><tbody>{movements.length?movements.map(m=><tr key={m.id}><td>{new Date(m.createdAt).toLocaleString("es-CR")}</td><td><strong>{m.medicineName}</strong></td><td><span className={`type ${m.type}`}>{m.type==="IN"?"Ingreso":"Egreso"}</span></td><td>{m.quantity}</td><td>{m.prescriptionRef||"—"}</td><td>{m.pharmacistEmail}</td></tr>):<tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>}</tbody></table></div></div>}
 
-      {tab==="settings"&&<div className="settings-grid"><div className="panel"><div className="panel-title"><div><h2>Medicamentos</h2><p>Catálogo habilitado para el inventario.</p></div><button className="secondary" onClick={()=>setModal("medicine")}>＋ Agregar</button></div>{medicines.length?medicines.map(m=><div className="list-row" key={m.id}><span className="mini-icon">✚</span><div><strong>{m.name}</strong><small>{m.strength} · {m.form}</small></div><span className="tag">Activo</span></div>):<div className="empty-block">Registre el primer medicamento del catálogo.</div>}</div><div className="panel"><div className="panel-title"><div><h2>Farmacéuticos autorizados</h2><p>Usuarios habilitados para operar.</p></div><button className="secondary" onClick={()=>setModal("pharmacist")}>＋ Agregar</button></div>{pharmacists.length?pharmacists.map(p=><div className="list-row" key={p.id}><span className="mini-icon person">{p.name.slice(0,2).toUpperCase()}</span><div><strong>{p.name}</strong><small>{p.email} · {p.license}</small></div><span className="tag">Activo</span></div>):<div className="empty-block">Registre al primer farmacéutico autorizado.</div>}</div></div>}
+      {tab==="settings"&&<div className="settings-grid">
+        <div className="panel"><div className="panel-title"><div><h2>Medicamentos</h2><p>Catálogo del inventario.</p></div><button className="secondary" onClick={()=>openCreate("medicine")}>＋ Agregar</button></div>{medicines.length?medicines.map(m=><div className={`list-row${m.active===false?" inactive":""}`} key={m.id}><span className="mini-icon">✚</span><div><strong>{m.name}</strong><small>{m.strength} · {m.form}</small></div><span className={`tag${m.active===false?" off":""}`}>{m.active===false?"Inactivo":"Activo"}</span><div className="row-actions"><button onClick={()=>openEdit("medicine",m)}>Editar</button>{m.active===false?<button onClick={()=>setActive("medicines",m.id,true,m.name)}>Reactivar</button>:<button className="danger" onClick={()=>setActive("medicines",m.id,false,m.name)}>Dar de baja</button>}</div></div>):<div className="empty-block">Registre el primer medicamento del catálogo.</div>}</div>
+        <div className="panel"><div className="panel-title"><div><h2>Farmacéuticos autorizados</h2><p>Usuarios habilitados para operar.</p></div><button className="secondary" onClick={()=>openCreate("pharmacist")}>＋ Agregar</button></div>{pharmacists.length?pharmacists.map(p=><div className={`list-row${p.active===false?" inactive":""}`} key={p.id}><span className="mini-icon person">{p.name.slice(0,2).toUpperCase()}</span><div><strong>{p.name}</strong><small>{p.email} · {p.license}</small></div><span className={`tag${p.active===false?" off":""}`}>{p.active===false?"Inactivo":"Activo"}</span><div className="row-actions"><button onClick={()=>openEdit("pharmacist",p)}>Editar</button>{p.active===false?<button onClick={()=>setActive("pharmacists",p.id,true,p.name)}>Reactivar</button>:<button className="danger" onClick={()=>setActive("pharmacists",p.id,false,p.name)}>Dar de baja</button>}</div></div>):<div className="empty-block">Registre al primer farmacéutico autorizado.</div>}</div>
+      </div>}
     </section>
 
     {notice&&<div className="toast" role="status">{notice}</div>}
-    {modal&&<div className="overlay" onMouseDown={()=>setModal(null)}><div className="modal" onMouseDown={e=>e.stopPropagation()}><button className="close" onClick={()=>setModal(null)} aria-label="Cerrar">×</button>{modal==="movement"&&<><h2>Registrar movimiento</h2><p>Actualice existencias con trazabilidad completa.</p><form onSubmit={e=>submit(e,"movement")}><label>Medicamento<select name="medicineId" required>{medicines.map(m=><option key={m.id} value={m.id}>{m.name} {m.strength} — {m.stock} disp.</option>)}</select></label><div className="form-row"><label>Tipo<select name="type"><option value="OUT">Egreso</option><option value="IN">Ingreso</option></select></label><label>Cantidad<input name="quantity" type="number" min="1" required/></label></div><label>Referencia de prescripción<input name="prescriptionRef" placeholder="Ej. RX-2026-00481"/></label><button className="primary full" disabled={busy}>{busy?"Guardando...":"Confirmar movimiento"}</button></form></>}{modal==="medicine"&&<><h2>Agregar medicamento</h2><p>Defina la presentación y niveles de control.</p><form onSubmit={e=>submit(e,"medicine")}><label>Nombre<input name="name" required placeholder="Ej. Metformina"/></label><div className="form-row"><label>Concentración<input name="strength" required placeholder="500 mg"/></label><label>Forma<input name="form" placeholder="Tableta"/></label></div><div className="form-row"><label>Existencia inicial<input name="stock" type="number" min="0" defaultValue="0"/></label><label>Stock mínimo<input name="minimumStock" type="number" min="0" defaultValue="0"/></label></div><div className="form-row"><label>Lote<input name="lot"/></label><label>Vencimiento<input name="expiresAt" type="date"/></label></div><input type="hidden" name="unit" value="unidades"/><button className="primary full" disabled={busy}>Guardar medicamento</button></form></>}{modal==="pharmacist"&&<><h2>Autorizar farmacéutico</h2><p>El correo será su identificador de acceso.</p><form onSubmit={e=>submit(e,"pharmacist")}><label>Nombre completo<input name="name" required/></label><label>Correo institucional<input name="email" type="email" required/></label><label>Código profesional<input name="license" required placeholder="Ej. CF-1234"/></label><button className="primary full" disabled={busy}>Autorizar usuario</button></form></>}</div></div>}
+    {modal&&<div className="overlay" onMouseDown={closeModal}><div className="modal" onMouseDown={e=>e.stopPropagation()}><button className="close" onClick={closeModal} aria-label="Cerrar">×</button>{modal==="movement"&&<><h2>Registrar movimiento</h2><p>Actualice existencias con trazabilidad completa.</p><form onSubmit={e=>submit(e,"movement")}><label>Medicamento<select name="medicineId" required>{activeMeds.map(m=><option key={m.id} value={m.id}>{m.name} {m.strength} — {m.stock} disp.</option>)}</select></label><div className="form-row"><label>Tipo<select name="type"><option value="OUT">Egreso</option><option value="IN">Ingreso</option></select></label><label>Cantidad<input name="quantity" type="number" min="1" required/></label></div><label>Referencia de prescripción<input name="prescriptionRef" placeholder="Ej. RX-2026-00481"/></label><button className="primary full" disabled={busy}>{busy?"Guardando...":"Confirmar movimiento"}</button></form></>}{modal==="medicine"&&<><h2>{editing?"Editar medicamento":"Agregar medicamento"}</h2><p>{editing?"Las existencias solo cambian mediante movimientos.":"Defina la presentación y niveles de control."}</p><form onSubmit={e=>submit(e,"medicine")}><label>Nombre<input name="name" required placeholder="Ej. Metformina" defaultValue={em?.name||""}/></label><div className="form-row"><label>Concentración<input name="strength" required placeholder="500 mg" defaultValue={em?.strength||""}/></label><label>Forma<input name="form" placeholder="Tableta" defaultValue={em?.form||""}/></label></div><div className="form-row">{!editing&&<label>Existencia inicial<input name="stock" type="number" min="0" defaultValue="0"/></label>}<label>Stock mínimo<input name="minimumStock" type="number" min="0" defaultValue={em?String(em.minimumStock):"0"}/></label></div><div className="form-row"><label>Lote<input name="lot" defaultValue={em?.lot||""}/></label><label>Vencimiento<input name="expiresAt" type="date" defaultValue={em?.expiresAt||""}/></label></div><button className="primary full" disabled={busy}>{busy?"Guardando...":editing?"Guardar cambios":"Guardar medicamento"}</button></form></>}{modal==="pharmacist"&&<><h2>{editing?"Editar farmacéutico":"Autorizar farmacéutico"}</h2><p>El correo será su identificador de acceso.</p><form onSubmit={e=>submit(e,"pharmacist")}><label>Nombre completo<input name="name" required defaultValue={ep?.name||""}/></label><label>Correo institucional<input name="email" type="email" required defaultValue={ep?.email||""}/></label><label>Código profesional<input name="license" required placeholder="Ej. CF-1234" defaultValue={ep?.license||""}/></label><button className="primary full" disabled={busy}>{busy?"Guardando...":editing?"Guardar cambios":"Autorizar usuario"}</button></form></>}</div></div>}
   </main>;
 }

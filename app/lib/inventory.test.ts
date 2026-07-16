@@ -3,6 +3,7 @@ import {
   activeMedicines,
   daysUntilExpiry,
   expiringCount,
+  expirySummary,
   expiryStatus,
   filterMedicines,
   isActive,
@@ -315,5 +316,30 @@ describe("expiringCount", () => {
       med({ id: "b", expiresAt: "2026-08-01" }),
     ];
     expect(expiringCount(list, now)).toBe(1);
+  });
+});
+
+describe("expirySummary", () => {
+  const now = new Date("2026-07-15T08:00:00");
+
+  it("separa vencidos y por vencer entre los activos", () => {
+    const list = [
+      med({ id: "a", expiresAt: "2026-07-01" }), // vencido
+      med({ id: "b", expiresAt: "2026-06-20" }), // vencido
+      med({ id: "c", expiresAt: "2026-08-01" }), // por vencer
+      med({ id: "d", expiresAt: "2027-01-01" }), // ok
+      med({ id: "e", expiresAt: "" }), // sin fecha
+    ];
+    expect(expirySummary(list, now)).toEqual({ expired: 2, soon: 1 });
+  });
+  it("ignora los dados de baja", () => {
+    const list = [
+      med({ id: "a", expiresAt: "2026-07-01", active: false }),
+      med({ id: "b", expiresAt: "2026-08-01", active: false }),
+    ];
+    expect(expirySummary(list, now)).toEqual({ expired: 0, soon: 0 });
+  });
+  it("con lista vacía devuelve ceros", () => {
+    expect(expirySummary([], now)).toEqual({ expired: 0, soon: 0 });
   });
 });

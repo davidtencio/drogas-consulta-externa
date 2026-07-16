@@ -32,7 +32,7 @@ export default function Home() {
 
   return <main className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">Rx</span><div><strong>FarmaControl</strong><small>Consulta externa</small></div></div>
+      <div className="brand"><span className="brand-mark">Rx</span><div><strong>Control de Drogas</strong><small>Consulta externa</small></div></div>
       <nav aria-label="Navegación principal">
         <button className={tab==="dashboard"?"active":""} onClick={()=>setTab("dashboard")}><span>▦</span> Inventario</button>
         <button className={tab==="movements"?"active":""} onClick={()=>setTab("movements")}><span>⇄</span> Movimientos</button>

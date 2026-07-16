@@ -6,7 +6,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "FarmaControl | Inventario de Consulta Externa",
+  title: "Control de Drogas Consulta Externa",
   description: "Control seguro y trazable del inventario de medicamentos.",
 };
 

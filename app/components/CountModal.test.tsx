@@ -20,29 +20,25 @@ function base(over: Partial<Parameters<typeof CountModal>[0]> = {}) {
 describe("CountModal", () => {
   it("muestra el medicamento y las existencias en sistema", () => {
     render(<CountModal {...base()} />);
-    expect(screen.getByText("Registrar conteo físico")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Confirmar saldo" })).toBeInTheDocument();
     expect(screen.getByDisplayValue("Metformina 500 mg")).toBeInTheDocument();
     expect(screen.getByDisplayValue("100 unidades")).toBeInTheDocument();
   });
 
-  it("calcula la diferencia en vivo (faltante)", async () => {
+  it("mantiene deshabilitado el botón hasta marcar la casilla", async () => {
     render(<CountModal {...base()} />);
-    await userEvent.type(screen.getByLabelText("Contado (físico)"), "95");
-    expect(screen.getByText("Faltante -5")).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Farmacéutico responsable"), "ana@h.cr");
+    expect(screen.getByRole("button", { name: "Confirmar saldo" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("checkbox"));
+    expect(screen.getByRole("button", { name: "Confirmar saldo" })).toBeEnabled();
   });
 
-  it("muestra sobrante cuando el físico supera al sistema", async () => {
-    render(<CountModal {...base()} />);
-    await userEvent.type(screen.getByLabelText("Contado (físico)"), "110");
-    expect(screen.getByText("Sobrante +10")).toBeInTheDocument();
-  });
-
-  it("envía el formulario con la acción 'count'", async () => {
+  it("envía el formulario con la acción 'count' al confirmar", async () => {
     const props = base();
     render(<CountModal {...props} />);
-    await userEvent.type(screen.getByLabelText("Contado (físico)"), "100");
+    await userEvent.click(screen.getByRole("checkbox"));
     await userEvent.selectOptions(screen.getByLabelText("Farmacéutico responsable"), "ana@h.cr");
-    await userEvent.click(screen.getByRole("button", { name: "Registrar conteo" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar saldo" }));
     expect(props.onSubmit).toHaveBeenCalled();
     expect(props.onSubmit.mock.calls[0][1]).toBe("count");
   });
@@ -50,6 +46,6 @@ describe("CountModal", () => {
   it("sin farmacéuticos avisa y deshabilita", () => {
     render(<CountModal {...base({ activePharmacists: [] })} />);
     expect(screen.getByText(/Registre un farmacéutico autorizado/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Registrar conteo" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Confirmar saldo" })).toBeDisabled();
   });
 });

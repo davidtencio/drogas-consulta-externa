@@ -61,14 +61,12 @@ async function saveMovement(form:FormData, now:string){
   await dataApi.registerMovement({medicineId,type,quantity,prescriptionRef:trimmed(form,"prescriptionRef"),pharmacistEmail,now});
 }
 
-/** Registra un conteo físico (arqueo) del medicamento indicado; no ajusta stock. */
+/** Confirma el saldo (conteo físico = sistema) del medicamento; no ajusta stock. */
 async function saveCount(form:FormData, now:string, medicine:Medicine|undefined){
   if(!medicine) throw new Error("Medicamento no disponible.");
-  const countedQuantity=Number(form.get("countedQuantity"));
   const pharmacistEmail=trimmed(form,"pharmacistEmail");
-  if(!Number.isInteger(countedQuantity)||countedQuantity<0) throw new Error("La cantidad contada debe ser un número entero (0 o más).");
   if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable.");
-  await dataApi.registerCount({medicine:{name:medicine.name,stock:medicine.stock},medicineId:medicine.id,countedQuantity,note:trimmed(form,"note"),pharmacistEmail,now});
+  await dataApi.registerCount({medicine:{name:medicine.name,stock:medicine.stock},medicineId:medicine.id,countedQuantity:medicine.stock,note:trimmed(form,"note")||"Saldo confirmado",pharmacistEmail,now});
 }
 
 export default function Home() {
@@ -126,7 +124,7 @@ export default function Home() {
       else if(action==="pharmacist") await savePharmacist(form,now,modal?.kind==="pharmacist"?modal.editing:null);
       else if(action==="movement") await saveMovement(form,now);
       else if(action==="count") await saveCount(form,now,modal?.kind==="count"?medicines.find(m=>m.id===modal.medicineId):undefined);
-      flash(action==="count"?"Conteo registrado correctamente":"Registro guardado correctamente");closeModal();
+      flash(action==="count"?"Saldo confirmado correctamente":"Registro guardado correctamente");closeModal();
     }catch(err){flash(err instanceof Error?err.message:"No se pudo guardar")}
     finally{setBusy(false)}
   },[modal,medicines,flash,closeModal]);

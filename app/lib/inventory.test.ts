@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   activeMedicines,
+  daysUntilExpiry,
+  expiringCount,
+  expiryStatus,
   filterMedicines,
   isActive,
   isLowStock,
@@ -246,5 +249,71 @@ describe("prepareMovement", () => {
       input({ type: "IN", quantity: 1, prescriptionRef: "" })
     );
     expect(result.record.prescriptionRef).toBe("");
+  });
+});
+
+describe("daysUntilExpiry", () => {
+  // Punto de referencia fijo para pruebas deterministas: 15/07/2026 08:00.
+  const now = new Date("2026-07-15T08:00:00");
+
+  it("devuelve null si no hay fecha", () => {
+    expect(daysUntilExpiry("", now)).toBeNull();
+  });
+  it("devuelve null si la fecha es inválida", () => {
+    expect(daysUntilExpiry("no-es-fecha", now)).toBeNull();
+  });
+  it("cuenta días positivos hacia el futuro", () => {
+    expect(daysUntilExpiry("2026-07-25", now)).toBe(10);
+  });
+  it("es negativo si la fecha ya pasó", () => {
+    expect(daysUntilExpiry("2026-07-05", now)).toBe(-10);
+  });
+  it("es 0 si vence hoy (sin importar la hora actual)", () => {
+    expect(daysUntilExpiry("2026-07-15", now)).toBe(0);
+  });
+});
+
+describe("expiryStatus", () => {
+  const now = new Date("2026-07-15T08:00:00");
+
+  it("sin fecha → 'sin-fecha'", () => {
+    expect(expiryStatus("", now)).toBe("sin-fecha");
+  });
+  it("fecha pasada → 'vencido'", () => {
+    expect(expiryStatus("2026-07-01", now)).toBe("vencido");
+  });
+  it("dentro de los 30 días → 'por-vencer'", () => {
+    expect(expiryStatus("2026-08-10", now)).toBe("por-vencer");
+  });
+  it("justo en el límite de 30 días → 'por-vencer' (inclusivo)", () => {
+    expect(expiryStatus("2026-08-14", now)).toBe("por-vencer");
+  });
+  it("más allá de los 30 días → 'ok'", () => {
+    expect(expiryStatus("2026-12-01", now)).toBe("ok");
+  });
+  it("respeta un umbral personalizado", () => {
+    expect(expiryStatus("2026-09-30", now, 90)).toBe("por-vencer");
+    expect(expiryStatus("2026-09-30", now, 30)).toBe("ok");
+  });
+});
+
+describe("expiringCount", () => {
+  const now = new Date("2026-07-15T08:00:00");
+
+  it("cuenta activos vencidos o por vencer, ignorando los ok y sin fecha", () => {
+    const list = [
+      med({ id: "a", expiresAt: "2026-07-01" }), // vencido
+      med({ id: "b", expiresAt: "2026-08-01" }), // por vencer
+      med({ id: "c", expiresAt: "2027-01-01" }), // ok
+      med({ id: "d", expiresAt: "" }), // sin fecha
+    ];
+    expect(expiringCount(list, now)).toBe(2);
+  });
+  it("excluye los medicamentos dados de baja aunque estén vencidos", () => {
+    const list = [
+      med({ id: "a", expiresAt: "2026-07-01", active: false }),
+      med({ id: "b", expiresAt: "2026-08-01" }),
+    ];
+    expect(expiringCount(list, now)).toBe(1);
   });
 });

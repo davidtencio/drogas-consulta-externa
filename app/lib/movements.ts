@@ -67,3 +67,51 @@ export function filterAndSortMovements(
 ): Movement[] {
   return sortMovements(filterMovements(movements, filter), sort);
 }
+
+/** Resumen agregado de un conjunto de movimientos (p. ej. un período filtrado). */
+export type MovementSummary = {
+  /** Total de movimientos. */
+  count: number;
+  /** Número de ingresos y de egresos. */
+  inCount: number;
+  outCount: number;
+  /** Unidades sumadas por ingresos y por egresos. */
+  inQuantity: number;
+  outQuantity: number;
+  /** Variación neta de existencias (ingresos − egresos). */
+  net: number;
+  /** Medicamentos distintos con movimientos. */
+  medicineCount: number;
+};
+
+/**
+ * Agrega conteos y cantidades de una lista de movimientos. Ignora cantidades
+ * no numéricas (las trata como 0). No asume ningún orden ni filtrado previo.
+ */
+export function summarizeMovements(movements: readonly Movement[]): MovementSummary {
+  const summary: MovementSummary = {
+    count: 0,
+    inCount: 0,
+    outCount: 0,
+    inQuantity: 0,
+    outQuantity: 0,
+    net: 0,
+    medicineCount: 0,
+  };
+  const names = new Set<string>();
+  for (const m of movements) {
+    const qty = Number(m.quantity) || 0;
+    summary.count++;
+    names.add(m.medicineName);
+    if (m.type === "IN") {
+      summary.inCount++;
+      summary.inQuantity += qty;
+    } else {
+      summary.outCount++;
+      summary.outQuantity += qty;
+    }
+  }
+  summary.net = summary.inQuantity - summary.outQuantity;
+  summary.medicineCount = names.size;
+  return summary;
+}

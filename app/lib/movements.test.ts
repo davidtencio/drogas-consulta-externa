@@ -3,6 +3,7 @@ import {
   filterMovements,
   sortMovements,
   filterAndSortMovements,
+  summarizeMovements,
 } from "./movements";
 import type { Movement } from "./inventory";
 
@@ -94,5 +95,48 @@ describe("filterAndSortMovements", () => {
   it("filtra y luego ordena", () => {
     const result = filterAndSortMovements(sample, { type: "OUT", text: "" }, "qty-desc");
     expect(result.map((m) => m.id)).toEqual(["c", "b"]);
+  });
+});
+
+describe("summarizeMovements", () => {
+  it("resume conteos, cantidades y neto", () => {
+    // sample: a=IN 10 (Metformina), b=OUT 3 (Amoxicilina), c=OUT 25 (Ibuprofeno)
+    const s = summarizeMovements(sample);
+    expect(s.count).toBe(3);
+    expect(s.inCount).toBe(1);
+    expect(s.outCount).toBe(2);
+    expect(s.inQuantity).toBe(10);
+    expect(s.outQuantity).toBe(28);
+    expect(s.net).toBe(-18);
+    expect(s.medicineCount).toBe(3);
+  });
+  it("cuenta medicamentos distintos sin duplicar", () => {
+    const list = [
+      mov({ id: "a", type: "IN", quantity: 5, medicineName: "Metformina" }),
+      mov({ id: "b", type: "OUT", quantity: 2, medicineName: "Metformina" }),
+    ];
+    expect(summarizeMovements(list).medicineCount).toBe(1);
+  });
+  it("neto positivo cuando entran más unidades de las que salen", () => {
+    const list = [
+      mov({ type: "IN", quantity: 50 }),
+      mov({ type: "OUT", quantity: 20 }),
+    ];
+    expect(summarizeMovements(list).net).toBe(30);
+  });
+  it("trata cantidades no numéricas como 0", () => {
+    const list = [mov({ type: "IN", quantity: NaN }), mov({ type: "IN", quantity: 4 })];
+    expect(summarizeMovements(list).inQuantity).toBe(4);
+  });
+  it("con lista vacía devuelve todo en cero", () => {
+    expect(summarizeMovements([])).toEqual({
+      count: 0,
+      inCount: 0,
+      outCount: 0,
+      inQuantity: 0,
+      outQuantity: 0,
+      net: 0,
+      medicineCount: 0,
+    });
   });
 });

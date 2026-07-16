@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
 import { addDoc, collection, doc, getDocs, limit, onSnapshot, orderBy, query as fbQuery, runTransaction, updateDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import { activeMedicines, expiringCount, expiryStatus, filterMedicines, isLowStock, lowStockCount, prepareMovement, sortByName, stockPercent, totalStock, type Medicine, type Pharmacist, type Movement } from "./lib/inventory";
+import { activeMedicines, expiringCount, expirySummary, expiryStatus, filterMedicines, isLowStock, lowStockCount, prepareMovement, sortByName, stockPercent, totalStock, type Medicine, type Pharmacist, type Movement } from "./lib/inventory";
 import { medicinesToCsv, movementsToCsv } from "./lib/csv";
 import { filterAndSortMovements, summarizeMovements, type MovementSort, type MovementTypeFilter } from "./lib/movements";
 
@@ -46,6 +46,7 @@ export default function Home() {
   const [editing,setEditing]=useState<Medicine|Pharmacist|null>(null);
   const [notice,setNotice]=useState("");
   const [busy,setBusy]=useState(false);
+  const [alertDismissed,setAlertDismissed]=useState(false);
 
   useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setAuthReady(true)}),[]);
 
@@ -68,6 +69,7 @@ export default function Home() {
   const filtered=useMemo(()=>filterMedicines(activeMeds,query),[activeMeds,query]);
   const total=totalStock(activeMeds), low=lowStockCount(activeMeds);
   const expiring=useMemo(()=>expiringCount(activeMeds),[activeMeds]);
+  const expAlert=useMemo(()=>expirySummary(medicines),[medicines]);
   const movFilter=useMemo(()=>({type:movType,text:movText,from:movFrom,to:movTo}),[movType,movText,movFrom,movTo]);
   const visibleMovements=useMemo(()=>filterAndSortMovements(movements,movFilter,movSort),[movements,movFilter,movSort]);
   const movSummary=useMemo(()=>summarizeMovements(visibleMovements),[visibleMovements]);
@@ -171,6 +173,12 @@ export default function Home() {
       <div className="profile"><div className="avatar">{(user.email||"?").slice(0,2).toUpperCase()}</div><div><strong>{user.email}</strong><small>Sesión autorizada</small></div><button className="logout" onClick={()=>void signOut(auth)} aria-label="Cerrar sesión" title="Cerrar sesión">⎋</button></div>
     </aside>
     <section className="content">
+      {!alertDismissed&&(expAlert.expired>0||expAlert.soon>0)&&<div className={`expiry-alert${expAlert.expired>0?" danger":""}`} role="alert">
+        <span className="ico">{expAlert.expired>0?"⚠":"⏱"}</span>
+        <div className="msg"><strong>{expAlert.expired>0&&expAlert.soon>0?`${expAlert.expired} vencido${expAlert.expired>1?"s":""} y ${expAlert.soon} por vencer`:expAlert.expired>0?`${expAlert.expired} medicamento${expAlert.expired>1?"s":""} vencido${expAlert.expired>1?"s":""}`:`${expAlert.soon} medicamento${expAlert.soon>1?"s":""} por vencer`}</strong><small>Revise el inventario para gestionarlos a tiempo.</small></div>
+        {tab!=="dashboard"&&<button className="alert-action" onClick={()=>{setTab("dashboard");setAlertDismissed(true)}}>Ver inventario</button>}
+        <button className="alert-close" onClick={()=>setAlertDismissed(true)} aria-label="Descartar aviso">×</button>
+      </div>}
       <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Vista actualizada de las existencias disponibles.":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openCreate("movement")} disabled={!activeMeds.length}>＋ Registrar movimiento</button>}</header>
 
       {tab==="dashboard"&&<>

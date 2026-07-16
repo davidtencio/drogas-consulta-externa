@@ -211,8 +211,24 @@ export function expiringCount(
   now: Date = new Date(),
   soonDays: number = EXPIRY_SOON_DAYS
 ): number {
-  return activeMedicines(medicines).filter((m) => {
+  const { expired, soon } = expirySummary(medicines, now, soonDays);
+  return expired + soon;
+}
+
+/** Conteo de medicamentos activos vencidos y por vencer, por separado. */
+export type ExpirySummary = { expired: number; soon: number };
+
+/** Resume cuántos medicamentos activos están vencidos y cuántos por vencer. */
+export function expirySummary(
+  medicines: Medicine[],
+  now: Date = new Date(),
+  soonDays: number = EXPIRY_SOON_DAYS
+): ExpirySummary {
+  const summary: ExpirySummary = { expired: 0, soon: 0 };
+  for (const m of activeMedicines(medicines)) {
     const status = expiryStatus(m.expiresAt, now, soonDays);
-    return status === "vencido" || status === "por-vencer";
-  }).length;
+    if (status === "vencido") summary.expired++;
+    else if (status === "por-vencer") summary.soon++;
+  }
+  return summary;
 }

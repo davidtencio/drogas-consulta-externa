@@ -50,6 +50,24 @@ describe("filterMovements", () => {
   it("devuelve vacío si nada coincide", () => {
     expect(filterMovements(sample, { type: "IN", text: "ibupro" })).toEqual([]);
   });
+  it("filtra desde una fecha (inclusiva)", () => {
+    expect(filterMovements(sample, { type: "ALL", text: "", from: "2026-07-12" }).map((m) => m.id)).toEqual(["b", "c"]);
+  });
+  it("filtra hasta una fecha (inclusiva)", () => {
+    expect(filterMovements(sample, { type: "ALL", text: "", to: "2026-07-12" }).map((m) => m.id)).toEqual(["a", "c"]);
+  });
+  it("filtra por rango cerrado", () => {
+    expect(filterMovements(sample, { type: "ALL", text: "", from: "2026-07-11", to: "2026-07-14" }).map((m) => m.id)).toEqual(["c"]);
+  });
+  it("incluye un movimiento cuya fecha coincide exactamente con el límite", () => {
+    expect(filterMovements(sample, { type: "ALL", text: "", from: "2026-07-15", to: "2026-07-15" }).map((m) => m.id)).toEqual(["b"]);
+  });
+  it("trata cadenas de fecha vacías como sin límite", () => {
+    expect(filterMovements(sample, { type: "ALL", text: "", from: "", to: "" })).toHaveLength(3);
+  });
+  it("combina rango de fechas con tipo", () => {
+    expect(filterMovements(sample, { type: "OUT", text: "", from: "2026-07-11" }).map((m) => m.id)).toEqual(["b", "c"]);
+  });
 });
 
 describe("sortMovements", () => {

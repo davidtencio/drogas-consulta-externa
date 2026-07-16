@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { activeMedicines } from "../lib/inventory";
+import { lastCountByMedicine } from "../lib/movements";
 import * as dataApi from "../lib/db";
 import { useInventoryData } from "../hooks/useInventoryData";
 import { useOnline } from "../hooks/useOnline";
@@ -14,8 +15,9 @@ import { ConnectionBanner } from "./ConnectionBanner";
  * un solo envío. No ajusta el stock.
  */
 export function ArqueoScreen({ email }: { email: string }) {
-  const { medicines, pharmacists, pendingWrites } = useInventoryData(true);
+  const { medicines, pharmacists, movements, pendingWrites } = useInventoryData(true);
   const online = useOnline();
+  const lastCounts = useMemo(() => lastCountByMedicine(movements), [movements]);
 
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
   const [pharmacistEmail, setPharmacistEmail] = useState("");
@@ -85,7 +87,11 @@ export function ArqueoScreen({ email }: { email: string }) {
                 return (
                   <label className={`arqueo-row${on ? " counted" : ""}`} key={m.id}>
                     <input type="checkbox" className="arqueo-check" checked={on} onChange={() => toggle(m.id)} aria-label={`Confirmar saldo de ${m.name}`} />
-                    <div className="arqueo-med"><strong>{m.name}</strong><small>{m.strength} · {m.form}</small></div>
+                    <div className="arqueo-med">
+                      <strong>{m.name}</strong>
+                      <small>{m.strength} · {m.form}</small>
+                      <small className="arqueo-last">Últ. arqueo: {lastCounts.has(m.id) ? new Date(lastCounts.get(m.id)!).toLocaleDateString("es-CR", { day: "numeric", month: "short", year: "numeric" }) : "sin arqueos"}</small>
+                    </div>
                     <div className="arqueo-sys"><small>Sistema</small><span>{m.stock.toLocaleString("es-CR")}</span></div>
                   </label>
                 );

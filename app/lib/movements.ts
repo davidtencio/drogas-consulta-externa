@@ -68,6 +68,20 @@ export function filterAndSortMovements(
   return sortMovements(filterMovements(movements, filter), sort);
 }
 
+/**
+ * Fecha (ISO) del último conteo/arqueo por medicamento: `medicineId` → createdAt
+ * más reciente entre los movimientos de tipo "COUNT". Ignora movimientos sin id.
+ */
+export function lastCountByMedicine(movements: readonly Movement[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const m of movements) {
+    if (m.type !== "COUNT" || !m.medicineId) continue;
+    const prev = map.get(m.medicineId);
+    if (!prev || m.createdAt > prev) map.set(m.medicineId, m.createdAt);
+  }
+  return map;
+}
+
 /** Resumen agregado de un conjunto de movimientos (p. ej. un período filtrado). */
 export type MovementSummary = {
   /** Total de eventos (ingresos, egresos y conteos). */

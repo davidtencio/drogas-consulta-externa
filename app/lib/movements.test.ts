@@ -4,6 +4,7 @@ import {
   sortMovements,
   filterAndSortMovements,
   summarizeMovements,
+  lastCountByMedicine,
 } from "./movements";
 import type { Movement } from "./inventory";
 
@@ -153,5 +154,29 @@ describe("summarizeMovements", () => {
     expect(s.net).toBe(6);
     expect(s.countEvents).toBe(1);
     expect(s.medicineCount).toBe(2);
+  });
+});
+
+describe("lastCountByMedicine", () => {
+  it("toma el conteo más reciente por medicamento", () => {
+    const list = [
+      mov({ id: "1", medicineId: "a", type: "COUNT", createdAt: "2026-07-10T08:00:00.000Z" }),
+      mov({ id: "2", medicineId: "a", type: "COUNT", createdAt: "2026-07-16T09:00:00.000Z" }),
+      mov({ id: "3", medicineId: "b", type: "COUNT", createdAt: "2026-07-12T09:00:00.000Z" }),
+    ];
+    const map = lastCountByMedicine(list);
+    expect(map.get("a")).toBe("2026-07-16T09:00:00.000Z");
+    expect(map.get("b")).toBe("2026-07-12T09:00:00.000Z");
+  });
+  it("ignora ingresos y egresos (solo cuenta arqueos)", () => {
+    const list = [
+      mov({ id: "1", medicineId: "a", type: "IN", createdAt: "2026-07-16T09:00:00.000Z" }),
+      mov({ id: "2", medicineId: "a", type: "OUT", createdAt: "2026-07-16T10:00:00.000Z" }),
+    ];
+    expect(lastCountByMedicine(list).has("a")).toBe(false);
+  });
+  it("ignora conteos sin medicineId", () => {
+    const list = [mov({ id: "1", type: "COUNT", createdAt: "2026-07-16T09:00:00.000Z" })];
+    expect(lastCountByMedicine(list).size).toBe(0);
   });
 });

@@ -25,6 +25,7 @@ export type Pharmacist = {
 
 export type Movement = {
   id: string;
+  medicineId?: string;
   type: "IN" | "OUT" | "COUNT";
   quantity: number;
   medicineName: string;

@@ -2,15 +2,15 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
-import { addDoc, collection, doc, getDocs, limit, onSnapshot, orderBy, query as fbQuery, runTransaction, updateDoc } from "firebase/firestore";
+import { addDoc, collection, doc, limit, onSnapshot, orderBy, query as fbQuery, runTransaction, updateDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import { activeMedicines, displayPharmacist, expiringCount, expirySummary, expiryStatus, filterMedicines, isLowStock, lowStockCount, pharmacistNameByEmail, prepareMovement, sortByName, stockPercent, totalStock, type Medicine, type Pharmacist, type Movement } from "./lib/inventory";
-import { medicinesToCsv, movementsToCsv } from "./lib/csv";
-import { filterAndSortMovements, summarizeMovements, type MovementSort, type MovementTypeFilter } from "./lib/movements";
-import { clampPage, pageCount, pageRange, paginate } from "./lib/pagination";
+import { activeMedicines, expiringCount, expirySummary, expiryStatus, filterMedicines, isLowStock, lowStockCount, pharmacistNameByEmail, prepareMovement, sortByName, stockPercent, totalStock, type Medicine, type Pharmacist, type Movement } from "./lib/inventory";
+import { medicinesToCsv } from "./lib/csv";
+import { dateStamp, downloadTextFile } from "./lib/download";
 import { Sidebar } from "./components/Sidebar";
 import { ExpiryAlert } from "./components/ExpiryAlert";
 import { StatsBar } from "./components/StatsBar";
+import { MovementsTab } from "./components/MovementsTab";
 
 export function Login(){
   const [error,setError]=useState(""),[busy,setBusy]=useState(false);
@@ -41,13 +41,6 @@ export default function Home() {
   const [pharmacists,setPharmacists]=useState<Pharmacist[]>([]);
   const [movements,setMovements]=useState<Movement[]>([]);
   const [query,setQuery]=useState("");
-  const [movType,setMovType]=useState<MovementTypeFilter>("ALL");
-  const [movText,setMovText]=useState("");
-  const [movFrom,setMovFrom]=useState("");
-  const [movTo,setMovTo]=useState("");
-  const [movSort,setMovSort]=useState<MovementSort>("date-desc");
-  const [movPage,setMovPage]=useState(1);
-  const [movPageSize,setMovPageSize]=useState(20);
   const [modal,setModal]=useState<"movement"|"medicine"|"pharmacist"|null>(null);
   const [editing,setEditing]=useState<Medicine|Pharmacist|null>(null);
   const [notice,setNotice]=useState("");
@@ -78,20 +71,6 @@ export default function Home() {
   const total=totalStock(activeMeds), low=lowStockCount(activeMeds);
   const expiring=useMemo(()=>expiringCount(activeMeds),[activeMeds]);
   const expAlert=useMemo(()=>expirySummary(medicines),[medicines]);
-  const movFilter=useMemo(()=>({type:movType,text:movText,from:movFrom,to:movTo}),[movType,movText,movFrom,movTo]);
-  const visibleMovements=useMemo(()=>filterAndSortMovements(movements,movFilter,movSort),[movements,movFilter,movSort]);
-  const movSummary=useMemo(()=>summarizeMovements(visibleMovements),[visibleMovements]);
-  const movFiltered=movType!=="ALL"||!!movText||!!movFrom||!!movTo;
-  const clearMovFilters=useCallback(()=>{setMovType("ALL");setMovText("");setMovFrom("");setMovTo("")},[]);
-  // Al cambiar filtros, orden o tamaño de página, vuelve a la primera página.
-  // Patrón de React: ajustar el estado durante el render al detectar el cambio.
-  const movSig=`${movType}|${movText}|${movFrom}|${movTo}|${movSort}|${movPageSize}`;
-  const [prevMovSig,setPrevMovSig]=useState(movSig);
-  if(movSig!==prevMovSig){setPrevMovSig(movSig);setMovPage(1)}
-  const movPageNum=clampPage(movPage,visibleMovements.length,movPageSize);
-  const movTotalPages=pageCount(visibleMovements.length,movPageSize);
-  const pageMovements=useMemo(()=>paginate(visibleMovements,movPageNum,movPageSize),[visibleMovements,movPageNum,movPageSize]);
-  const movShown=pageRange(visibleMovements.length,movPageNum,movPageSize);
 
   const closeModal=useCallback(()=>{setModal(null);setEditing(null)},[]);
   const openCreate=useCallback((kind:"medicine"|"pharmacist"|"movement")=>{setEditing(null);setModal(kind)},[]);
@@ -99,36 +78,11 @@ export default function Home() {
 
   const flash=useCallback((msg:string)=>{setNotice(msg);setTimeout(()=>setNotice(""),4000)},[]);
 
-  // Descarga un CSV en el navegador. El BOM UTF-8 permite que Excel muestre bien los acentos.
-  const downloadCsv=useCallback((filename:string,content:string)=>{
-    const blob=new Blob(["﻿"+content],{type:"text/csv;charset=utf-8;"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;a.download=filename;a.click();
-    URL.revokeObjectURL(url);
-  },[]);
-
-  const stamp=()=>new Date().toISOString().slice(0,10);
-
   const exportMedicines=useCallback(()=>{
     if(!medicines.length){flash("No hay medicamentos para exportar");return}
-    downloadCsv(`inventario_${stamp()}.csv`,medicinesToCsv(medicines));
+    downloadTextFile(`inventario_${dateStamp()}.csv`,medicinesToCsv(medicines));
     flash("Inventario exportado");
-  },[medicines,downloadCsv,flash]);
-
-  const exportMovements=useCallback(async()=>{
-    try{
-      // La vista carga solo los más recientes; para exportar traemos el historial
-      // completo y aplicamos los mismos filtros y orden que ve el usuario.
-      const snap=await getDocs(fbQuery(collection(db,"movements"),orderBy("createdAt","desc")));
-      const all=snap.docs.map(d=>({id:d.id,...d.data()} as Movement));
-      const rows=filterAndSortMovements(all,movFilter,movSort);
-      if(!rows.length){flash("No hay movimientos que coincidan para exportar");return}
-      const range=[movFrom,movTo].filter(Boolean).join("_");
-      downloadCsv(`movimientos_${range||stamp()}.csv`,movementsToCsv(rows,email=>displayPharmacist(email,pharmacistNames)));
-      flash(`Movimientos exportados (${rows.length})`);
-    }catch{flash("No se pudo exportar los movimientos")}
-  },[downloadCsv,flash,movFilter,movSort,movFrom,movTo,pharmacistNames]);
+  },[medicines,flash]);
 
   const setActive=useCallback(async(col:"medicines"|"pharmacists",id:string,active:boolean,label:string)=>{
     if(!active&&!window.confirm(`¿Dar de baja "${label}"? Podrá reactivarlo luego.`)) return;
@@ -205,11 +159,7 @@ export default function Home() {
         {activeMeds.length?<div className="medicine-grid">{filtered.map(m=>{const pct=stockPercent(m);const status=isLowStock(m)?"low":"ok";const exp=expiryStatus(m.expiresAt);return <article className="medicine-card" key={m.id}><div className="card-head"><span className="pill-icon">✚</span><div className="badges"><span className={`badge ${status}`}>{status==="low"?"Stock bajo":"Disponible"}</span>{exp==="vencido"&&<span className="badge expired">Vencido</span>}{exp==="por-vencer"&&<span className="badge soon">Vence pronto</span>}</div></div><h2>{m.name}</h2><p>{m.strength} · {m.form}</p><div className="stock-row"><strong>{m.stock.toLocaleString("es-CR")}</strong><span>{m.unit}</span></div><div className="bar"><i className={status} style={{width:`${pct}%`}}/></div><div className="meta"><span>Lote<strong>{m.lot||"—"}</strong></span><span>Vence<strong>{m.expiresAt?new Date(m.expiresAt+"T12:00:00").toLocaleDateString("es-CR",{month:"short",year:"numeric"}):"—"}</strong></span></div><button className="card-action" onClick={()=>openCreate("movement")}>Registrar movimiento <span>→</span></button></article>})}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}
 
-      {tab==="movements"&&<div className="panel"><div className="panel-title"><div><h2>Actividad reciente</h2><p>Cada operación conserva responsable, fecha y referencia.</p></div><button className="secondary" onClick={exportMovements}>⭳ Exportar CSV</button></div>
-        <div className="mov-filters"><label className="search"><span>⌕</span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={movText} onChange={e=>setMovText(e.target.value)}/></label><label>Tipo<select aria-label="Filtrar por tipo" value={movType} onChange={e=>setMovType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option></select></label><label>Desde<input type="date" aria-label="Desde" value={movFrom} max={movTo||undefined} onChange={e=>setMovFrom(e.target.value)}/></label><label>Hasta<input type="date" aria-label="Hasta" value={movTo} min={movFrom||undefined} onChange={e=>setMovTo(e.target.value)}/></label><label>Orden<select aria-label="Ordenar" value={movSort} onChange={e=>setMovSort(e.target.value as MovementSort)}><option value="date-desc">Fecha (reciente)</option><option value="date-asc">Fecha (antiguo)</option><option value="qty-desc">Cantidad (mayor)</option><option value="qty-asc">Cantidad (menor)</option></select></label>{movFiltered&&<button type="button" className="mov-clear" onClick={clearMovFilters}>Limpiar</button>}<span className="mov-count">{visibleMovements.length} de {movements.length}</span></div>
-        <div className="mov-summary"><div><small>{movFrom||movTo?"Período":"Movimientos"}</small><strong>{movSummary.count}</strong><em>{movFrom||"inicio"} → {movTo||"hoy"}</em></div><div className="in"><small>Ingresos</small><strong>+{movSummary.inQuantity.toLocaleString("es-CR")}</strong><em>{movSummary.inCount} registros</em></div><div className="out"><small>Egresos</small><strong>−{movSummary.outQuantity.toLocaleString("es-CR")}</strong><em>{movSummary.outCount} registros</em></div><div><small>Variación neta</small><strong className={movSummary.net<0?"neg":movSummary.net>0?"pos":""}>{movSummary.net>0?"+":""}{movSummary.net.toLocaleString("es-CR")}</strong><em>{movSummary.medicineCount} medicamentos</em></div></div>
-        <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th></tr></thead><tbody>{!movements.length?<tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>:pageMovements.length?pageMovements.map(m=><tr key={m.id}><td>{new Date(m.createdAt).toLocaleString("es-CR")}</td><td><strong>{m.medicineName}</strong></td><td><span className={`type ${m.type}`}>{m.type==="IN"?"Ingreso":"Egreso"}</span></td><td>{m.quantity}</td><td>{m.prescriptionRef||"—"}</td><td>{displayPharmacist(m.pharmacistEmail,pharmacistNames)}</td></tr>):<tr><td colSpan={6} className="empty">Ningún movimiento coincide con los filtros.</td></tr>}</tbody></table></div>
-        {visibleMovements.length>0&&<div className="pager"><span className="pager-info">{movShown.start}–{movShown.end} de {visibleMovements.length}</span><label className="pager-size">Por página<select aria-label="Movimientos por página" value={movPageSize} onChange={e=>setMovPageSize(Number(e.target.value))}><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select></label><div className="pager-nav"><button onClick={()=>setMovPage(movPageNum-1)} disabled={movPageNum<=1} aria-label="Página anterior">‹</button><span>Página {movPageNum} de {movTotalPages}</span><button onClick={()=>setMovPage(movPageNum+1)} disabled={movPageNum>=movTotalPages} aria-label="Página siguiente">›</button></div></div>}</div>}
+      {tab==="movements"&&<MovementsTab movements={movements} pharmacistNames={pharmacistNames} onNotice={flash}/>}
 
       {tab==="settings"&&<div className="settings-grid">
         <div className="panel"><div className="panel-title"><div><h2>Medicamentos</h2><p>Catálogo del inventario.</p></div><button className="secondary" onClick={()=>openCreate("medicine")}>＋ Agregar</button></div>{medicines.length?medicines.map(m=>{const exp=expiryStatus(m.expiresAt);return <div className={`list-row${m.active===false?" inactive":""}`} key={m.id}><span className="mini-icon">✚</span><div><strong>{m.name}</strong><small>{m.strength} · {m.form}</small></div>{exp==="vencido"&&<span className="badge expired">Vencido</span>}{exp==="por-vencer"&&<span className="badge soon">Vence pronto</span>}<span className={`tag${m.active===false?" off":""}`}>{m.active===false?"Inactivo":"Activo"}</span><div className="row-actions"><button onClick={()=>openEdit("medicine",m)}>Editar</button>{m.active===false?<button onClick={()=>setActive("medicines",m.id,true,m.name)}>Reactivar</button>:<button className="danger" onClick={()=>setActive("medicines",m.id,false,m.name)}>Dar de baja</button>}</div></div>}):<div className="empty-block">Registre el primer medicamento del catálogo.</div>}</div>

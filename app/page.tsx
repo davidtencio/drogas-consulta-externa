@@ -39,6 +39,8 @@ export default function Home() {
   const [query,setQuery]=useState("");
   const [movType,setMovType]=useState<MovementTypeFilter>("ALL");
   const [movText,setMovText]=useState("");
+  const [movFrom,setMovFrom]=useState("");
+  const [movTo,setMovTo]=useState("");
   const [movSort,setMovSort]=useState<MovementSort>("date-desc");
   const [modal,setModal]=useState<"movement"|"medicine"|"pharmacist"|null>(null);
   const [editing,setEditing]=useState<Medicine|Pharmacist|null>(null);
@@ -66,7 +68,10 @@ export default function Home() {
   const filtered=useMemo(()=>filterMedicines(activeMeds,query),[activeMeds,query]);
   const total=totalStock(activeMeds), low=lowStockCount(activeMeds);
   const expiring=useMemo(()=>expiringCount(activeMeds),[activeMeds]);
-  const visibleMovements=useMemo(()=>filterAndSortMovements(movements,{type:movType,text:movText},movSort),[movements,movType,movText,movSort]);
+  const movFilter=useMemo(()=>({type:movType,text:movText,from:movFrom,to:movTo}),[movType,movText,movFrom,movTo]);
+  const visibleMovements=useMemo(()=>filterAndSortMovements(movements,movFilter,movSort),[movements,movFilter,movSort]);
+  const movFiltered=movType!=="ALL"||!!movText||!!movFrom||!!movTo;
+  const clearMovFilters=useCallback(()=>{setMovType("ALL");setMovText("");setMovFrom("");setMovTo("")},[]);
 
   const closeModal=useCallback(()=>{setModal(null);setEditing(null)},[]);
   const openCreate=useCallback((kind:"medicine"|"pharmacist"|"movement")=>{setEditing(null);setModal(kind)},[]);
@@ -93,14 +98,17 @@ export default function Home() {
 
   const exportMovements=useCallback(async()=>{
     try{
-      // La vista muestra solo los últimos 8; para exportar traemos el historial completo.
+      // La vista carga solo los más recientes; para exportar traemos el historial
+      // completo y aplicamos los mismos filtros y orden que ve el usuario.
       const snap=await getDocs(fbQuery(collection(db,"movements"),orderBy("createdAt","desc")));
       const all=snap.docs.map(d=>({id:d.id,...d.data()} as Movement));
-      if(!all.length){flash("No hay movimientos para exportar");return}
-      downloadCsv(`movimientos_${stamp()}.csv`,movementsToCsv(all));
-      flash(`Movimientos exportados (${all.length})`);
+      const rows=filterAndSortMovements(all,movFilter,movSort);
+      if(!rows.length){flash("No hay movimientos que coincidan para exportar");return}
+      const range=[movFrom,movTo].filter(Boolean).join("_");
+      downloadCsv(`movimientos_${range||stamp()}.csv`,movementsToCsv(rows));
+      flash(`Movimientos exportados (${rows.length})`);
     }catch{flash("No se pudo exportar los movimientos")}
-  },[downloadCsv,flash]);
+  },[downloadCsv,flash,movFilter,movSort,movFrom,movTo]);
 
   const setActive=useCallback(async(col:"medicines"|"pharmacists",id:string,active:boolean,label:string)=>{
     if(!active&&!window.confirm(`¿Dar de baja "${label}"? Podrá reactivarlo luego.`)) return;
@@ -171,7 +179,7 @@ export default function Home() {
       </>}
 
       {tab==="movements"&&<div className="panel"><div className="panel-title"><div><h2>Actividad reciente</h2><p>Cada operación conserva responsable, fecha y referencia.</p></div><button className="secondary" onClick={exportMovements}>⭳ Exportar CSV</button></div>
-        <div className="mov-filters"><label className="search"><span>⌕</span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={movText} onChange={e=>setMovText(e.target.value)}/></label><label>Tipo<select aria-label="Filtrar por tipo" value={movType} onChange={e=>setMovType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option></select></label><label>Orden<select aria-label="Ordenar" value={movSort} onChange={e=>setMovSort(e.target.value as MovementSort)}><option value="date-desc">Fecha (reciente)</option><option value="date-asc">Fecha (antiguo)</option><option value="qty-desc">Cantidad (mayor)</option><option value="qty-asc">Cantidad (menor)</option></select></label><span className="mov-count">{visibleMovements.length} de {movements.length}</span></div>
+        <div className="mov-filters"><label className="search"><span>⌕</span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={movText} onChange={e=>setMovText(e.target.value)}/></label><label>Tipo<select aria-label="Filtrar por tipo" value={movType} onChange={e=>setMovType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option></select></label><label>Desde<input type="date" aria-label="Desde" value={movFrom} max={movTo||undefined} onChange={e=>setMovFrom(e.target.value)}/></label><label>Hasta<input type="date" aria-label="Hasta" value={movTo} min={movFrom||undefined} onChange={e=>setMovTo(e.target.value)}/></label><label>Orden<select aria-label="Ordenar" value={movSort} onChange={e=>setMovSort(e.target.value as MovementSort)}><option value="date-desc">Fecha (reciente)</option><option value="date-asc">Fecha (antiguo)</option><option value="qty-desc">Cantidad (mayor)</option><option value="qty-asc">Cantidad (menor)</option></select></label>{movFiltered&&<button type="button" className="mov-clear" onClick={clearMovFilters}>Limpiar</button>}<span className="mov-count">{visibleMovements.length} de {movements.length}</span></div>
         <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th></tr></thead><tbody>{!movements.length?<tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>:visibleMovements.length?visibleMovements.map(m=><tr key={m.id}><td>{new Date(m.createdAt).toLocaleString("es-CR")}</td><td><strong>{m.medicineName}</strong></td><td><span className={`type ${m.type}`}>{m.type==="IN"?"Ingreso":"Egreso"}</span></td><td>{m.quantity}</td><td>{m.prescriptionRef||"—"}</td><td>{m.pharmacistEmail}</td></tr>):<tr><td colSpan={6} className="empty">Ningún movimiento coincide con los filtros.</td></tr>}</tbody></table></div></div>}
 
       {tab==="settings"&&<div className="settings-grid">

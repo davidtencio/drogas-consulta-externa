@@ -12,7 +12,8 @@ const pharm: Pharmacist = { id: "p1", name: "Ana Rojas", email: "ana@h.cr", lice
 
 function base(over: Partial<Parameters<typeof Modals>[0]> = {}) {
   return {
-    modal: "movement" as const, editing: null, activeMeds: [med], activePharmacists: [pharm],
+    state: { kind: "movement" } as Parameters<typeof Modals>[0]["state"],
+    activeMeds: [med], activePharmacists: [pharm],
     busy: false, onClose: vi.fn(), onSubmit: vi.fn((e) => e.preventDefault()), ...over,
   };
 }
@@ -32,13 +33,13 @@ describe("Modals", () => {
   });
 
   it("medicamento en edición: título 'Editar' y precarga el nombre", () => {
-    render(<Modals {...base({ modal: "medicine", editing: med })} />);
+    render(<Modals {...base({ state: { kind: "medicine", editing: med } })} />);
     expect(screen.getByText("Editar medicamento")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Metformina")).toBeInTheDocument();
   });
 
   it("envía el formulario con la acción correspondiente", async () => {
-    const props = base({ modal: "pharmacist" });
+    const props = base({ state: { kind: "pharmacist", editing: null } });
     render(<Modals {...props} />);
     await userEvent.type(screen.getByLabelText("Nombre completo"), "Luis");
     await userEvent.type(screen.getByLabelText("Correo institucional"), "luis@h.cr");

@@ -1,9 +1,9 @@
 import type { FormEvent } from "react";
-import type { Medicine, Pharmacist } from "../lib/inventory";
+import type { Medicine, MovementType, Pharmacist } from "../lib/inventory";
 
 /** Estado del diálogo abierto (unión discriminada, sin casts). */
 export type ModalState =
-  | { kind: "movement" }
+  | { kind: "movement"; medicineId?: string; type?: MovementType }
   | { kind: "medicine"; editing: Medicine | null }
   | { kind: "pharmacist"; editing: Pharmacist | null };
 
@@ -31,12 +31,12 @@ export function Modals({ state, activeMeds, activePharmacists, busy, onClose, on
         <button className="close" onClick={onClose} aria-label="Cerrar">×</button>
 
         {state.kind === "movement" && <>
-          <h2>Registrar movimiento</h2>
+          <h2>{state.type === "IN" ? "Registrar ingreso" : state.type === "OUT" ? "Registrar egreso" : "Registrar movimiento"}</h2>
           <p>Actualice existencias con trazabilidad completa.</p>
           <form onSubmit={(e) => onSubmit(e, "movement")}>
-            <label>Medicamento<select name="medicineId" required>{activeMeds.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength} — {m.stock} disp.</option>)}</select></label>
+            <label>Medicamento<select name="medicineId" required defaultValue={state.medicineId ?? ""}>{state.medicineId ? null : <option value="" disabled>Seleccione…</option>}{activeMeds.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength} — {m.stock} disp.</option>)}</select></label>
             <div className="form-row">
-              <label>Tipo<select name="type"><option value="OUT">Egreso</option><option value="IN">Ingreso</option></select></label>
+              <label>Tipo<select name="type" defaultValue={state.type ?? "OUT"}><option value="OUT">Egreso</option><option value="IN">Ingreso</option></select></label>
               <label>Cantidad<input name="quantity" type="number" min="1" required /></label>
             </div>
             <label>Referencia de prescripción<input name="prescriptionRef" placeholder="Ej. RX-2026-00481" /></label>

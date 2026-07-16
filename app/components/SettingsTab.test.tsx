@@ -17,6 +17,7 @@ function setup(over: Partial<Parameters<typeof SettingsTab>[0]> = {}) {
     onCreate: vi.fn(),
     onEdit: vi.fn(),
     onSetActive: vi.fn(),
+    onMovement: vi.fn(),
     ...over,
   };
   render(<SettingsTab {...props} />);
@@ -40,6 +41,18 @@ describe("SettingsTab", () => {
     const { onEdit } = setup();
     await userEvent.click(screen.getAllByText("Editar")[0]);
     expect(onEdit).toHaveBeenCalledWith("medicine", medicine);
+  });
+
+  it("registra un ingreso del medicamento activo", async () => {
+    const { onMovement } = setup();
+    await userEvent.click(screen.getByText("Ingreso"));
+    expect(onMovement).toHaveBeenCalledWith("med1", "IN");
+  });
+
+  it("no muestra acciones de movimiento en medicamentos inactivos", () => {
+    setup({ medicines: [{ ...medicine, active: false }] });
+    expect(screen.queryByText("Ingreso")).not.toBeInTheDocument();
+    expect(screen.queryByText("Egreso")).not.toBeInTheDocument();
   });
 
   it("da de baja con active=false", async () => {

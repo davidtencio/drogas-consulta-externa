@@ -26,6 +26,13 @@ describe("Modals", () => {
     expect(screen.getByRole("option", { name: "Ana Rojas — CF-1" })).toBeInTheDocument();
   });
 
+  it("movimiento con preajuste: título de ingreso y medicamento/tipo preseleccionados", () => {
+    render(<Modals {...base({ state: { kind: "movement", medicineId: "m1", type: "IN" } })} />);
+    expect(screen.getByText("Registrar ingreso")).toBeInTheDocument();
+    expect((screen.getByLabelText("Medicamento") as HTMLSelectElement).value).toBe("m1");
+    expect((screen.getByLabelText("Tipo") as HTMLSelectElement).value).toBe("IN");
+  });
+
   it("movimiento sin farmacéuticos: deshabilita y avisa", () => {
     render(<Modals {...base({ activePharmacists: [] })} />);
     expect(screen.getByText(/Registre un farmacéutico autorizado/)).toBeInTheDocument();

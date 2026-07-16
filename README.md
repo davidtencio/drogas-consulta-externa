@@ -60,8 +60,9 @@ la interfaz.
 
 - `medicines` — catálogo con existencias, stock mínimo, lote y vencimiento.
 - `pharmacists` — personal autorizado.
-- `movements` — bitácora inmutable de ingresos/egresos; cada movimiento ajusta
-  el stock del medicamento dentro de una transacción.
+- `movements` — bitácora inmutable de ingresos/egresos (ajustan el stock dentro
+  de una transacción) y de **conteos físicos / arqueos** (registran físico vs.
+  sistema y la diferencia como evidencia, sin alterar existencias).
 
 ## Seguridad
 

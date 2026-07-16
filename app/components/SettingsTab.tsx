@@ -7,10 +7,11 @@ type Props = {
   onEdit: (kind: "medicine" | "pharmacist", item: Medicine | Pharmacist) => void;
   onSetActive: (col: "medicines" | "pharmacists", id: string, active: boolean, label: string) => void;
   onMovement: (medicineId: string, type: MovementType) => void;
+  onCount: (medicineId: string) => void;
 };
 
 /** Pestaña de Configuración: catálogo de medicamentos y farmacéuticos autorizados. */
-export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetActive, onMovement }: Props) {
+export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetActive, onMovement, onCount }: Props) {
   return (
     <div className="settings-grid">
       <div className="panel">
@@ -31,6 +32,7 @@ export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetAct
                 {m.active !== false && <>
                   <button onClick={() => onMovement(m.id, "IN")}>Ingreso</button>
                   <button onClick={() => onMovement(m.id, "OUT")}>Egreso</button>
+                  <button onClick={() => onCount(m.id)}>Conteo</button>
                 </>}
                 <button onClick={() => onEdit("medicine", m)}>Editar</button>
                 {m.active === false

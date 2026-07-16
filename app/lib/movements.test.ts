@@ -133,10 +133,25 @@ describe("summarizeMovements", () => {
       count: 0,
       inCount: 0,
       outCount: 0,
+      countEvents: 0,
       inQuantity: 0,
       outQuantity: 0,
       net: 0,
       medicineCount: 0,
     });
+  });
+  it("los conteos no afectan el flujo (in/out/neto) pero se cuentan aparte", () => {
+    const list = [
+      mov({ id: "a", type: "IN", quantity: 10 }),
+      mov({ id: "b", type: "OUT", quantity: 4 }),
+      mov({ id: "c", type: "COUNT", quantity: 999, medicineName: "Ibuprofeno" }),
+    ];
+    const s = summarizeMovements(list);
+    expect(s.count).toBe(3);
+    expect(s.inQuantity).toBe(10);
+    expect(s.outQuantity).toBe(4);
+    expect(s.net).toBe(6);
+    expect(s.countEvents).toBe(1);
+    expect(s.medicineCount).toBe(2);
   });
 });

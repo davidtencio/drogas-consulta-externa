@@ -88,11 +88,20 @@ describe("movementsToCsv", () => {
       mov({ type: "OUT", quantity: 3 }),
     ]);
     const lines = csv.split("\r\n");
-    expect(lines[0]).toBe("Fecha,Medicamento,Tipo,Cantidad,Prescripción,Responsable");
+    expect(lines[0]).toBe("Fecha,Medicamento,Tipo,Cantidad,Sistema,Diferencia,Prescripción,Nota,Responsable");
+    // Ingreso/egreso dejan vacías las columnas de conteo (Sistema/Diferencia/Nota).
     expect(lines[1]).toBe(
-      "2026-07-16T10:00:00.000Z,Metformina,Ingreso,10,RX-1,farma@hospital.cr"
+      "2026-07-16T10:00:00.000Z,Metformina,Ingreso,10,,,RX-1,,farma@hospital.cr"
     );
     expect(lines[2]).toContain(",Egreso,");
+  });
+
+  it("incluye la evidencia del conteo (sistema, diferencia, nota)", () => {
+    const csv = movementsToCsv([
+      mov({ type: "COUNT", quantity: 8, systemQuantity: 10, difference: -2, note: "faltante", prescriptionRef: "" }),
+    ]);
+    const row = csv.split("\r\n")[1];
+    expect(row).toBe("2026-07-16T10:00:00.000Z,Metformina,Conteo,8,10,-2,,faltante,farma@hospital.cr");
   });
   it("por defecto muestra el correo del responsable", () => {
     const row = movementsToCsv([mov({ pharmacistEmail: "ana@hospital.cr" })]).split("\r\n")[1];

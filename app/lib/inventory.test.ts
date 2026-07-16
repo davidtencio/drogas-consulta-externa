@@ -10,9 +10,11 @@ import {
   filterMedicines,
   isActive,
   isLowStock,
+  isValidCount,
   isValidQuantity,
   lowStockCount,
   nextStock,
+  prepareCount,
   prepareMovement,
   sortByName,
   stockPercent,
@@ -252,6 +254,47 @@ describe("prepareMovement", () => {
       input({ type: "IN", quantity: 1, prescriptionRef: "" })
     );
     expect(result.record.prescriptionRef).toBe("");
+  });
+});
+
+describe("isValidCount", () => {
+  it("acepta enteros de 0 o más", () => {
+    expect(isValidCount(0)).toBe(true);
+    expect(isValidCount(37)).toBe(true);
+  });
+  it("rechaza negativos, decimales y NaN", () => {
+    expect(isValidCount(-1)).toBe(false);
+    expect(isValidCount(2.5)).toBe(false);
+    expect(isValidCount(NaN)).toBe(false);
+  });
+});
+
+describe("prepareCount", () => {
+  const base = { medicineId: "med-1", note: "", pharmacistEmail: "ana@h.cr", createdAt: "2026-07-16T10:00:00.000Z" };
+
+  it("registra el conteo con sistema, físico y diferencia (sin ajustar stock)", () => {
+    const rec = prepareCount({ name: "Metformina", stock: 100 }, { ...base, countedQuantity: 95 });
+    expect(rec.type).toBe("COUNT");
+    expect(rec.medicineName).toBe("Metformina");
+    expect(rec.quantity).toBe(95);        // físico
+    expect(rec.systemQuantity).toBe(100);  // sistema al momento
+    expect(rec.difference).toBe(-5);       // faltante
+  });
+  it("diferencia positiva cuando el físico supera al sistema", () => {
+    const rec = prepareCount({ name: "X", stock: 10 }, { ...base, countedQuantity: 12 });
+    expect(rec.difference).toBe(2);
+  });
+  it("permite contar 0 (existencia agotada)", () => {
+    const rec = prepareCount({ name: "X", stock: 4 }, { ...base, countedQuantity: 0 });
+    expect(rec.quantity).toBe(0);
+    expect(rec.difference).toBe(-4);
+  });
+  it("conserva la nota de justificación", () => {
+    const rec = prepareCount({ name: "X", stock: 5 }, { ...base, countedQuantity: 5, note: "arqueo diario" });
+    expect(rec.note).toBe("arqueo diario");
+  });
+  it("rechaza una cantidad contada inválida", () => {
+    expect(() => prepareCount({ name: "X", stock: 5 }, { ...base, countedQuantity: -1 })).toThrow(/entero/);
   });
 });
 

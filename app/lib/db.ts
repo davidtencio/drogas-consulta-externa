@@ -3,7 +3,7 @@
 
 import { addDoc, collection, doc, runTransaction, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
-import { prepareMovement, type MovementType } from "./inventory";
+import { prepareCount, prepareMovement, type MovementType } from "./inventory";
 
 export type MedicineFields = {
   name: string;
@@ -81,4 +81,29 @@ export function registerMovement(req: MovementRequest): Promise<void> {
     tx.update(ref, { stock: nextStock });
     tx.set(doc(collection(db, "movements")), record);
   });
+}
+
+export type CountRequest = {
+  medicine: { name: string; stock: number };
+  medicineId: string;
+  countedQuantity: number;
+  note: string;
+  pharmacistEmail: string;
+  now: string;
+};
+
+/**
+ * Registra un conteo físico (arqueo) como evidencia en la bitácora. No usa
+ * transacción ni ajusta el stock, por lo que también funciona sin conexión
+ * (se encola y sincroniza al reconectar).
+ */
+export function registerCount(req: CountRequest): Promise<unknown> {
+  const record = prepareCount(req.medicine, {
+    medicineId: req.medicineId,
+    countedQuantity: req.countedQuantity,
+    note: req.note,
+    pharmacistEmail: req.pharmacistEmail,
+    createdAt: req.now,
+  });
+  return addDoc(collection(db, "movements"), record);
 }

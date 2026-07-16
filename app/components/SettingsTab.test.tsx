@@ -18,6 +18,7 @@ function setup(over: Partial<Parameters<typeof SettingsTab>[0]> = {}) {
     onEdit: vi.fn(),
     onSetActive: vi.fn(),
     onMovement: vi.fn(),
+    onCount: vi.fn(),
     ...over,
   };
   render(<SettingsTab {...props} />);
@@ -47,6 +48,12 @@ describe("SettingsTab", () => {
     const { onMovement } = setup();
     await userEvent.click(screen.getByText("Ingreso"));
     expect(onMovement).toHaveBeenCalledWith("med1", "IN");
+  });
+
+  it("abre el conteo del medicamento activo", async () => {
+    const { onCount } = setup();
+    await userEvent.click(screen.getByText("Conteo"));
+    expect(onCount).toHaveBeenCalledWith("med1");
   });
 
   it("no muestra acciones de movimiento en medicamentos inactivos", () => {

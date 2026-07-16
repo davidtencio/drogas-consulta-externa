@@ -62,7 +62,7 @@ export function MovementsTab({ movements, pharmacistNames, onNotice }: Props) {
       </div>
       <div className="mov-filters">
         <label className="search"><span>⌕</span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={text} onChange={(e) => setText(e.target.value)} /></label>
-        <label>Tipo<select aria-label="Filtrar por tipo" value={type} onChange={(e) => setType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option></select></label>
+        <label>Tipo<select aria-label="Filtrar por tipo" value={type} onChange={(e) => setType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option><option value="COUNT">Conteos</option></select></label>
         <label>Desde<input type="date" aria-label="Desde" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label>
         <label>Hasta<input type="date" aria-label="Hasta" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>
         <label>Orden<select aria-label="Ordenar" value={sort} onChange={(e) => setSort(e.target.value as MovementSort)}><option value="date-desc">Fecha (reciente)</option><option value="date-asc">Fecha (antiguo)</option><option value="qty-desc">Cantidad (mayor)</option><option value="qty-asc">Cantidad (menor)</option></select></label>
@@ -74,6 +74,7 @@ export function MovementsTab({ movements, pharmacistNames, onNotice }: Props) {
         <div className="in"><small>Ingresos</small><strong>+{summary.inQuantity.toLocaleString("es-CR")}</strong><em>{summary.inCount} registros</em></div>
         <div className="out"><small>Egresos</small><strong>−{summary.outQuantity.toLocaleString("es-CR")}</strong><em>{summary.outCount} registros</em></div>
         <div><small>Variación neta</small><strong className={summary.net < 0 ? "neg" : summary.net > 0 ? "pos" : ""}>{summary.net > 0 ? "+" : ""}{summary.net.toLocaleString("es-CR")}</strong><em>{summary.medicineCount} medicamentos</em></div>
+        <div><small>Conteos</small><strong>{summary.countEvents}</strong><em>arqueos</em></div>
       </div>
       <div className="table-wrap">
         <table>
@@ -84,9 +85,9 @@ export function MovementsTab({ movements, pharmacistNames, onNotice }: Props) {
                 <tr key={m.id}>
                   <td>{new Date(m.createdAt).toLocaleString("es-CR")}</td>
                   <td><strong>{m.medicineName}</strong></td>
-                  <td><span className={`type ${m.type}`}>{m.type === "IN" ? "Ingreso" : "Egreso"}</span></td>
-                  <td>{m.quantity}</td>
-                  <td>{m.prescriptionRef || "—"}</td>
+                  <td><span className={`type ${m.type}`}>{m.type === "IN" ? "Ingreso" : m.type === "OUT" ? "Egreso" : "Conteo"}</span></td>
+                  <td>{m.quantity}{m.type === "COUNT" && <small className="cell-sub">sist. {m.systemQuantity} · {m.difference === 0 ? "sin dif." : m.difference != null && m.difference > 0 ? `+${m.difference}` : m.difference}</small>}</td>
+                  <td>{(m.type === "COUNT" ? m.note : m.prescriptionRef) || "—"}</td>
                   <td>{resolveName(m.pharmacistEmail)}</td>
                 </tr>
               )) : <tr><td colSpan={6} className="empty">Ningún movimiento coincide con los filtros.</td></tr>}

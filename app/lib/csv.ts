@@ -53,14 +53,22 @@ const MOVEMENT_HEADERS = [
   "Medicamento",
   "Tipo",
   "Cantidad",
+  "Sistema",
+  "Diferencia",
   "Prescripción",
+  "Nota",
   "Responsable",
 ] as const;
 
+/** Etiqueta legible del tipo de movimiento. */
+function movementTypeLabel(type: Movement["type"]): string {
+  return type === "IN" ? "Ingreso" : type === "OUT" ? "Egreso" : "Conteo";
+}
+
 /**
- * CSV de la bitácora de movimientos (ingresos/egresos). `resolvePharmacist`
- * permite mostrar el nombre del responsable en vez del correo; por defecto usa
- * el correo tal cual.
+ * CSV de la bitácora de movimientos (ingresos/egresos/conteos). Las columnas
+ * Sistema/Diferencia/Nota solo aplican a los conteos físicos. `resolvePharmacist`
+ * permite mostrar el nombre del responsable en vez del correo.
  */
 export function movementsToCsv(
   movements: readonly Movement[],
@@ -71,9 +79,12 @@ export function movementsToCsv(
     rows.push([
       mv.createdAt,
       mv.medicineName,
-      mv.type === "IN" ? "Ingreso" : "Egreso",
+      movementTypeLabel(mv.type),
       mv.quantity,
+      mv.type === "COUNT" ? mv.systemQuantity ?? "" : "",
+      mv.type === "COUNT" ? mv.difference ?? "" : "",
       mv.prescriptionRef,
+      mv.note ?? "",
       resolvePharmacist(mv.pharmacistEmail),
     ]);
   }

@@ -25,14 +25,20 @@ export type Pharmacist = {
 
 export type Movement = {
   id: string;
-  type: "IN" | "OUT";
+  type: "IN" | "OUT" | "COUNT";
   quantity: number;
   medicineName: string;
   prescriptionRef: string;
   pharmacistEmail: string;
   createdAt: string;
+  // Solo para conteos físicos (arqueo): cantidad en sistema al momento,
+  // diferencia (contado − sistema) y nota/justificación.
+  systemQuantity?: number;
+  difference?: number;
+  note?: string;
 };
 
+/** Tipos de operación que ajustan existencias (ingreso/egreso). */
 export type MovementType = "IN" | "OUT";
 
 /** Un registro se considera activo salvo que `active` sea explícitamente false. */
@@ -153,6 +159,59 @@ export function prepareMovement(
       pharmacistEmail: input.pharmacistEmail,
       createdAt: input.createdAt,
     },
+  };
+}
+
+// --- Conteo físico (arqueo) ------------------------------------------------
+
+export type CountInput = {
+  medicineId: string;
+  countedQuantity: number;
+  note: string;
+  pharmacistEmail: string;
+  createdAt: string;
+};
+
+/** La cantidad contada en un arqueo debe ser un entero de 0 o más. */
+export function isValidCount(quantity: number): boolean {
+  return Number.isInteger(quantity) && quantity >= 0;
+}
+
+/** Registro de bitácora de un conteo físico (no altera existencias). */
+export type CountRecord = {
+  medicineId: string;
+  medicineName: string;
+  type: "COUNT";
+  quantity: number;
+  systemQuantity: number;
+  difference: number;
+  note: string;
+  prescriptionRef: string;
+  pharmacistEmail: string;
+  createdAt: string;
+};
+
+/**
+ * Prepara el registro de un conteo físico: guarda la cantidad contada (físico),
+ * la del sistema al momento y su diferencia (contado − sistema) como evidencia.
+ * NO ajusta el stock. Lanza un Error si la cantidad contada es inválida.
+ */
+export function prepareCount(medicine: MovementMedicine, input: CountInput): CountRecord {
+  if (!isValidCount(input.countedQuantity)) {
+    throw new Error("La cantidad contada debe ser un número entero (0 o más).");
+  }
+  const systemQuantity = Number(medicine.stock) || 0;
+  return {
+    medicineId: input.medicineId,
+    medicineName: medicine.name,
+    type: "COUNT",
+    quantity: input.countedQuantity,
+    systemQuantity,
+    difference: input.countedQuantity - systemQuantity,
+    note: input.note,
+    prescriptionRef: "",
+    pharmacistEmail: input.pharmacistEmail,
+    createdAt: input.createdAt,
   };
 }
 

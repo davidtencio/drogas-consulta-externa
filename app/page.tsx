@@ -17,6 +17,10 @@ import { MovementsTab } from "./components/MovementsTab";
 import { MedicineCard } from "./components/MedicineCard";
 import { SettingsTab } from "./components/SettingsTab";
 import { Modals, type ModalState } from "./components/Modals";
+import { CountModal } from "./components/CountModal";
+
+/** Estado de modal de la app: los diálogos de Modals más el conteo físico. */
+type AppModal = ModalState | { kind: "count"; medicineId: string };
 
 const trimmed=(form:FormData,k:string)=>String(form.get(k)||"").trim();
 
@@ -54,6 +58,16 @@ async function saveMovement(form:FormData, now:string){
   await dataApi.registerMovement({medicineId,type,quantity,prescriptionRef:trimmed(form,"prescriptionRef"),pharmacistEmail,now});
 }
 
+/** Registra un conteo físico (arqueo) del medicamento indicado; no ajusta stock. */
+async function saveCount(form:FormData, now:string, medicine:Medicine|undefined){
+  if(!medicine) throw new Error("Medicamento no disponible.");
+  const countedQuantity=Number(form.get("countedQuantity"));
+  const pharmacistEmail=trimmed(form,"pharmacistEmail");
+  if(!Number.isInteger(countedQuantity)||countedQuantity<0) throw new Error("La cantidad contada debe ser un número entero (0 o más).");
+  if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable.");
+  await dataApi.registerCount({medicine:{name:medicine.name,stock:medicine.stock},medicineId:medicine.id,countedQuantity,note:trimmed(form,"note"),pharmacistEmail,now});
+}
+
 export function Login(){
   const [error,setError]=useState(""),[busy,setBusy]=useState(false);
   async function google(){
@@ -80,7 +94,7 @@ export default function Home() {
   const [authReady,setAuthReady]=useState(false);
   const [tab,setTab]=useState<"dashboard"|"movements"|"settings">("dashboard");
   const [query,setQuery]=useState("");
-  const [modal,setModal]=useState<ModalState|null>(null);
+  const [modal,setModal]=useState<AppModal|null>(null);
   const [notice,setNotice]=useState("");
   const [busy,setBusy]=useState(false);
   const [alertDismissed,setAlertDismissed]=useState(false);
@@ -107,6 +121,7 @@ export default function Home() {
     setModal(kind==="medicine"?{kind:"medicine",editing:item as Medicine}:{kind:"pharmacist",editing:item as Pharmacist});
   },[]);
   const openMovement=useCallback((medicineId?:string,type?:MovementType)=>{setModal({kind:"movement",medicineId,type})},[]);
+  const openCount=useCallback((medicineId:string)=>{setModal({kind:"count",medicineId})},[]);
 
   const flash=useCallback((msg:string)=>{setNotice(msg);setTimeout(()=>setNotice(""),4000)},[]);
 
@@ -130,10 +145,11 @@ export default function Home() {
       if(action==="medicine") await saveMedicine(form,now,modal?.kind==="medicine"?modal.editing:null);
       else if(action==="pharmacist") await savePharmacist(form,now,modal?.kind==="pharmacist"?modal.editing:null);
       else if(action==="movement") await saveMovement(form,now);
-      flash("Registro guardado correctamente");closeModal();
+      else if(action==="count") await saveCount(form,now,modal?.kind==="count"?medicines.find(m=>m.id===modal.medicineId):undefined);
+      flash(action==="count"?"Conteo registrado correctamente":"Registro guardado correctamente");closeModal();
     }catch(err){flash(err instanceof Error?err.message:"No se pudo guardar")}
     finally{setBusy(false)}
-  },[modal,flash,closeModal]);
+  },[modal,medicines,flash,closeModal]);
 
   if(!authReady) return <div className="auth-screen"><div className="auth-loading">Cargando…</div></div>;
   if(!user) return <Login/>;
@@ -148,15 +164,17 @@ export default function Home() {
       {tab==="dashboard"&&<>
         <StatsBar total={total} low={low} expiring={expiring} recent={Math.min(movements.length,8)}/>
         <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar por medicamento o concentración..." value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="toolbar-end"><span>{filtered.length} medicamentos</span><button className="secondary" onClick={exportMedicines} disabled={!medicines.length}>⭳ Exportar CSV</button></div></div>
-        {activeMeds.length?<div className="medicine-grid">{filtered.map(m=><MedicineCard key={m.id} medicine={m} onMovement={type=>openMovement(m.id,type)}/>)}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
+        {activeMeds.length?<div className="medicine-grid">{filtered.map(m=><MedicineCard key={m.id} medicine={m} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)}/>)}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}
 
       {tab==="movements"&&<MovementsTab movements={movements} pharmacistNames={pharmacistNames} onNotice={flash}/>}
 
-      {tab==="settings"&&<SettingsTab medicines={medicines} pharmacists={pharmacists} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement}/>}
+      {tab==="settings"&&<SettingsTab medicines={medicines} pharmacists={pharmacists} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount}/>}
     </section>
 
     {notice&&<div className="toast" role="status">{notice}</div>}
-    {modal&&<Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} online={online} onClose={closeModal} onSubmit={submit}/>}
+    {modal&&(modal.kind==="count"
+      ? <CountModal medicine={medicines.find(m=>m.id===modal.medicineId)} activePharmacists={activePharmacists} busy={busy} onClose={closeModal} onSubmit={submit}/>
+      : <Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} online={online} onClose={closeModal} onSubmit={submit}/>)}
   </main>;
 }

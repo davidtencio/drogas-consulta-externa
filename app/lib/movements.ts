@@ -1,10 +1,10 @@
 // Filtro y orden de movimientos: lógica pura (sin React ni Firestore) para que
 // la vista de Movimientos pueda combinarlos y sea fácil de probar.
 
-import type { Movement, MovementType } from "./inventory";
+import type { Movement } from "./inventory";
 
-/** Filtro por tipo: todos, solo ingresos o solo egresos. */
-export type MovementTypeFilter = "ALL" | MovementType;
+/** Filtro por tipo: todos, ingresos, egresos o conteos. */
+export type MovementTypeFilter = "ALL" | "IN" | "OUT" | "COUNT";
 
 export type MovementFilter = {
   type: MovementTypeFilter;
@@ -70,29 +70,33 @@ export function filterAndSortMovements(
 
 /** Resumen agregado de un conjunto de movimientos (p. ej. un período filtrado). */
 export type MovementSummary = {
-  /** Total de movimientos. */
+  /** Total de eventos (ingresos, egresos y conteos). */
   count: number;
   /** Número de ingresos y de egresos. */
   inCount: number;
   outCount: number;
+  /** Número de conteos físicos (arqueos). */
+  countEvents: number;
   /** Unidades sumadas por ingresos y por egresos. */
   inQuantity: number;
   outQuantity: number;
-  /** Variación neta de existencias (ingresos − egresos). */
+  /** Variación neta de existencias (ingresos − egresos). Los conteos no afectan. */
   net: number;
   /** Medicamentos distintos con movimientos. */
   medicineCount: number;
 };
 
 /**
- * Agrega conteos y cantidades de una lista de movimientos. Ignora cantidades
- * no numéricas (las trata como 0). No asume ningún orden ni filtrado previo.
+ * Agrega conteos y cantidades de una lista de movimientos. Los conteos físicos
+ * (type "COUNT") no afectan las sumas de flujo (ingresos/egresos/neto); solo se
+ * cuentan aparte. Ignora cantidades no numéricas (las trata como 0).
  */
 export function summarizeMovements(movements: readonly Movement[]): MovementSummary {
   const summary: MovementSummary = {
     count: 0,
     inCount: 0,
     outCount: 0,
+    countEvents: 0,
     inQuantity: 0,
     outQuantity: 0,
     net: 0,
@@ -106,9 +110,11 @@ export function summarizeMovements(movements: readonly Movement[]): MovementSumm
     if (m.type === "IN") {
       summary.inCount++;
       summary.inQuantity += qty;
-    } else {
+    } else if (m.type === "OUT") {
       summary.outCount++;
       summary.outQuantity += qty;
+    } else {
+      summary.countEvents++;
     }
   }
   summary.net = summary.inQuantity - summary.outQuantity;

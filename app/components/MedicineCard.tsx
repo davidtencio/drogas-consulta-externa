@@ -3,10 +3,11 @@ import { expiryStatus, isLowStock, stockPercent, type Medicine, type MovementTyp
 type Props = {
   medicine: Medicine;
   onMovement: (type: MovementType) => void;
+  onCount: () => void;
 };
 
 /** Tarjeta de un medicamento en el dashboard, con estado de stock y vencimiento. */
-export function MedicineCard({ medicine: m, onMovement }: Props) {
+export function MedicineCard({ medicine: m, onMovement, onCount }: Props) {
   const pct = stockPercent(m);
   const status = isLowStock(m) ? "low" : "ok";
   const exp = expiryStatus(m.expiresAt);
@@ -31,6 +32,7 @@ export function MedicineCard({ medicine: m, onMovement }: Props) {
       <div className="card-actions">
         <button className="card-action in" onClick={() => onMovement("IN")}>＋ Ingreso</button>
         <button className="card-action out" onClick={() => onMovement("OUT")}>− Egreso</button>
+        <button className="card-action count" onClick={onCount}>≡ Conteo</button>
       </div>
     </article>
   );

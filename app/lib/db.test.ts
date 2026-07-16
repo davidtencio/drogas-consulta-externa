@@ -65,3 +65,13 @@ describe("registerMovement", () => {
     expect(runTransaction).toHaveBeenCalledOnce();
   });
 });
+
+describe("registerCount", () => {
+  it("agrega un conteo sin transacción (funciona offline) con la evidencia", async () => {
+    await dbApi.registerCount({ medicine: { name: "Metformina", stock: 100 }, medicineId: "m1", countedQuantity: 95, note: "faltante", pharmacistEmail: "ana@h.cr", now: "2026-07-16T10:00:00.000Z" });
+    expect(runTransaction).not.toHaveBeenCalled();
+    expect(addDoc).toHaveBeenCalledTimes(1);
+    const rec = addDoc.mock.calls[0][1] as Record<string, unknown>;
+    expect(rec).toMatchObject({ type: "COUNT", quantity: 95, systemQuantity: 100, difference: -5, note: "faltante", medicineName: "Metformina" });
+  });
+});

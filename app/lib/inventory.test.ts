@@ -8,9 +8,11 @@ import {
   expiryStatus,
   pharmacistNameByEmail,
   filterMedicines,
+  formatMedicineCode,
   isActive,
   isLowStock,
   isValidCount,
+  isValidMedicineCode,
   isValidQuantity,
   lowStockCount,
   nextStock,
@@ -411,5 +413,33 @@ describe("pharmacistNameByEmail / displayPharmacist", () => {
   it("con correo vacío devuelve cadena vacía", () => {
     const map = pharmacistNameByEmail(pharmacists);
     expect(displayPharmacist("", map)).toBe("");
+  });
+});
+
+describe("formatMedicineCode", () => {
+  it("formatea dígitos a 000-00-0000", () => {
+    expect(formatMedicineCode("1234567890")).toBe("123-45-6789");
+    expect(formatMedicineCode("123456789")).toBe("123-45-6789");
+  });
+  it("formatea parcialmente mientras se escribe", () => {
+    expect(formatMedicineCode("12")).toBe("12");
+    expect(formatMedicineCode("1234")).toBe("123-4");
+    expect(formatMedicineCode("12345")).toBe("123-45");
+    expect(formatMedicineCode("123456")).toBe("123-45-6");
+  });
+  it("ignora caracteres no numéricos", () => {
+    expect(formatMedicineCode("abc123-45-6789xyz")).toBe("123-45-6789");
+  });
+});
+
+describe("isValidMedicineCode", () => {
+  it("acepta el formato exacto 000-00-0000", () => {
+    expect(isValidMedicineCode("123-45-6789")).toBe(true);
+  });
+  it("rechaza formatos incorrectos", () => {
+    expect(isValidMedicineCode("12345-6789")).toBe(false);
+    expect(isValidMedicineCode("123-4-6789")).toBe(false);
+    expect(isValidMedicineCode("123-45-678")).toBe(false);
+    expect(isValidMedicineCode("")).toBe(false);
   });
 });

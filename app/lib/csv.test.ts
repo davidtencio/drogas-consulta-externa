@@ -59,12 +59,12 @@ describe("toCsv", () => {
 
 describe("medicinesToCsv", () => {
   it("incluye encabezados y una fila por medicamento", () => {
-    const csv = medicinesToCsv([med({ name: "Metformina", stock: 100 })]);
+    const csv = medicinesToCsv([med({ name: "Metformina", stock: 100, code: "123-45-6789" })]);
     const lines = csv.split("\r\n");
     expect(lines[0]).toBe(
-      "Nombre,Concentración,Forma,Existencias,Stock mínimo,Unidad,Lote,Vence,Estado"
+      "Código,Nombre,Concentración,Forma,Existencias,Stock mínimo,Unidad,Lote,Vence,Estado"
     );
-    expect(lines[1]).toBe("Metformina,500 mg,Tableta,100,20,unidades,L1,2027-01-01,Activo");
+    expect(lines[1]).toBe("123-45-6789,Metformina,500 mg,Tableta,100,20,unidades,L1,2027-01-01,Activo");
     expect(lines).toHaveLength(2);
   });
   it("marca los inactivos y escapa nombres con coma", () => {

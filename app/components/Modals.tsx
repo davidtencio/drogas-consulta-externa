@@ -1,5 +1,5 @@
-import type { FormEvent } from "react";
-import type { Medicine, MovementType, Pharmacist } from "../lib/inventory";
+import { useState, type FormEvent } from "react";
+import { formatMedicineCode, type Medicine, type MovementType, type Pharmacist } from "../lib/inventory";
 
 /** Estado del diálogo abierto (unión discriminada, sin casts). */
 export type ModalState =
@@ -22,6 +22,7 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, onC
   const em = state.kind === "medicine" ? state.editing : null;
   const ep = state.kind === "pharmacist" ? state.editing : null;
   const editing = em ?? ep;
+  const [code, setCode] = useState(em?.code || "");
   const pharmacistOptions = activePharmacists.map((p) => (
     <option key={p.id} value={p.email}>{p.name} — {p.license}</option>
   ));
@@ -52,7 +53,10 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, onC
           <h2>{editing ? "Editar medicamento" : "Agregar medicamento"}</h2>
           <p>{editing ? "Las existencias solo cambian mediante movimientos." : "Defina la presentación y niveles de control."}</p>
           <form onSubmit={(e) => onSubmit(e, "medicine")}>
-            <label>Nombre<input name="name" required placeholder="Ej. Metformina" defaultValue={em?.name || ""} /></label>
+            <div className="form-row">
+              <label>Nombre<input name="name" required placeholder="Ej. Metformina" defaultValue={em?.name || ""} /></label>
+              <label>Código<input name="code" inputMode="numeric" placeholder="000-00-0000" value={code} onChange={(e) => setCode(formatMedicineCode(e.target.value))} /></label>
+            </div>
             <div className="form-row">
               <label>Concentración<input name="strength" required placeholder="500 mg" defaultValue={em?.strength || ""} /></label>
               <label>Forma<input name="form" placeholder="Tableta" defaultValue={em?.form || ""} /></label>

@@ -10,6 +10,8 @@ export type MovementFilter = {
   type: MovementTypeFilter;
   /** Texto libre; coincide en medicamento o referencia de prescripción. */
   text: string;
+  /** Filtra a un medicamento concreto por su id (vacío = todos). */
+  medicineId?: string;
   /** Fecha inicial `YYYY-MM-DD` inclusiva (vacío = sin límite inferior). */
   from?: string;
   /** Fecha final `YYYY-MM-DD` inclusiva (vacío = sin límite superior). */
@@ -19,19 +21,21 @@ export type MovementFilter = {
 export type MovementSort = "date-desc" | "date-asc" | "qty-desc" | "qty-asc";
 
 /**
- * Filtra por tipo, texto (sin distinguir mayúsculas) y rango de fechas. El
- * rango compara la fecha (UTC) del movimiento —los primeros 10 caracteres de
- * `createdAt`, en formato ISO `YYYY-MM-DD…`— con los límites, ambos inclusivos.
+ * Filtra por tipo, medicamento, texto (sin distinguir mayúsculas) y rango de
+ * fechas. El rango compara la fecha (UTC) del movimiento —los primeros 10
+ * caracteres de `createdAt`, ISO `YYYY-MM-DD…`— con los límites, inclusivos.
  */
 export function filterMovements(
   movements: readonly Movement[],
   filter: MovementFilter
 ): Movement[] {
   const q = filter.text.trim().toLowerCase();
+  const medicineId = filter.medicineId?.trim() || "";
   const from = filter.from?.trim() || "";
   const to = filter.to?.trim() || "";
   return movements.filter((m) => {
     if (filter.type !== "ALL" && m.type !== filter.type) return false;
+    if (medicineId && m.medicineId !== medicineId) return false;
     const day = m.createdAt.slice(0, 10);
     if (from && day < from) return false;
     if (to && day > to) return false;

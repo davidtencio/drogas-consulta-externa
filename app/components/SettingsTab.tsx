@@ -24,7 +24,7 @@ export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetAct
           return (
             <div className={`list-row${m.active === false ? " inactive" : ""}`} key={m.id}>
               <span className="mini-icon">✚</span>
-              <div><strong>{m.name}</strong><small>{m.strength} · {m.form}</small></div>
+              <div><strong>{m.name}</strong><small>{m.strength} · {m.form}{m.code ? ` · ${m.code}` : ""}</small></div>
               {exp === "vencido" && <span className="badge expired">Vencido</span>}
               {exp === "por-vencer" && <span className="badge soon">Vence pronto</span>}
               <span className={`tag${m.active === false ? " off" : ""}`}>{m.active === false ? "Inactivo" : "Activo"}</span>

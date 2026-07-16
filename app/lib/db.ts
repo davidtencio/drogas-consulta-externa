@@ -12,6 +12,7 @@ export type MedicineFields = {
   minimumStock: number;
   lot: string;
   expiresAt: string;
+  code: string;
 };
 
 export type PharmacistFields = { name: string; email: string; license: string };

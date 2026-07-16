@@ -42,7 +42,11 @@ next-env.d.ts
 /work/
 
 # claude code tooling
-/.claude/
+/.claude/*
+# ...pero versionar el hook de arranque para las sesiones web/móvil
+!/.claude/settings.json
+!/.claude/hooks/
+!/.claude/hooks/*
 
 # firebase
 .firebase/

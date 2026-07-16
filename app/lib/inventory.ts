@@ -103,3 +103,55 @@ export function nextStock(
   if (next < 0) throw new Error("Existencias insuficientes.");
   return next;
 }
+
+/** Datos del medicamento afectado, leídos dentro de la transacción. */
+export type MovementMedicine = { name: string; stock: number };
+
+export type MovementInput = {
+  medicineId: string;
+  type: MovementType;
+  quantity: number;
+  prescriptionRef: string;
+  pharmacistEmail: string;
+  createdAt: string;
+};
+
+/** El nuevo stock del medicamento y el registro de bitácora a persistir. */
+export type PreparedMovement = {
+  nextStock: number;
+  record: {
+    medicineId: string;
+    medicineName: string;
+    type: MovementType;
+    quantity: number;
+    prescriptionRef: string;
+    pharmacistEmail: string;
+    createdAt: string;
+  };
+};
+
+/**
+ * Prepara el registro de un movimiento (ingreso/egreso): valida la cantidad,
+ * calcula las existencias resultantes y arma el documento de bitácora. Es pura,
+ * no toca Firestore; la transacción real solo persiste lo que devuelve.
+ * Lanza un Error con mensaje para el usuario si la cantidad es inválida o las
+ * existencias son insuficientes.
+ */
+export function prepareMovement(
+  medicine: MovementMedicine,
+  input: MovementInput
+): PreparedMovement {
+  if (!isValidQuantity(input.quantity)) throw new Error("Cantidad inválida.");
+  return {
+    nextStock: nextStock(medicine.stock, input.type, input.quantity),
+    record: {
+      medicineId: input.medicineId,
+      medicineName: medicine.name,
+      type: input.type,
+      quantity: input.quantity,
+      prescriptionRef: input.prescriptionRef,
+      pharmacistEmail: input.pharmacistEmail,
+      createdAt: input.createdAt,
+    },
+  };
+}

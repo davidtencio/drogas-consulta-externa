@@ -7,10 +7,12 @@ import {
   isValidQuantity,
   lowStockCount,
   nextStock,
+  prepareMovement,
   sortByName,
   stockPercent,
   totalStock,
   type Medicine,
+  type MovementInput,
 } from "./inventory";
 
 // Fábrica de medicamentos con valores por defecto sensatos para cada test.
@@ -165,5 +167,84 @@ describe("nextStock", () => {
   });
   it("trata un stock actual no numérico como 0", () => {
     expect(nextStock(NaN, "IN", 5)).toBe(5);
+  });
+});
+
+describe("prepareMovement", () => {
+  // Entrada base para el registro de un movimiento; se sobreescribe por test.
+  function input(overrides: Partial<MovementInput> = {}): MovementInput {
+    return {
+      medicineId: "med-1",
+      type: "OUT",
+      quantity: 5,
+      prescriptionRef: "RX-2026-00481",
+      pharmacistEmail: "farma@hospital.cr",
+      createdAt: "2026-07-16T10:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  it("registra un egreso: descuenta stock y arma la bitácora", () => {
+    const result = prepareMovement(
+      { name: "Metformina", stock: 100 },
+      input({ type: "OUT", quantity: 30 })
+    );
+    expect(result.nextStock).toBe(70);
+    expect(result.record).toEqual({
+      medicineId: "med-1",
+      medicineName: "Metformina",
+      type: "OUT",
+      quantity: 30,
+      prescriptionRef: "RX-2026-00481",
+      pharmacistEmail: "farma@hospital.cr",
+      createdAt: "2026-07-16T10:00:00.000Z",
+    });
+  });
+
+  it("registra un ingreso sumando al stock", () => {
+    const result = prepareMovement(
+      { name: "Amoxicilina", stock: 40 },
+      input({ type: "IN", quantity: 60 })
+    );
+    expect(result.nextStock).toBe(100);
+    expect(result.record.type).toBe("IN");
+    expect(result.record.medicineName).toBe("Amoxicilina");
+  });
+
+  it("toma el nombre del medicamento leído, no de la entrada", () => {
+    const result = prepareMovement(
+      { name: "Nombre Real", stock: 10 },
+      input({ type: "IN", quantity: 1 })
+    );
+    expect(result.record.medicineName).toBe("Nombre Real");
+  });
+
+  it("permite un egreso que deja el stock exactamente en cero", () => {
+    const result = prepareMovement(
+      { name: "Ibuprofeno", stock: 5 },
+      input({ type: "OUT", quantity: 5 })
+    );
+    expect(result.nextStock).toBe(0);
+  });
+
+  it("rechaza un egreso mayor a las existencias", () => {
+    expect(() =>
+      prepareMovement({ name: "X", stock: 3 }, input({ type: "OUT", quantity: 4 }))
+    ).toThrow("Existencias insuficientes.");
+  });
+
+  it("rechaza cantidades no válidas (cero, negativas, decimales)", () => {
+    const med = { name: "X", stock: 100 };
+    expect(() => prepareMovement(med, input({ quantity: 0 }))).toThrow("Cantidad inválida.");
+    expect(() => prepareMovement(med, input({ quantity: -2 }))).toThrow("Cantidad inválida.");
+    expect(() => prepareMovement(med, input({ quantity: 1.5 }))).toThrow("Cantidad inválida.");
+  });
+
+  it("conserva una referencia de prescripción vacía tal cual", () => {
+    const result = prepareMovement(
+      { name: "X", stock: 10 },
+      input({ type: "IN", quantity: 1, prescriptionRef: "" })
+    );
+    expect(result.record.prescriptionRef).toBe("");
   });
 });

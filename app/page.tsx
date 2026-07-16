@@ -8,7 +8,9 @@ import { medicinesToCsv } from "./lib/csv";
 import { dateStamp, downloadTextFile } from "./lib/download";
 import * as dataApi from "./lib/db";
 import { useInventoryData } from "./hooks/useInventoryData";
+import { useOnline } from "./hooks/useOnline";
 import { Sidebar } from "./components/Sidebar";
+import { ConnectionBanner } from "./components/ConnectionBanner";
 import { ExpiryAlert } from "./components/ExpiryAlert";
 import { StatsBar } from "./components/StatsBar";
 import { MovementsTab } from "./components/MovementsTab";
@@ -85,7 +87,8 @@ export default function Home() {
 
   useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setAuthReady(true)}),[]);
 
-  const {medicines,pharmacists,movements}=useInventoryData(!!user);
+  const {medicines,pharmacists,movements,pendingWrites}=useInventoryData(!!user);
+  const online=useOnline();
 
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
   const activeMeds=useMemo(()=>activeMedicines(medicines),[medicines]);
@@ -138,6 +141,7 @@ export default function Home() {
   return <main className="app-shell">
     <Sidebar email={user.email||""} tab={tab} onTab={setTab} onSignOut={()=>void signOut(auth)}/>
     <section className="content">
+      <ConnectionBanner online={online} pendingWrites={pendingWrites}/>
       {!alertDismissed&&<ExpiryAlert summary={expAlert} showViewButton={tab!=="dashboard"} onView={()=>{setTab("dashboard");setAlertDismissed(true)}} onDismiss={()=>setAlertDismissed(true)}/>}
       <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Vista actualizada de las existencias disponibles.":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openMovement()} disabled={!activeMeds.length}>＋ Registrar movimiento</button>}</header>
 
@@ -153,6 +157,6 @@ export default function Home() {
     </section>
 
     {notice&&<div className="toast" role="status">{notice}</div>}
-    {modal&&<Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} onClose={closeModal} onSubmit={submit}/>}
+    {modal&&<Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} online={online} onClose={closeModal} onSubmit={submit}/>}
   </main>;
 }

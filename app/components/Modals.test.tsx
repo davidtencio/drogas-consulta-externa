@@ -1,0 +1,57 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { Modals } from "./Modals";
+import type { Medicine, Pharmacist } from "../lib/inventory";
+
+const med: Medicine = {
+  id: "m1", name: "Metformina", strength: "500 mg", form: "Tableta", unit: "unidades",
+  stock: 50, minimumStock: 10, lot: "L1", expiresAt: "2099-01-01", active: true,
+};
+const pharm: Pharmacist = { id: "p1", name: "Ana Rojas", email: "ana@h.cr", license: "CF-1", active: true };
+
+function base(over: Partial<Parameters<typeof Modals>[0]> = {}) {
+  return {
+    modal: "movement" as const, editing: null, activeMeds: [med], activePharmacists: [pharm],
+    busy: false, onClose: vi.fn(), onSubmit: vi.fn((e) => e.preventDefault()), ...over,
+  };
+}
+
+describe("Modals", () => {
+  it("movimiento: muestra título y selector de responsable", () => {
+    render(<Modals {...base()} />);
+    expect(screen.getByText("Registrar movimiento")).toBeInTheDocument();
+    expect(screen.getByText("Farmacéutico responsable")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Ana Rojas — CF-1" })).toBeInTheDocument();
+  });
+
+  it("movimiento sin farmacéuticos: deshabilita y avisa", () => {
+    render(<Modals {...base({ activePharmacists: [] })} />);
+    expect(screen.getByText(/Registre un farmacéutico autorizado/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirmar movimiento" })).toBeDisabled();
+  });
+
+  it("medicamento en edición: título 'Editar' y precarga el nombre", () => {
+    render(<Modals {...base({ modal: "medicine", editing: med })} />);
+    expect(screen.getByText("Editar medicamento")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Metformina")).toBeInTheDocument();
+  });
+
+  it("envía el formulario con la acción correspondiente", async () => {
+    const props = base({ modal: "pharmacist" });
+    render(<Modals {...props} />);
+    await userEvent.type(screen.getByLabelText("Nombre completo"), "Luis");
+    await userEvent.type(screen.getByLabelText("Correo institucional"), "luis@h.cr");
+    await userEvent.type(screen.getByLabelText("Código profesional"), "CF-9");
+    await userEvent.click(screen.getByRole("button", { name: "Autorizar usuario" }));
+    expect(props.onSubmit).toHaveBeenCalled();
+    expect(props.onSubmit.mock.calls[0][1]).toBe("pharmacist");
+  });
+
+  it("cierra al pulsar la X", async () => {
+    const props = base();
+    render(<Modals {...props} />);
+    await userEvent.click(screen.getByLabelText("Cerrar"));
+    expect(props.onClose).toHaveBeenCalledOnce();
+  });
+});

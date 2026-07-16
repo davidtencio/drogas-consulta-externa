@@ -1,0 +1,60 @@
+import { expiryStatus, type Medicine, type Pharmacist } from "../lib/inventory";
+
+type Props = {
+  medicines: Medicine[];
+  pharmacists: Pharmacist[];
+  onCreate: (kind: "medicine" | "pharmacist") => void;
+  onEdit: (kind: "medicine" | "pharmacist", item: Medicine | Pharmacist) => void;
+  onSetActive: (col: "medicines" | "pharmacists", id: string, active: boolean, label: string) => void;
+};
+
+/** Pestaña de Configuración: catálogo de medicamentos y farmacéuticos autorizados. */
+export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetActive }: Props) {
+  return (
+    <div className="settings-grid">
+      <div className="panel">
+        <div className="panel-title">
+          <div><h2>Medicamentos</h2><p>Catálogo del inventario.</p></div>
+          <button className="secondary" onClick={() => onCreate("medicine")}>＋ Agregar</button>
+        </div>
+        {medicines.length ? medicines.map((m) => {
+          const exp = expiryStatus(m.expiresAt);
+          return (
+            <div className={`list-row${m.active === false ? " inactive" : ""}`} key={m.id}>
+              <span className="mini-icon">✚</span>
+              <div><strong>{m.name}</strong><small>{m.strength} · {m.form}</small></div>
+              {exp === "vencido" && <span className="badge expired">Vencido</span>}
+              {exp === "por-vencer" && <span className="badge soon">Vence pronto</span>}
+              <span className={`tag${m.active === false ? " off" : ""}`}>{m.active === false ? "Inactivo" : "Activo"}</span>
+              <div className="row-actions">
+                <button onClick={() => onEdit("medicine", m)}>Editar</button>
+                {m.active === false
+                  ? <button onClick={() => onSetActive("medicines", m.id, true, m.name)}>Reactivar</button>
+                  : <button className="danger" onClick={() => onSetActive("medicines", m.id, false, m.name)}>Dar de baja</button>}
+              </div>
+            </div>
+          );
+        }) : <div className="empty-block">Registre el primer medicamento del catálogo.</div>}
+      </div>
+      <div className="panel">
+        <div className="panel-title">
+          <div><h2>Farmacéuticos autorizados</h2><p>Usuarios habilitados para operar.</p></div>
+          <button className="secondary" onClick={() => onCreate("pharmacist")}>＋ Agregar</button>
+        </div>
+        {pharmacists.length ? pharmacists.map((p) => (
+          <div className={`list-row${p.active === false ? " inactive" : ""}`} key={p.id}>
+            <span className="mini-icon person">{p.name.slice(0, 2).toUpperCase()}</span>
+            <div><strong>{p.name}</strong><small>{p.email} · {p.license}</small></div>
+            <span className={`tag${p.active === false ? " off" : ""}`}>{p.active === false ? "Inactivo" : "Activo"}</span>
+            <div className="row-actions">
+              <button onClick={() => onEdit("pharmacist", p)}>Editar</button>
+              {p.active === false
+                ? <button onClick={() => onSetActive("pharmacists", p.id, true, p.name)}>Reactivar</button>
+                : <button className="danger" onClick={() => onSetActive("pharmacists", p.id, false, p.name)}>Dar de baja</button>}
+            </div>
+          </div>
+        )) : <div className="empty-block">Registre al primer farmacéutico autorizado.</div>}
+      </div>
+    </div>
+  );
+}

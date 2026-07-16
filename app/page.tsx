@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
 import { addDoc, collection, doc, limit, onSnapshot, orderBy, query as fbQuery, runTransaction, updateDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import { activeMedicines, filterMedicines, isLowStock, isValidQuantity, lowStockCount, nextStock, sortByName, stockPercent, totalStock, type Medicine, type Pharmacist, type Movement } from "./lib/inventory";
+import { activeMedicines, filterMedicines, isLowStock, lowStockCount, prepareMovement, sortByName, stockPercent, totalStock, type Medicine, type Pharmacist, type Movement } from "./lib/inventory";
 
 export function Login(){
   const [error,setError]=useState(""),[busy,setBusy]=useState(false);
@@ -94,15 +94,15 @@ export default function Home() {
         const medicineId=g("medicineId");
         const quantity=Number(form.get("quantity"));
         const type=form.get("type")==="IN"?"IN":"OUT";
-        if(!medicineId||!isValidQuantity(quantity)) throw new Error("Cantidad inválida.");
+        if(!medicineId) throw new Error("Cantidad inválida.");
         await runTransaction(db,async tx=>{
           const ref=doc(db,"medicines",medicineId);
           const snap=await tx.get(ref);
           if(!snap.exists()) throw new Error("Medicamento no disponible.");
           const data=snap.data();
-          const next=nextStock(Number(data.stock)||0,type,quantity);
+          const {nextStock:next,record}=prepareMovement({name:data.name,stock:Number(data.stock)||0},{medicineId,type,quantity,prescriptionRef:g("prescriptionRef"),pharmacistEmail:user?.email||"",createdAt:now});
           tx.update(ref,{stock:next});
-          tx.set(doc(collection(db,"movements")),{medicineId,medicineName:data.name,type,quantity,prescriptionRef:g("prescriptionRef"),pharmacistEmail:user?.email||"",createdAt:now});
+          tx.set(doc(collection(db,"movements")),record);
         });
       }
       flash("Registro guardado correctamente");closeModal();

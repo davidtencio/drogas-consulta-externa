@@ -8,6 +8,9 @@ import { activeMedicines, displayPharmacist, expiringCount, expirySummary, expir
 import { medicinesToCsv, movementsToCsv } from "./lib/csv";
 import { filterAndSortMovements, summarizeMovements, type MovementSort, type MovementTypeFilter } from "./lib/movements";
 import { clampPage, pageCount, pageRange, paginate } from "./lib/pagination";
+import { Sidebar } from "./components/Sidebar";
+import { ExpiryAlert } from "./components/ExpiryAlert";
+import { StatsBar } from "./components/StatsBar";
 
 export function Login(){
   const [error,setError]=useState(""),[busy,setBusy]=useState(false);
@@ -191,27 +194,13 @@ export default function Home() {
   const em=editing as Medicine|null, ep=editing as Pharmacist|null;
 
   return <main className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">Rx</span><div><strong>Control de Drogas</strong><small>Consulta externa</small></div></div>
-      <nav aria-label="Navegación principal">
-        <button className={tab==="dashboard"?"active":""} onClick={()=>setTab("dashboard")}><span>▦</span> Inventario</button>
-        <button className={tab==="movements"?"active":""} onClick={()=>setTab("movements")}><span>⇄</span> Movimientos</button>
-        <button className={tab==="settings"?"active":""} onClick={()=>setTab("settings")}><span>⚙</span> Configuración</button>
-      </nav>
-      <div className="secure"><span>✓</span><div><strong>Conexión protegida</strong><small>Datos cifrados en tránsito y reposo</small></div></div>
-      <div className="profile"><div className="avatar">{(user.email||"?").slice(0,2).toUpperCase()}</div><div><strong>{user.email}</strong><small>Sesión autorizada</small></div><button className="logout" onClick={()=>void signOut(auth)} aria-label="Cerrar sesión" title="Cerrar sesión">⎋</button></div>
-    </aside>
+    <Sidebar email={user.email||""} tab={tab} onTab={setTab} onSignOut={()=>void signOut(auth)}/>
     <section className="content">
-      {!alertDismissed&&(expAlert.expired>0||expAlert.soon>0)&&<div className={`expiry-alert${expAlert.expired>0?" danger":""}`} role="alert">
-        <span className="ico">{expAlert.expired>0?"⚠":"⏱"}</span>
-        <div className="msg"><strong>{expAlert.expired>0&&expAlert.soon>0?`${expAlert.expired} vencido${expAlert.expired>1?"s":""} y ${expAlert.soon} por vencer`:expAlert.expired>0?`${expAlert.expired} medicamento${expAlert.expired>1?"s":""} vencido${expAlert.expired>1?"s":""}`:`${expAlert.soon} medicamento${expAlert.soon>1?"s":""} por vencer`}</strong><small>Revise el inventario para gestionarlos a tiempo.</small></div>
-        {tab!=="dashboard"&&<button className="alert-action" onClick={()=>{setTab("dashboard");setAlertDismissed(true)}}>Ver inventario</button>}
-        <button className="alert-close" onClick={()=>setAlertDismissed(true)} aria-label="Descartar aviso">×</button>
-      </div>}
+      {!alertDismissed&&<ExpiryAlert summary={expAlert} showViewButton={tab!=="dashboard"} onView={()=>{setTab("dashboard");setAlertDismissed(true)}} onDismiss={()=>setAlertDismissed(true)}/>}
       <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Vista actualizada de las existencias disponibles.":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openCreate("movement")} disabled={!activeMeds.length}>＋ Registrar movimiento</button>}</header>
 
       {tab==="dashboard"&&<>
-        <div className="stats"><article><span className="stat-icon blue">▤</span><div><small>Existencias totales</small><strong>{total.toLocaleString("es-CR")}</strong><em>unidades disponibles</em></div></article><article><span className="stat-icon amber">!</span><div><small>Stock bajo</small><strong>{low}</strong><em>requieren atención</em></div></article><article><span className="stat-icon red">⏱</span><div><small>Próximos a vencer</small><strong>{expiring}</strong><em>vencidos o &le;30 días</em></div></article><article><span className="stat-icon green">⇄</span><div><small>Movimientos recientes</small><strong>{Math.min(movements.length,8)}</strong><em>últimos registros</em></div></article></div>
+        <StatsBar total={total} low={low} expiring={expiring} recent={Math.min(movements.length,8)}/>
         <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar por medicamento o concentración..." value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="toolbar-end"><span>{filtered.length} medicamentos</span><button className="secondary" onClick={exportMedicines} disabled={!medicines.length}>⭳ Exportar CSV</button></div></div>
         {activeMeds.length?<div className="medicine-grid">{filtered.map(m=>{const pct=stockPercent(m);const status=isLowStock(m)?"low":"ok";const exp=expiryStatus(m.expiresAt);return <article className="medicine-card" key={m.id}><div className="card-head"><span className="pill-icon">✚</span><div className="badges"><span className={`badge ${status}`}>{status==="low"?"Stock bajo":"Disponible"}</span>{exp==="vencido"&&<span className="badge expired">Vencido</span>}{exp==="por-vencer"&&<span className="badge soon">Vence pronto</span>}</div></div><h2>{m.name}</h2><p>{m.strength} · {m.form}</p><div className="stock-row"><strong>{m.stock.toLocaleString("es-CR")}</strong><span>{m.unit}</span></div><div className="bar"><i className={status} style={{width:`${pct}%`}}/></div><div className="meta"><span>Lote<strong>{m.lot||"—"}</strong></span><span>Vence<strong>{m.expiresAt?new Date(m.expiresAt+"T12:00:00").toLocaleDateString("es-CR",{month:"short",year:"numeric"}):"—"}</strong></span></div><button className="card-action" onClick={()=>openCreate("movement")}>Registrar movimiento <span>→</span></button></article>})}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}

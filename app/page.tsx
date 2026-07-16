@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
-import { addDoc, collection, doc, limit, onSnapshot, orderBy, query, runTransaction } from "firebase/firestore";
+import { addDoc, collection, doc, limit, onSnapshot, orderBy, query as fbQuery, runTransaction } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
 type Medicine = { id:string; name:string; strength:string; form:string; unit:string; stock:number; minimumStock:number; lot:string; expiresAt:string };
@@ -37,7 +37,7 @@ export default function Home() {
   const [medicines,setMedicines]=useState<Medicine[]>([]);
   const [pharmacists,setPharmacists]=useState<Pharmacist[]>([]);
   const [movements,setMovements]=useState<Movement[]>([]);
-  const [query_,setQuery]=useState("");
+  const [query,setQuery]=useState("");
   const [modal,setModal]=useState<"movement"|"medicine"|"pharmacist"|null>(null);
   const [notice,setNotice]=useState("");
   const [busy,setBusy]=useState(false);
@@ -47,19 +47,19 @@ export default function Home() {
   useEffect(()=>{
     if(!user) return;
     const unsubMed=onSnapshot(collection(db,"medicines"),s=>setMedicines(
-      s.docs.map(d=>({id:d.id,...d.data()} as Medicine)).filter(m=>(m as unknown as {active?:boolean}).active!==false).sort((a,b)=>a.name.localeCompare(b.name))
+      s.docs.map(d=>({id:d.id,...d.data()} as Medicine & {active?:boolean})).filter(m=>m.active!==false).sort((a,b)=>a.name.localeCompare(b.name))
     ));
     const unsubPh=onSnapshot(collection(db,"pharmacists"),s=>setPharmacists(
       s.docs.map(d=>({id:d.id,...d.data()} as Pharmacist)).sort((a,b)=>a.name.localeCompare(b.name))
     ));
-    const unsubMov=onSnapshot(query(collection(db,"movements"),orderBy("createdAt","desc"),limit(8)),s=>setMovements(
+    const unsubMov=onSnapshot(fbQuery(collection(db,"movements"),orderBy("createdAt","desc"),limit(8)),s=>setMovements(
       s.docs.map(d=>({id:d.id,...d.data()} as Movement))
     ));
     return()=>{unsubMed();unsubPh();unsubMov()};
   },[user]);
 
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
-  const filtered=useMemo(()=>medicines.filter(m=>`${m.name} ${m.strength}`.toLowerCase().includes(query_.toLowerCase())),[medicines,query_]);
+  const filtered=useMemo(()=>medicines.filter(m=>`${m.name} ${m.strength}`.toLowerCase().includes(query.toLowerCase())),[medicines,query]);
   const total=medicines.reduce((a,m)=>a+m.stock,0), low=medicines.filter(m=>m.stock<=m.minimumStock).length;
 
   const submit=useCallback(async(e:FormEvent<HTMLFormElement>, action:string)=>{
@@ -117,7 +117,7 @@ export default function Home() {
 
       {tab==="dashboard"&&<>
         <div className="stats"><article><span className="stat-icon blue">▤</span><div><small>Existencias totales</small><strong>{total.toLocaleString("es-CR")}</strong><em>unidades disponibles</em></div></article><article><span className="stat-icon amber">!</span><div><small>Stock bajo</small><strong>{low}</strong><em>requieren atención</em></div></article><article><span className="stat-icon green">⇄</span><div><small>Movimientos recientes</small><strong>{movements.length}</strong><em>últimos registros</em></div></article></div>
-        <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar por medicamento o concentración..." value={query_} onChange={e=>setQuery(e.target.value)}/></label><span>{filtered.length} medicamentos</span></div>
+        <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar por medicamento o concentración..." value={query} onChange={e=>setQuery(e.target.value)}/></label><span>{filtered.length} medicamentos</span></div>
         {medicines.length?<div className="medicine-grid">{filtered.map(m=>{const pct=Math.min(100,Math.round(m.stock/Math.max(m.minimumStock*2,1)*100));const status=m.stock<=m.minimumStock?"low":"ok";return <article className="medicine-card" key={m.id}><div className="card-head"><span className="pill-icon">✚</span><span className={`badge ${status}`}>{status==="low"?"Stock bajo":"Disponible"}</span></div><h2>{m.name}</h2><p>{m.strength} · {m.form}</p><div className="stock-row"><strong>{m.stock.toLocaleString("es-CR")}</strong><span>{m.unit}</span></div><div className="bar"><i className={status} style={{width:`${pct}%`}}/></div><div className="meta"><span>Lote<strong>{m.lot||"—"}</strong></span><span>Vence<strong>{m.expiresAt?new Date(m.expiresAt+"T12:00:00").toLocaleDateString("es-CR",{month:"short",year:"numeric"}):"—"}</strong></span></div><button className="card-action" onClick={()=>setModal("movement")}>Registrar movimiento <span>→</span></button></article>})}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos registrados. Agréguelos en Configuración.</div></div>}
       </>}
 

@@ -14,7 +14,7 @@ function base(over: Partial<Parameters<typeof Modals>[0]> = {}) {
   return {
     state: { kind: "movement" } as Parameters<typeof Modals>[0]["state"],
     activeMeds: [med], activePharmacists: [pharm],
-    busy: false, onClose: vi.fn(), onSubmit: vi.fn((e) => e.preventDefault()), ...over,
+    busy: false, online: true, onClose: vi.fn(), onSubmit: vi.fn((e) => e.preventDefault()), ...over,
   };
 }
 
@@ -36,6 +36,12 @@ describe("Modals", () => {
   it("movimiento sin farmacéuticos: deshabilita y avisa", () => {
     render(<Modals {...base({ activePharmacists: [] })} />);
     expect(screen.getByText(/Registre un farmacéutico autorizado/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirmar movimiento" })).toBeDisabled();
+  });
+
+  it("movimiento sin conexión: deshabilita y avisa", () => {
+    render(<Modals {...base({ online: false })} />);
+    expect(screen.getByText(/Sin conexión: el registro de movimientos/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Confirmar movimiento" })).toBeDisabled();
   });
 

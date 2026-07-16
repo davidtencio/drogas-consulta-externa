@@ -12,12 +12,13 @@ type Props = {
   activeMeds: Medicine[];
   activePharmacists: Pharmacist[];
   busy: boolean;
+  online: boolean;
   onClose: () => void;
   onSubmit: (e: FormEvent<HTMLFormElement>, action: string) => void;
 };
 
 /** Diálogos de registro/edición de movimiento, medicamento y farmacéutico. */
-export function Modals({ state, activeMeds, activePharmacists, busy, onClose, onSubmit }: Props) {
+export function Modals({ state, activeMeds, activePharmacists, busy, online, onClose, onSubmit }: Props) {
   const em = state.kind === "medicine" ? state.editing : null;
   const ep = state.kind === "pharmacist" ? state.editing : null;
   const editing = em ?? ep;
@@ -42,7 +43,8 @@ export function Modals({ state, activeMeds, activePharmacists, busy, onClose, on
             <label>Referencia de prescripción<input name="prescriptionRef" placeholder="Ej. RX-2026-00481" /></label>
             <label>Farmacéutico responsable<select name="pharmacistEmail" required defaultValue=""><option value="" disabled>Seleccione…</option>{pharmacistOptions}</select></label>
             {!activePharmacists.length && <small className="form-hint">Registre un farmacéutico autorizado en Configuración para poder continuar.</small>}
-            <button className="primary full" disabled={busy || !activePharmacists.length}>{busy ? "Guardando..." : "Confirmar movimiento"}</button>
+            {!online && <small className="form-hint">Sin conexión: el registro de movimientos requiere conexión. Se habilitará al reconectar.</small>}
+            <button className="primary full" disabled={busy || !activePharmacists.length || !online}>{busy ? "Guardando..." : "Confirmar movimiento"}</button>
           </form>
         </>}
 

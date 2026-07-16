@@ -12,8 +12,21 @@ export type Medicine = {
   minimumStock: number;
   lot: string;
   expiresAt: string;
+  /** Código del medicamento en formato 000-00-0000 (opcional). */
+  code?: string;
   active?: boolean;
 };
+
+/** Da formato al código del medicamento a `000-00-0000` a partir de los dígitos. */
+export function formatMedicineCode(value: string): string {
+  const d = value.replace(/\D/g, "").slice(0, 9);
+  return [d.slice(0, 3), d.slice(3, 5), d.slice(5, 9)].filter((p) => p !== "").join("-");
+}
+
+/** Valida que el código tenga exactamente el formato `000-00-0000`. */
+export function isValidMedicineCode(code: string): boolean {
+  return /^\d{3}-\d{2}-\d{4}$/.test(code);
+}
 
 export type Pharmacist = {
   id: string;

@@ -18,6 +18,7 @@ export function toCsv(rows: readonly (readonly unknown[])[]): string {
 }
 
 const MEDICINE_HEADERS = [
+  "Código",
   "Nombre",
   "Concentración",
   "Forma",
@@ -34,6 +35,7 @@ export function medicinesToCsv(medicines: readonly Medicine[]): string {
   const rows: unknown[][] = [ [...MEDICINE_HEADERS] ];
   for (const m of medicines) {
     rows.push([
+      m.code ?? "",
       m.name,
       m.strength,
       m.form,

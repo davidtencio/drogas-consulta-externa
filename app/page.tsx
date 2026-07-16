@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useMemo, useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
-import { activeMedicines, expiringCount, expirySummary, filterMedicines, lowStockCount, pharmacistNameByEmail, totalStock, type Medicine, type MovementType, type Pharmacist } from "./lib/inventory";
+import { activeMedicines, expiringCount, expirySummary, filterMedicines, isValidMedicineCode, lowStockCount, pharmacistNameByEmail, totalStock, type Medicine, type MovementType, type Pharmacist } from "./lib/inventory";
 import { medicinesToCsv } from "./lib/csv";
 import { lastCountByMedicine } from "./lib/movements";
 import { dateStamp, downloadTextFile } from "./lib/download";
@@ -31,7 +31,9 @@ const trimmed=(form:FormData,k:string)=>String(form.get(k)||"").trim();
 async function saveMedicine(form:FormData, now:string, editing:Medicine|null){
   const name=trimmed(form,"name"), strength=trimmed(form,"strength");
   if(!name||!strength) throw new Error("Nombre y concentración son obligatorios.");
-  const fields={name,strength,form:trimmed(form,"form")||"Tableta",minimumStock:Math.max(0,Number(form.get("minimumStock"))||0),lot:trimmed(form,"lot"),expiresAt:trimmed(form,"expiresAt")};
+  const code=trimmed(form,"code");
+  if(code&&!isValidMedicineCode(code)) throw new Error("El código debe tener el formato 000-00-0000.");
+  const fields={name,strength,form:trimmed(form,"form")||"Tableta",minimumStock:Math.max(0,Number(form.get("minimumStock"))||0),lot:trimmed(form,"lot"),expiresAt:trimmed(form,"expiresAt"),code};
   if(editing){await dataApi.updateMedicine(editing.id,fields);return}
   const initial=Math.max(0,Number(form.get("stock"))||0);
   const pharmacistEmail=trimmed(form,"pharmacistEmail");
@@ -145,7 +147,7 @@ export default function Home() {
         {activeMeds.length?<div className="medicine-grid">{filtered.map(m=><MedicineCard key={m.id} medicine={m} lastCount={lastCounts.get(m.id)} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)}/>)}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}
 
-      {tab==="movements"&&<MovementsTab movements={movements} pharmacistNames={pharmacistNames} onNotice={flash}/>}
+      {tab==="movements"&&<MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash}/>}
 
       {tab==="settings"&&<SettingsTab medicines={medicines} pharmacists={pharmacists} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount}/>}
     </section>

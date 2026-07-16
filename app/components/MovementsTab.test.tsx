@@ -12,7 +12,11 @@ vi.mock("firebase/firestore", () => ({
 vi.mock("../firebase", () => ({ db: {} }));
 
 import { MovementsTab } from "./MovementsTab";
-import type { Movement } from "../lib/inventory";
+import type { Medicine, Movement } from "../lib/inventory";
+
+const medMed = (o: Partial<Medicine>): Medicine => ({
+  id: "1", name: "Med", strength: "1", form: "Tableta", unit: "u", stock: 0, minimumStock: 0, lot: "", expiresAt: "", active: true, ...o,
+});
 
 function mov(o: Partial<Movement> = {}): Movement {
   return {
@@ -33,14 +37,14 @@ describe("MovementsTab", () => {
   const noop = () => {};
 
   it("muestra el nombre del responsable, no el correo", () => {
-    render(<MovementsTab movements={sample} pharmacistNames={names} onNotice={noop} />);
+    render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} />);
     expect(screen.getByText("Ana Rojas")).toBeInTheDocument();
     expect(screen.getByText("Luis Mora")).toBeInTheDocument();
     expect(screen.queryByText("ana@h.cr")).not.toBeInTheDocument();
   });
 
   it("filtra por tipo", async () => {
-    render(<MovementsTab movements={sample} pharmacistNames={names} onNotice={noop} />);
+    render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} />);
     const body = screen.getByRole("table").querySelector("tbody")!;
     expect(within(body).getByText("Amoxicilina")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText("Filtrar por tipo"), "OUT");
@@ -49,7 +53,7 @@ describe("MovementsTab", () => {
   });
 
   it("filtra por texto de medicamento", async () => {
-    render(<MovementsTab movements={sample} pharmacistNames={names} onNotice={noop} />);
+    render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} />);
     await userEvent.type(screen.getByLabelText("Buscar movimientos"), "ibupro");
     const body = screen.getByRole("table").querySelector("tbody")!;
     expect(within(body).queryByText("Amoxicilina")).not.toBeInTheDocument();
@@ -57,13 +61,26 @@ describe("MovementsTab", () => {
   });
 
   it("muestra mensaje cuando no hay coincidencias", async () => {
-    render(<MovementsTab movements={sample} pharmacistNames={names} onNotice={noop} />);
+    render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} />);
     await userEvent.type(screen.getByLabelText("Buscar movimientos"), "zzz");
     expect(screen.getByText("Ningún movimiento coincide con los filtros.")).toBeInTheDocument();
   });
 
   it("indica vacío cuando no hay movimientos", () => {
-    render(<MovementsTab movements={[]} pharmacistNames={names} onNotice={noop} />);
+    render(<MovementsTab movements={[]} medicines={[]} pharmacistNames={names} onNotice={noop} />);
     expect(screen.getByText("Aún no hay movimientos registrados.")).toBeInTheDocument();
+  });
+
+  it("filtra por medicamento con el selector", async () => {
+    const movs = [
+      mov({ id: "a", medicineId: "m1", medicineName: "Amoxicilina" }),
+      mov({ id: "b", medicineId: "m2", medicineName: "Ibuprofeno" }),
+    ];
+    const meds = [medMed({ id: "m1", name: "Amoxicilina" }), medMed({ id: "m2", name: "Ibuprofeno" })];
+    render(<MovementsTab movements={movs} medicines={meds} pharmacistNames={names} onNotice={noop} />);
+    await userEvent.selectOptions(screen.getByLabelText("Filtrar por medicamento"), "m1");
+    const body = screen.getByRole("table").querySelector("tbody")!;
+    expect(within(body).getByText("Amoxicilina")).toBeInTheDocument();
+    expect(within(body).queryByText("Ibuprofeno")).not.toBeInTheDocument();
   });
 });

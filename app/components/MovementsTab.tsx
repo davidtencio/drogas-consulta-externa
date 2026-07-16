@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { collection, getDocs, orderBy, query as fbQuery } from "firebase/firestore";
 import { db } from "../firebase";
-import { displayPharmacist, type Movement } from "../lib/inventory";
+import { displayPharmacist, sortByName, type Medicine, type Movement } from "../lib/inventory";
 import { movementsToCsv } from "../lib/csv";
 import { filterAndSortMovements, summarizeMovements, type MovementSort, type MovementTypeFilter } from "../lib/movements";
 import { clampPage, pageCount, pageRange, paginate } from "../lib/pagination";
@@ -9,28 +9,31 @@ import { dateStamp, downloadTextFile } from "../lib/download";
 
 type Props = {
   movements: Movement[];
+  medicines: Medicine[];
   pharmacistNames: ReadonlyMap<string, string>;
   onNotice: (msg: string) => void;
 };
 
 /** Pestaña de Movimientos: filtros, resumen del período, tabla y paginación. */
-export function MovementsTab({ movements, pharmacistNames, onNotice }: Props) {
+export function MovementsTab({ movements, medicines, pharmacistNames, onNotice }: Props) {
   const [type, setType] = useState<MovementTypeFilter>("ALL");
   const [text, setText] = useState("");
+  const [medicineId, setMedicineId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [sort, setSort] = useState<MovementSort>("date-desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  const filter = useMemo(() => ({ type, text, from, to }), [type, text, from, to]);
+  const medicineOptions = useMemo(() => sortByName(medicines), [medicines]);
+  const filter = useMemo(() => ({ type, text, medicineId, from, to }), [type, text, medicineId, from, to]);
   const visible = useMemo(() => filterAndSortMovements(movements, filter, sort), [movements, filter, sort]);
   const summary = useMemo(() => summarizeMovements(visible), [visible]);
-  const filtered = type !== "ALL" || !!text || !!from || !!to;
-  const clearFilters = useCallback(() => { setType("ALL"); setText(""); setFrom(""); setTo(""); }, []);
+  const filtered = type !== "ALL" || !!text || !!medicineId || !!from || !!to;
+  const clearFilters = useCallback(() => { setType("ALL"); setText(""); setMedicineId(""); setFrom(""); setTo(""); }, []);
 
   // Al cambiar filtros, orden o tamaño de página, vuelve a la primera página.
-  const sig = `${type}|${text}|${from}|${to}|${sort}|${pageSize}`;
+  const sig = `${type}|${text}|${medicineId}|${from}|${to}|${sort}|${pageSize}`;
   const [prevSig, setPrevSig] = useState(sig);
   if (sig !== prevSig) { setPrevSig(sig); setPage(1); }
 
@@ -62,6 +65,7 @@ export function MovementsTab({ movements, pharmacistNames, onNotice }: Props) {
       </div>
       <div className="mov-filters">
         <label className="search"><span>⌕</span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={text} onChange={(e) => setText(e.target.value)} /></label>
+        <label>Medicamento<select aria-label="Filtrar por medicamento" value={medicineId} onChange={(e) => setMedicineId(e.target.value)}><option value="">Todos</option>{medicineOptions.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength}</option>)}</select></label>
         <label>Tipo<select aria-label="Filtrar por tipo" value={type} onChange={(e) => setType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option><option value="COUNT">Conteos</option></select></label>
         <label>Desde<input type="date" aria-label="Desde" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label>
         <label>Hasta<input type="date" aria-label="Hasta" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>

@@ -70,6 +70,14 @@ describe("filterMovements", () => {
   it("combina rango de fechas con tipo", () => {
     expect(filterMovements(sample, { type: "OUT", text: "", from: "2026-07-11" }).map((m) => m.id)).toEqual(["b", "c"]);
   });
+  it("filtra por un medicamento concreto (medicineId)", () => {
+    const list = [
+      mov({ id: "a", medicineId: "m1", medicineName: "Metformina" }),
+      mov({ id: "b", medicineId: "m2", medicineName: "Ibuprofeno" }),
+      mov({ id: "c", medicineId: "m1", medicineName: "Metformina" }),
+    ];
+    expect(filterMovements(list, { type: "ALL", text: "", medicineId: "m1" }).map((m) => m.id)).toEqual(["a", "c"]);
+  });
 });
 
 describe("sortMovements", () => {

@@ -2,18 +2,55 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
-import { addDoc, collection, doc, limit, onSnapshot, orderBy, query as fbQuery, runTransaction, updateDoc } from "firebase/firestore";
-import { auth, db } from "./firebase";
-import { activeMedicines, expiringCount, expirySummary, filterMedicines, lowStockCount, pharmacistNameByEmail, prepareMovement, sortByName, totalStock, type Medicine, type Pharmacist, type Movement } from "./lib/inventory";
+import { auth } from "./firebase";
+import { activeMedicines, expiringCount, expirySummary, filterMedicines, lowStockCount, pharmacistNameByEmail, totalStock, type Medicine, type Pharmacist } from "./lib/inventory";
 import { medicinesToCsv } from "./lib/csv";
 import { dateStamp, downloadTextFile } from "./lib/download";
+import * as dataApi from "./lib/db";
+import { useInventoryData } from "./hooks/useInventoryData";
 import { Sidebar } from "./components/Sidebar";
 import { ExpiryAlert } from "./components/ExpiryAlert";
 import { StatsBar } from "./components/StatsBar";
 import { MovementsTab } from "./components/MovementsTab";
 import { MedicineCard } from "./components/MedicineCard";
 import { SettingsTab } from "./components/SettingsTab";
-import { Modals } from "./components/Modals";
+import { Modals, type ModalState } from "./components/Modals";
+
+const trimmed=(form:FormData,k:string)=>String(form.get(k)||"").trim();
+
+/** Crea o actualiza un medicamento; en creación con existencia inicial, exige farmacéutico. */
+async function saveMedicine(form:FormData, now:string, editing:Medicine|null){
+  const name=trimmed(form,"name"), strength=trimmed(form,"strength");
+  if(!name||!strength) throw new Error("Nombre y concentración son obligatorios.");
+  const fields={name,strength,form:trimmed(form,"form")||"Tableta",minimumStock:Math.max(0,Number(form.get("minimumStock"))||0),lot:trimmed(form,"lot"),expiresAt:trimmed(form,"expiresAt")};
+  if(editing){await dataApi.updateMedicine(editing.id,fields);return}
+  const initial=Math.max(0,Number(form.get("stock"))||0);
+  const pharmacistEmail=trimmed(form,"pharmacistEmail");
+  if(initial>0){
+    if(!Number.isInteger(initial)) throw new Error("La existencia inicial debe ser un número entero.");
+    if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable del ingreso inicial.");
+  }
+  await dataApi.createMedicine(fields,initial,pharmacistEmail,now);
+}
+
+/** Crea o actualiza un farmacéutico autorizado. */
+async function savePharmacist(form:FormData, now:string, editing:Pharmacist|null){
+  const name=trimmed(form,"name"), email=trimmed(form,"email").toLowerCase(), license=trimmed(form,"license");
+  if(!name||!email||!license) throw new Error("Complete todos los datos del farmacéutico.");
+  if(editing) await dataApi.updatePharmacist(editing.id,{name,email,license});
+  else await dataApi.createPharmacist({name,email,license},now);
+}
+
+/** Registra un movimiento (ingreso/egreso) con el farmacéutico responsable. */
+async function saveMovement(form:FormData, now:string){
+  const medicineId=trimmed(form,"medicineId");
+  const quantity=Number(form.get("quantity"));
+  const type=form.get("type")==="IN"?"IN":"OUT";
+  const pharmacistEmail=trimmed(form,"pharmacistEmail");
+  if(!medicineId) throw new Error("Cantidad inválida.");
+  if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable.");
+  await dataApi.registerMovement({medicineId,type,quantity,prescriptionRef:trimmed(form,"prescriptionRef"),pharmacistEmail,now});
+}
 
 export function Login(){
   const [error,setError]=useState(""),[busy,setBusy]=useState(false);
@@ -40,31 +77,15 @@ export default function Home() {
   const [user,setUser]=useState<User|null>(null);
   const [authReady,setAuthReady]=useState(false);
   const [tab,setTab]=useState<"dashboard"|"movements"|"settings">("dashboard");
-  const [medicines,setMedicines]=useState<Medicine[]>([]);
-  const [pharmacists,setPharmacists]=useState<Pharmacist[]>([]);
-  const [movements,setMovements]=useState<Movement[]>([]);
   const [query,setQuery]=useState("");
-  const [modal,setModal]=useState<"movement"|"medicine"|"pharmacist"|null>(null);
-  const [editing,setEditing]=useState<Medicine|Pharmacist|null>(null);
+  const [modal,setModal]=useState<ModalState|null>(null);
   const [notice,setNotice]=useState("");
   const [busy,setBusy]=useState(false);
   const [alertDismissed,setAlertDismissed]=useState(false);
 
   useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setAuthReady(true)}),[]);
 
-  useEffect(()=>{
-    if(!user) return;
-    const unsubMed=onSnapshot(collection(db,"medicines"),s=>setMedicines(
-      sortByName(s.docs.map(d=>({id:d.id,...d.data()} as Medicine)))
-    ));
-    const unsubPh=onSnapshot(collection(db,"pharmacists"),s=>setPharmacists(
-      sortByName(s.docs.map(d=>({id:d.id,...d.data()} as Pharmacist)))
-    ));
-    const unsubMov=onSnapshot(fbQuery(collection(db,"movements"),orderBy("createdAt","desc"),limit(200)),s=>setMovements(
-      s.docs.map(d=>({id:d.id,...d.data()} as Movement))
-    ));
-    return()=>{unsubMed();unsubPh();unsubMov()};
-  },[user]);
+  const {medicines,pharmacists,movements}=useInventoryData(!!user);
 
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
   const activeMeds=useMemo(()=>activeMedicines(medicines),[medicines]);
@@ -75,9 +96,13 @@ export default function Home() {
   const expiring=useMemo(()=>expiringCount(activeMeds),[activeMeds]);
   const expAlert=useMemo(()=>expirySummary(medicines),[medicines]);
 
-  const closeModal=useCallback(()=>{setModal(null);setEditing(null)},[]);
-  const openCreate=useCallback((kind:"medicine"|"pharmacist"|"movement")=>{setEditing(null);setModal(kind)},[]);
-  const openEdit=useCallback((kind:"medicine"|"pharmacist",item:Medicine|Pharmacist)=>{setEditing(item);setModal(kind)},[]);
+  const closeModal=useCallback(()=>setModal(null),[]);
+  const openCreate=useCallback((kind:"medicine"|"pharmacist"|"movement")=>{
+    setModal(kind==="movement"?{kind:"movement"}:kind==="medicine"?{kind:"medicine",editing:null}:{kind:"pharmacist",editing:null});
+  },[]);
+  const openEdit=useCallback((kind:"medicine"|"pharmacist",item:Medicine|Pharmacist)=>{
+    setModal(kind==="medicine"?{kind:"medicine",editing:item as Medicine}:{kind:"pharmacist",editing:item as Pharmacist});
+  },[]);
 
   const flash=useCallback((msg:string)=>{setNotice(msg);setTimeout(()=>setNotice(""),4000)},[]);
 
@@ -89,61 +114,22 @@ export default function Home() {
 
   const setActive=useCallback(async(col:"medicines"|"pharmacists",id:string,active:boolean,label:string)=>{
     if(!active&&!window.confirm(`¿Dar de baja "${label}"? Podrá reactivarlo luego.`)) return;
-    try{await updateDoc(doc(db,col,id),{active});flash(active?"Reactivado correctamente":"Dado de baja correctamente")}
+    try{await dataApi.setActive(col,id,active);flash(active?"Reactivado correctamente":"Dado de baja correctamente")}
     catch{flash("No se pudo actualizar")}
   },[flash]);
 
   const submit=useCallback(async(e:FormEvent<HTMLFormElement>, action:string)=>{
     e.preventDefault();setBusy(true);
     const form=new FormData(e.currentTarget);
-    const g=(k:string)=>String(form.get(k)||"").trim();
     const now=new Date().toISOString();
     try{
-      if(action==="medicine"){
-        const name=g("name"), strength=g("strength");
-        if(!name||!strength) throw new Error("Nombre y concentración son obligatorios.");
-        const fields={name,strength,form:g("form")||"Tableta",minimumStock:Math.max(0,Number(form.get("minimumStock"))||0),lot:g("lot"),expiresAt:g("expiresAt")};
-        if(editing) await updateDoc(doc(db,"medicines",editing.id),fields);
-        else {
-          const initial=Math.max(0,Number(form.get("stock"))||0);
-          const pharmacistEmail=g("pharmacistEmail");
-          if(initial>0){
-            if(!Number.isInteger(initial)) throw new Error("La existencia inicial debe ser un número entero.");
-            if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable del ingreso inicial.");
-          }
-          const ref=await addDoc(collection(db,"medicines"),{...fields,unit:"unidades",stock:initial,active:true,createdAt:now});
-          // La existencia inicial queda como un movimiento de ingreso trazable.
-          if(initial>0){
-            const {record}=prepareMovement({name,stock:0},{medicineId:ref.id,type:"IN",quantity:initial,prescriptionRef:"Existencia inicial",pharmacistEmail,createdAt:now});
-            await addDoc(collection(db,"movements"),record);
-          }
-        }
-      } else if(action==="pharmacist"){
-        const name=g("name"), email=g("email").toLowerCase(), license=g("license");
-        if(!name||!email||!license) throw new Error("Complete todos los datos del farmacéutico.");
-        if(editing) await updateDoc(doc(db,"pharmacists",editing.id),{name,email,license});
-        else await addDoc(collection(db,"pharmacists"),{name,email,license,active:true,createdAt:now});
-      } else if(action==="movement"){
-        const medicineId=g("medicineId");
-        const quantity=Number(form.get("quantity"));
-        const type=form.get("type")==="IN"?"IN":"OUT";
-        const pharmacistEmail=g("pharmacistEmail");
-        if(!medicineId) throw new Error("Cantidad inválida.");
-        if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable.");
-        await runTransaction(db,async tx=>{
-          const ref=doc(db,"medicines",medicineId);
-          const snap=await tx.get(ref);
-          if(!snap.exists()) throw new Error("Medicamento no disponible.");
-          const data=snap.data();
-          const {nextStock:next,record}=prepareMovement({name:data.name,stock:Number(data.stock)||0},{medicineId,type,quantity,prescriptionRef:g("prescriptionRef"),pharmacistEmail,createdAt:now});
-          tx.update(ref,{stock:next});
-          tx.set(doc(collection(db,"movements")),record);
-        });
-      }
+      if(action==="medicine") await saveMedicine(form,now,modal?.kind==="medicine"?modal.editing:null);
+      else if(action==="pharmacist") await savePharmacist(form,now,modal?.kind==="pharmacist"?modal.editing:null);
+      else if(action==="movement") await saveMovement(form,now);
       flash("Registro guardado correctamente");closeModal();
     }catch(err){flash(err instanceof Error?err.message:"No se pudo guardar")}
     finally{setBusy(false)}
-  },[editing,flash,closeModal]);
+  },[modal,flash,closeModal]);
 
   if(!authReady) return <div className="auth-screen"><div className="auth-loading">Cargando…</div></div>;
   if(!user) return <Login/>;
@@ -166,6 +152,6 @@ export default function Home() {
     </section>
 
     {notice&&<div className="toast" role="status">{notice}</div>}
-    {modal&&<Modals modal={modal} editing={editing} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} onClose={closeModal} onSubmit={submit}/>}
+    {modal&&<Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} onClose={closeModal} onSubmit={submit}/>}
   </main>;
 }

@@ -1,11 +1,14 @@
 import type { FormEvent } from "react";
 import type { Medicine, Pharmacist } from "../lib/inventory";
 
-export type ModalKind = "movement" | "medicine" | "pharmacist";
+/** Estado del diálogo abierto (unión discriminada, sin casts). */
+export type ModalState =
+  | { kind: "movement" }
+  | { kind: "medicine"; editing: Medicine | null }
+  | { kind: "pharmacist"; editing: Pharmacist | null };
 
 type Props = {
-  modal: ModalKind;
-  editing: Medicine | Pharmacist | null;
+  state: ModalState;
   activeMeds: Medicine[];
   activePharmacists: Pharmacist[];
   busy: boolean;
@@ -14,9 +17,10 @@ type Props = {
 };
 
 /** Diálogos de registro/edición de movimiento, medicamento y farmacéutico. */
-export function Modals({ modal, editing, activeMeds, activePharmacists, busy, onClose, onSubmit }: Props) {
-  const em = editing as Medicine | null;
-  const ep = editing as Pharmacist | null;
+export function Modals({ state, activeMeds, activePharmacists, busy, onClose, onSubmit }: Props) {
+  const em = state.kind === "medicine" ? state.editing : null;
+  const ep = state.kind === "pharmacist" ? state.editing : null;
+  const editing = em ?? ep;
   const pharmacistOptions = activePharmacists.map((p) => (
     <option key={p.id} value={p.email}>{p.name} — {p.license}</option>
   ));
@@ -26,7 +30,7 @@ export function Modals({ modal, editing, activeMeds, activePharmacists, busy, on
       <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
         <button className="close" onClick={onClose} aria-label="Cerrar">×</button>
 
-        {modal === "movement" && <>
+        {state.kind === "movement" && <>
           <h2>Registrar movimiento</h2>
           <p>Actualice existencias con trazabilidad completa.</p>
           <form onSubmit={(e) => onSubmit(e, "movement")}>
@@ -42,7 +46,7 @@ export function Modals({ modal, editing, activeMeds, activePharmacists, busy, on
           </form>
         </>}
 
-        {modal === "medicine" && <>
+        {state.kind === "medicine" && <>
           <h2>{editing ? "Editar medicamento" : "Agregar medicamento"}</h2>
           <p>{editing ? "Las existencias solo cambian mediante movimientos." : "Defina la presentación y niveles de control."}</p>
           <form onSubmit={(e) => onSubmit(e, "medicine")}>
@@ -64,7 +68,7 @@ export function Modals({ modal, editing, activeMeds, activePharmacists, busy, on
           </form>
         </>}
 
-        {modal === "pharmacist" && <>
+        {state.kind === "pharmacist" && <>
           <h2>{editing ? "Editar farmacéutico" : "Autorizar farmacéutico"}</h2>
           <p>El correo será su identificador de acceso.</p>
           <form onSubmit={(e) => onSubmit(e, "pharmacist")}>

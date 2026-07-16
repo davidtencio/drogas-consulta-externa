@@ -15,31 +15,33 @@ const inDays = (n: number) => new Date(Date.now() + n * 86400000).toISOString().
 
 describe("MedicineCard", () => {
   it("muestra nombre, presentación y estado disponible", () => {
-    render(<MedicineCard medicine={med()} onRegister={() => {}} />);
+    render(<MedicineCard medicine={med()} onMovement={() => {}} />);
     expect(screen.getByText("Metformina")).toBeInTheDocument();
     expect(screen.getByText("500 mg · Tableta")).toBeInTheDocument();
     expect(screen.getByText("Disponible")).toBeInTheDocument();
   });
 
   it("marca stock bajo cuando iguala o baja del mínimo", () => {
-    render(<MedicineCard medicine={med({ stock: 20, minimumStock: 20 })} onRegister={() => {}} />);
+    render(<MedicineCard medicine={med({ stock: 20, minimumStock: 20 })} onMovement={() => {}} />);
     expect(screen.getByText("Stock bajo")).toBeInTheDocument();
   });
 
   it("muestra 'Vencido' con fecha pasada", () => {
-    render(<MedicineCard medicine={med({ expiresAt: "2000-01-01" })} onRegister={() => {}} />);
+    render(<MedicineCard medicine={med({ expiresAt: "2000-01-01" })} onMovement={() => {}} />);
     expect(screen.getByText("Vencido")).toBeInTheDocument();
   });
 
   it("muestra 'Vence pronto' dentro de los 30 días", () => {
-    render(<MedicineCard medicine={med({ expiresAt: inDays(10) })} onRegister={() => {}} />);
+    render(<MedicineCard medicine={med({ expiresAt: inDays(10) })} onMovement={() => {}} />);
     expect(screen.getByText("Vence pronto")).toBeInTheDocument();
   });
 
-  it("llama onRegister al pulsar el botón", async () => {
-    const onRegister = vi.fn();
-    render(<MedicineCard medicine={med()} onRegister={onRegister} />);
-    await userEvent.click(screen.getByText(/Registrar movimiento/));
-    expect(onRegister).toHaveBeenCalledOnce();
+  it("llama onMovement con IN o OUT según el botón", async () => {
+    const onMovement = vi.fn();
+    render(<MedicineCard medicine={med()} onMovement={onMovement} />);
+    await userEvent.click(screen.getByText("＋ Ingreso"));
+    expect(onMovement).toHaveBeenLastCalledWith("IN");
+    await userEvent.click(screen.getByText("− Egreso"));
+    expect(onMovement).toHaveBeenLastCalledWith("OUT");
   });
 });

@@ -1,4 +1,4 @@
-import { expiryStatus, type Medicine, type Pharmacist } from "../lib/inventory";
+import { expiryStatus, type Medicine, type MovementType, type Pharmacist } from "../lib/inventory";
 
 type Props = {
   medicines: Medicine[];
@@ -6,10 +6,11 @@ type Props = {
   onCreate: (kind: "medicine" | "pharmacist") => void;
   onEdit: (kind: "medicine" | "pharmacist", item: Medicine | Pharmacist) => void;
   onSetActive: (col: "medicines" | "pharmacists", id: string, active: boolean, label: string) => void;
+  onMovement: (medicineId: string, type: MovementType) => void;
 };
 
 /** Pestaña de Configuración: catálogo de medicamentos y farmacéuticos autorizados. */
-export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetActive }: Props) {
+export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetActive, onMovement }: Props) {
   return (
     <div className="settings-grid">
       <div className="panel">
@@ -27,6 +28,10 @@ export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetAct
               {exp === "por-vencer" && <span className="badge soon">Vence pronto</span>}
               <span className={`tag${m.active === false ? " off" : ""}`}>{m.active === false ? "Inactivo" : "Activo"}</span>
               <div className="row-actions">
+                {m.active !== false && <>
+                  <button onClick={() => onMovement(m.id, "IN")}>Ingreso</button>
+                  <button onClick={() => onMovement(m.id, "OUT")}>Egreso</button>
+                </>}
                 <button onClick={() => onEdit("medicine", m)}>Editar</button>
                 {m.active === false
                   ? <button onClick={() => onSetActive("medicines", m.id, true, m.name)}>Reactivar</button>

@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
 import { auth } from "./firebase";
-import { activeMedicines, expiringCount, expirySummary, filterMedicines, lowStockCount, pharmacistNameByEmail, totalStock, type Medicine, type Pharmacist } from "./lib/inventory";
+import { activeMedicines, expiringCount, expirySummary, filterMedicines, lowStockCount, pharmacistNameByEmail, totalStock, type Medicine, type MovementType, type Pharmacist } from "./lib/inventory";
 import { medicinesToCsv } from "./lib/csv";
 import { dateStamp, downloadTextFile } from "./lib/download";
 import * as dataApi from "./lib/db";
@@ -103,6 +103,7 @@ export default function Home() {
   const openEdit=useCallback((kind:"medicine"|"pharmacist",item:Medicine|Pharmacist)=>{
     setModal(kind==="medicine"?{kind:"medicine",editing:item as Medicine}:{kind:"pharmacist",editing:item as Pharmacist});
   },[]);
+  const openMovement=useCallback((medicineId?:string,type?:MovementType)=>{setModal({kind:"movement",medicineId,type})},[]);
 
   const flash=useCallback((msg:string)=>{setNotice(msg);setTimeout(()=>setNotice(""),4000)},[]);
 
@@ -138,17 +139,17 @@ export default function Home() {
     <Sidebar email={user.email||""} tab={tab} onTab={setTab} onSignOut={()=>void signOut(auth)}/>
     <section className="content">
       {!alertDismissed&&<ExpiryAlert summary={expAlert} showViewButton={tab!=="dashboard"} onView={()=>{setTab("dashboard");setAlertDismissed(true)}} onDismiss={()=>setAlertDismissed(true)}/>}
-      <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Vista actualizada de las existencias disponibles.":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openCreate("movement")} disabled={!activeMeds.length}>＋ Registrar movimiento</button>}</header>
+      <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Vista actualizada de las existencias disponibles.":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openMovement()} disabled={!activeMeds.length}>＋ Registrar movimiento</button>}</header>
 
       {tab==="dashboard"&&<>
         <StatsBar total={total} low={low} expiring={expiring} recent={Math.min(movements.length,8)}/>
         <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar por medicamento o concentración..." value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="toolbar-end"><span>{filtered.length} medicamentos</span><button className="secondary" onClick={exportMedicines} disabled={!medicines.length}>⭳ Exportar CSV</button></div></div>
-        {activeMeds.length?<div className="medicine-grid">{filtered.map(m=><MedicineCard key={m.id} medicine={m} onRegister={()=>openCreate("movement")}/>)}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
+        {activeMeds.length?<div className="medicine-grid">{filtered.map(m=><MedicineCard key={m.id} medicine={m} onMovement={type=>openMovement(m.id,type)}/>)}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}
 
       {tab==="movements"&&<MovementsTab movements={movements} pharmacistNames={pharmacistNames} onNotice={flash}/>}
 
-      {tab==="settings"&&<SettingsTab medicines={medicines} pharmacists={pharmacists} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive}/>}
+      {tab==="settings"&&<SettingsTab medicines={medicines} pharmacists={pharmacists} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement}/>}
     </section>
 
     {notice&&<div className="toast" role="status">{notice}</div>}

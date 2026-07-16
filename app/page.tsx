@@ -2,9 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
-import { addDoc, collection, doc, limit, onSnapshot, orderBy, query as fbQuery, runTransaction, updateDoc } from "firebase/firestore";
+import { addDoc, collection, doc, getDocs, limit, onSnapshot, orderBy, query as fbQuery, runTransaction, updateDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { activeMedicines, expiringCount, expiryStatus, filterMedicines, isLowStock, lowStockCount, prepareMovement, sortByName, stockPercent, totalStock, type Medicine, type Pharmacist, type Movement } from "./lib/inventory";
+import { medicinesToCsv, movementsToCsv } from "./lib/csv";
 
 export function Login(){
   const [error,setError]=useState(""),[busy,setBusy]=useState(false);
@@ -67,6 +68,34 @@ export default function Home() {
   const openEdit=useCallback((kind:"medicine"|"pharmacist",item:Medicine|Pharmacist)=>{setEditing(item);setModal(kind)},[]);
 
   const flash=useCallback((msg:string)=>{setNotice(msg);setTimeout(()=>setNotice(""),4000)},[]);
+
+  // Descarga un CSV en el navegador. El BOM UTF-8 permite que Excel muestre bien los acentos.
+  const downloadCsv=useCallback((filename:string,content:string)=>{
+    const blob=new Blob(["﻿"+content],{type:"text/csv;charset=utf-8;"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=filename;a.click();
+    URL.revokeObjectURL(url);
+  },[]);
+
+  const stamp=()=>new Date().toISOString().slice(0,10);
+
+  const exportMedicines=useCallback(()=>{
+    if(!medicines.length){flash("No hay medicamentos para exportar");return}
+    downloadCsv(`inventario_${stamp()}.csv`,medicinesToCsv(medicines));
+    flash("Inventario exportado");
+  },[medicines,downloadCsv,flash]);
+
+  const exportMovements=useCallback(async()=>{
+    try{
+      // La vista muestra solo los últimos 8; para exportar traemos el historial completo.
+      const snap=await getDocs(fbQuery(collection(db,"movements"),orderBy("createdAt","desc")));
+      const all=snap.docs.map(d=>({id:d.id,...d.data()} as Movement));
+      if(!all.length){flash("No hay movimientos para exportar");return}
+      downloadCsv(`movimientos_${stamp()}.csv`,movementsToCsv(all));
+      flash(`Movimientos exportados (${all.length})`);
+    }catch{flash("No se pudo exportar los movimientos")}
+  },[downloadCsv,flash]);
 
   const setActive=useCallback(async(col:"medicines"|"pharmacists",id:string,active:boolean,label:string)=>{
     if(!active&&!window.confirm(`¿Dar de baja "${label}"? Podrá reactivarlo luego.`)) return;
@@ -132,11 +161,11 @@ export default function Home() {
 
       {tab==="dashboard"&&<>
         <div className="stats"><article><span className="stat-icon blue">▤</span><div><small>Existencias totales</small><strong>{total.toLocaleString("es-CR")}</strong><em>unidades disponibles</em></div></article><article><span className="stat-icon amber">!</span><div><small>Stock bajo</small><strong>{low}</strong><em>requieren atención</em></div></article><article><span className="stat-icon red">⏱</span><div><small>Próximos a vencer</small><strong>{expiring}</strong><em>vencidos o &le;30 días</em></div></article><article><span className="stat-icon green">⇄</span><div><small>Movimientos recientes</small><strong>{movements.length}</strong><em>últimos registros</em></div></article></div>
-        <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar por medicamento o concentración..." value={query} onChange={e=>setQuery(e.target.value)}/></label><span>{filtered.length} medicamentos</span></div>
+        <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar por medicamento o concentración..." value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="toolbar-end"><span>{filtered.length} medicamentos</span><button className="secondary" onClick={exportMedicines} disabled={!medicines.length}>⭳ Exportar CSV</button></div></div>
         {activeMeds.length?<div className="medicine-grid">{filtered.map(m=>{const pct=stockPercent(m);const status=isLowStock(m)?"low":"ok";const exp=expiryStatus(m.expiresAt);return <article className="medicine-card" key={m.id}><div className="card-head"><span className="pill-icon">✚</span><div className="badges"><span className={`badge ${status}`}>{status==="low"?"Stock bajo":"Disponible"}</span>{exp==="vencido"&&<span className="badge expired">Vencido</span>}{exp==="por-vencer"&&<span className="badge soon">Vence pronto</span>}</div></div><h2>{m.name}</h2><p>{m.strength} · {m.form}</p><div className="stock-row"><strong>{m.stock.toLocaleString("es-CR")}</strong><span>{m.unit}</span></div><div className="bar"><i className={status} style={{width:`${pct}%`}}/></div><div className="meta"><span>Lote<strong>{m.lot||"—"}</strong></span><span>Vence<strong>{m.expiresAt?new Date(m.expiresAt+"T12:00:00").toLocaleDateString("es-CR",{month:"short",year:"numeric"}):"—"}</strong></span></div><button className="card-action" onClick={()=>openCreate("movement")}>Registrar movimiento <span>→</span></button></article>})}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}
 
-      {tab==="movements"&&<div className="panel"><div className="panel-title"><div><h2>Actividad reciente</h2><p>Cada operación conserva responsable, fecha y referencia.</p></div></div><div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th></tr></thead><tbody>{movements.length?movements.map(m=><tr key={m.id}><td>{new Date(m.createdAt).toLocaleString("es-CR")}</td><td><strong>{m.medicineName}</strong></td><td><span className={`type ${m.type}`}>{m.type==="IN"?"Ingreso":"Egreso"}</span></td><td>{m.quantity}</td><td>{m.prescriptionRef||"—"}</td><td>{m.pharmacistEmail}</td></tr>):<tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>}</tbody></table></div></div>}
+      {tab==="movements"&&<div className="panel"><div className="panel-title"><div><h2>Actividad reciente</h2><p>Cada operación conserva responsable, fecha y referencia.</p></div><button className="secondary" onClick={exportMovements}>⭳ Exportar CSV</button></div><div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th></tr></thead><tbody>{movements.length?movements.map(m=><tr key={m.id}><td>{new Date(m.createdAt).toLocaleString("es-CR")}</td><td><strong>{m.medicineName}</strong></td><td><span className={`type ${m.type}`}>{m.type==="IN"?"Ingreso":"Egreso"}</span></td><td>{m.quantity}</td><td>{m.prescriptionRef||"—"}</td><td>{m.pharmacistEmail}</td></tr>):<tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>}</tbody></table></div></div>}
 
       {tab==="settings"&&<div className="settings-grid">
         <div className="panel"><div className="panel-title"><div><h2>Medicamentos</h2><p>Catálogo del inventario.</p></div><button className="secondary" onClick={()=>openCreate("medicine")}>＋ Agregar</button></div>{medicines.length?medicines.map(m=><div className={`list-row${m.active===false?" inactive":""}`} key={m.id}><span className="mini-icon">✚</span><div><strong>{m.name}</strong><small>{m.strength} · {m.form}</small></div><span className={`tag${m.active===false?" off":""}`}>{m.active===false?"Inactivo":"Activo"}</span><div className="row-actions"><button onClick={()=>openEdit("medicine",m)}>Editar</button>{m.active===false?<button onClick={()=>setActive("medicines",m.id,true,m.name)}>Reactivar</button>:<button className="danger" onClick={()=>setActive("medicines",m.id,false,m.name)}>Dar de baja</button>}</div></div>):<div className="empty-block">Registre el primer medicamento del catálogo.</div>}</div>

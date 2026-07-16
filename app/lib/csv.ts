@@ -57,8 +57,15 @@ const MOVEMENT_HEADERS = [
   "Responsable",
 ] as const;
 
-/** CSV de la bitácora de movimientos (ingresos/egresos). */
-export function movementsToCsv(movements: readonly Movement[]): string {
+/**
+ * CSV de la bitácora de movimientos (ingresos/egresos). `resolvePharmacist`
+ * permite mostrar el nombre del responsable en vez del correo; por defecto usa
+ * el correo tal cual.
+ */
+export function movementsToCsv(
+  movements: readonly Movement[],
+  resolvePharmacist: (email: string) => string = (email) => email
+): string {
   const rows: unknown[][] = [ [...MOVEMENT_HEADERS] ];
   for (const mv of movements) {
     rows.push([
@@ -67,7 +74,7 @@ export function movementsToCsv(movements: readonly Movement[]): string {
       mv.type === "IN" ? "Ingreso" : "Egreso",
       mv.quantity,
       mv.prescriptionRef,
-      mv.pharmacistEmail,
+      resolvePharmacist(mv.pharmacistEmail),
     ]);
   }
   return toCsv(rows);

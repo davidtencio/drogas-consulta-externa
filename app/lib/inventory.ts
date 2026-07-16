@@ -232,3 +232,24 @@ export function expirySummary(
   }
   return summary;
 }
+
+// --- Farmacéuticos ---------------------------------------------------------
+
+/** Mapa correo→nombre (correos en minúscula) para mostrar el responsable. */
+export function pharmacistNameByEmail(
+  pharmacists: readonly Pharmacist[]
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const p of pharmacists) {
+    if (p.email) map.set(p.email.trim().toLowerCase(), p.name);
+  }
+  return map;
+}
+
+/** Nombre del farmacéutico según su correo; si no se encuentra, el correo. */
+export function displayPharmacist(
+  email: string,
+  names: ReadonlyMap<string, string>
+): string {
+  return names.get((email || "").trim().toLowerCase()) || email;
+}

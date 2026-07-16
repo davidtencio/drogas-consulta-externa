@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   activeMedicines,
   daysUntilExpiry,
+  displayPharmacist,
   expiringCount,
   expirySummary,
   expiryStatus,
+  pharmacistNameByEmail,
   filterMedicines,
   isActive,
   isLowStock,
@@ -341,5 +343,30 @@ describe("expirySummary", () => {
   });
   it("con lista vacía devuelve ceros", () => {
     expect(expirySummary([], now)).toEqual({ expired: 0, soon: 0 });
+  });
+});
+
+describe("pharmacistNameByEmail / displayPharmacist", () => {
+  const pharmacists = [
+    { id: "1", name: "Ana Rojas", email: "ana@hospital.cr", license: "CF-1" },
+    { id: "2", name: "Luis Mora", email: "Luis@Hospital.CR", license: "CF-2" },
+  ];
+
+  it("indexa por correo en minúscula", () => {
+    const map = pharmacistNameByEmail(pharmacists);
+    expect(map.get("ana@hospital.cr")).toBe("Ana Rojas");
+    expect(map.get("luis@hospital.cr")).toBe("Luis Mora");
+  });
+  it("resuelve el nombre sin distinguir mayúsculas del correo", () => {
+    const map = pharmacistNameByEmail(pharmacists);
+    expect(displayPharmacist("ANA@hospital.cr", map)).toBe("Ana Rojas");
+  });
+  it("usa el correo como respaldo si no está en el mapa", () => {
+    const map = pharmacistNameByEmail(pharmacists);
+    expect(displayPharmacist("otro@hospital.cr", map)).toBe("otro@hospital.cr");
+  });
+  it("con correo vacío devuelve cadena vacía", () => {
+    const map = pharmacistNameByEmail(pharmacists);
+    expect(displayPharmacist("", map)).toBe("");
   });
 });

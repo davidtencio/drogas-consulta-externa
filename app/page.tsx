@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
 import { addDoc, collection, doc, getDocs, limit, onSnapshot, orderBy, query as fbQuery, runTransaction, updateDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
-import { activeMedicines, expiringCount, expirySummary, expiryStatus, filterMedicines, isLowStock, lowStockCount, prepareMovement, sortByName, stockPercent, totalStock, type Medicine, type Pharmacist, type Movement } from "./lib/inventory";
+import { activeMedicines, displayPharmacist, expiringCount, expirySummary, expiryStatus, filterMedicines, isLowStock, lowStockCount, pharmacistNameByEmail, prepareMovement, sortByName, stockPercent, totalStock, type Medicine, type Pharmacist, type Movement } from "./lib/inventory";
 import { medicinesToCsv, movementsToCsv } from "./lib/csv";
 import { filterAndSortMovements, summarizeMovements, type MovementSort, type MovementTypeFilter } from "./lib/movements";
 import { clampPage, pageCount, pageRange, paginate } from "./lib/pagination";
@@ -70,6 +70,7 @@ export default function Home() {
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
   const activeMeds=useMemo(()=>activeMedicines(medicines),[medicines]);
   const activePharmacists=useMemo(()=>pharmacists.filter(p=>p.active!==false),[pharmacists]);
+  const pharmacistNames=useMemo(()=>pharmacistNameByEmail(pharmacists),[pharmacists]);
   const filtered=useMemo(()=>filterMedicines(activeMeds,query),[activeMeds,query]);
   const total=totalStock(activeMeds), low=lowStockCount(activeMeds);
   const expiring=useMemo(()=>expiringCount(activeMeds),[activeMeds]);
@@ -121,10 +122,10 @@ export default function Home() {
       const rows=filterAndSortMovements(all,movFilter,movSort);
       if(!rows.length){flash("No hay movimientos que coincidan para exportar");return}
       const range=[movFrom,movTo].filter(Boolean).join("_");
-      downloadCsv(`movimientos_${range||stamp()}.csv`,movementsToCsv(rows));
+      downloadCsv(`movimientos_${range||stamp()}.csv`,movementsToCsv(rows,email=>displayPharmacist(email,pharmacistNames)));
       flash(`Movimientos exportados (${rows.length})`);
     }catch{flash("No se pudo exportar los movimientos")}
-  },[downloadCsv,flash,movFilter,movSort,movFrom,movTo]);
+  },[downloadCsv,flash,movFilter,movSort,movFrom,movTo,pharmacistNames]);
 
   const setActive=useCallback(async(col:"medicines"|"pharmacists",id:string,active:boolean,label:string)=>{
     if(!active&&!window.confirm(`¿Dar de baja "${label}"? Podrá reactivarlo luego.`)) return;
@@ -218,7 +219,7 @@ export default function Home() {
       {tab==="movements"&&<div className="panel"><div className="panel-title"><div><h2>Actividad reciente</h2><p>Cada operación conserva responsable, fecha y referencia.</p></div><button className="secondary" onClick={exportMovements}>⭳ Exportar CSV</button></div>
         <div className="mov-filters"><label className="search"><span>⌕</span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={movText} onChange={e=>setMovText(e.target.value)}/></label><label>Tipo<select aria-label="Filtrar por tipo" value={movType} onChange={e=>setMovType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option></select></label><label>Desde<input type="date" aria-label="Desde" value={movFrom} max={movTo||undefined} onChange={e=>setMovFrom(e.target.value)}/></label><label>Hasta<input type="date" aria-label="Hasta" value={movTo} min={movFrom||undefined} onChange={e=>setMovTo(e.target.value)}/></label><label>Orden<select aria-label="Ordenar" value={movSort} onChange={e=>setMovSort(e.target.value as MovementSort)}><option value="date-desc">Fecha (reciente)</option><option value="date-asc">Fecha (antiguo)</option><option value="qty-desc">Cantidad (mayor)</option><option value="qty-asc">Cantidad (menor)</option></select></label>{movFiltered&&<button type="button" className="mov-clear" onClick={clearMovFilters}>Limpiar</button>}<span className="mov-count">{visibleMovements.length} de {movements.length}</span></div>
         <div className="mov-summary"><div><small>{movFrom||movTo?"Período":"Movimientos"}</small><strong>{movSummary.count}</strong><em>{movFrom||"inicio"} → {movTo||"hoy"}</em></div><div className="in"><small>Ingresos</small><strong>+{movSummary.inQuantity.toLocaleString("es-CR")}</strong><em>{movSummary.inCount} registros</em></div><div className="out"><small>Egresos</small><strong>−{movSummary.outQuantity.toLocaleString("es-CR")}</strong><em>{movSummary.outCount} registros</em></div><div><small>Variación neta</small><strong className={movSummary.net<0?"neg":movSummary.net>0?"pos":""}>{movSummary.net>0?"+":""}{movSummary.net.toLocaleString("es-CR")}</strong><em>{movSummary.medicineCount} medicamentos</em></div></div>
-        <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th></tr></thead><tbody>{!movements.length?<tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>:pageMovements.length?pageMovements.map(m=><tr key={m.id}><td>{new Date(m.createdAt).toLocaleString("es-CR")}</td><td><strong>{m.medicineName}</strong></td><td><span className={`type ${m.type}`}>{m.type==="IN"?"Ingreso":"Egreso"}</span></td><td>{m.quantity}</td><td>{m.prescriptionRef||"—"}</td><td>{m.pharmacistEmail}</td></tr>):<tr><td colSpan={6} className="empty">Ningún movimiento coincide con los filtros.</td></tr>}</tbody></table></div>
+        <div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th></tr></thead><tbody>{!movements.length?<tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>:pageMovements.length?pageMovements.map(m=><tr key={m.id}><td>{new Date(m.createdAt).toLocaleString("es-CR")}</td><td><strong>{m.medicineName}</strong></td><td><span className={`type ${m.type}`}>{m.type==="IN"?"Ingreso":"Egreso"}</span></td><td>{m.quantity}</td><td>{m.prescriptionRef||"—"}</td><td>{displayPharmacist(m.pharmacistEmail,pharmacistNames)}</td></tr>):<tr><td colSpan={6} className="empty">Ningún movimiento coincide con los filtros.</td></tr>}</tbody></table></div>
         {visibleMovements.length>0&&<div className="pager"><span className="pager-info">{movShown.start}–{movShown.end} de {visibleMovements.length}</span><label className="pager-size">Por página<select aria-label="Movimientos por página" value={movPageSize} onChange={e=>setMovPageSize(Number(e.target.value))}><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select></label><div className="pager-nav"><button onClick={()=>setMovPage(movPageNum-1)} disabled={movPageNum<=1} aria-label="Página anterior">‹</button><span>Página {movPageNum} de {movTotalPages}</span><button onClick={()=>setMovPage(movPageNum+1)} disabled={movPageNum>=movTotalPages} aria-label="Página siguiente">›</button></div></div>}</div>}
 
       {tab==="settings"&&<div className="settings-grid">

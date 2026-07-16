@@ -94,6 +94,15 @@ describe("movementsToCsv", () => {
     );
     expect(lines[2]).toContain(",Egreso,");
   });
+  it("por defecto muestra el correo del responsable", () => {
+    const row = movementsToCsv([mov({ pharmacistEmail: "ana@hospital.cr" })]).split("\r\n")[1];
+    expect(row.endsWith(",ana@hospital.cr")).toBe(true);
+  });
+  it("usa el resolvedor para mostrar el nombre del responsable", () => {
+    const resolve = (email: string) => (email === "ana@hospital.cr" ? "Ana Rojas" : email);
+    const row = movementsToCsv([mov({ pharmacistEmail: "ana@hospital.cr" })], resolve).split("\r\n")[1];
+    expect(row.endsWith(",Ana Rojas")).toBe(true);
+  });
   it("con lista vacía solo devuelve los encabezados", () => {
     expect(movementsToCsv([]).split("\r\n")).toHaveLength(1);
   });

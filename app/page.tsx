@@ -5,6 +5,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import { activeMedicines, expiringCount, expirySummary, filterMedicines, lowStockCount, pharmacistNameByEmail, totalStock, type Medicine, type MovementType, type Pharmacist } from "./lib/inventory";
 import { medicinesToCsv } from "./lib/csv";
+import { lastCountByMedicine } from "./lib/movements";
 import { dateStamp, downloadTextFile } from "./lib/download";
 import * as dataApi from "./lib/db";
 import { useInventoryData } from "./hooks/useInventoryData";
@@ -90,6 +91,7 @@ export default function Home() {
   const total=totalStock(activeMeds), low=lowStockCount(activeMeds);
   const expiring=useMemo(()=>expiringCount(activeMeds),[activeMeds]);
   const expAlert=useMemo(()=>expirySummary(medicines),[medicines]);
+  const lastCounts=useMemo(()=>lastCountByMedicine(movements),[movements]);
 
   const closeModal=useCallback(()=>setModal(null),[]);
   const openCreate=useCallback((kind:"medicine"|"pharmacist"|"movement")=>{
@@ -142,7 +144,7 @@ export default function Home() {
       {tab==="dashboard"&&<>
         <StatsBar total={total} low={low} expiring={expiring} recent={Math.min(movements.length,8)}/>
         <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar por medicamento o concentración..." value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="toolbar-end"><span>{filtered.length} medicamentos</span><button className="secondary" onClick={exportMedicines} disabled={!medicines.length}>⭳ Exportar CSV</button></div></div>
-        {activeMeds.length?<div className="medicine-grid">{filtered.map(m=><MedicineCard key={m.id} medicine={m} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)}/>)}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
+        {activeMeds.length?<div className="medicine-grid">{filtered.map(m=><MedicineCard key={m.id} medicine={m} lastCount={lastCounts.get(m.id)} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)}/>)}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}
 
       {tab==="movements"&&<MovementsTab movements={movements} pharmacistNames={pharmacistNames} onNotice={flash}/>}

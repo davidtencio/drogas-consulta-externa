@@ -2,15 +2,19 @@ import { expiryStatus, isLowStock, stockPercent, type Medicine, type MovementTyp
 
 type Props = {
   medicine: Medicine;
+  lastCount?: string;
   onMovement: (type: MovementType) => void;
   onCount: () => void;
 };
 
 /** Tarjeta de un medicamento en el dashboard, con estado de stock y vencimiento. */
-export function MedicineCard({ medicine: m, onMovement, onCount }: Props) {
+export function MedicineCard({ medicine: m, lastCount, onMovement, onCount }: Props) {
   const pct = stockPercent(m);
   const status = isLowStock(m) ? "low" : "ok";
   const exp = expiryStatus(m.expiresAt);
+  const lastCountLabel = lastCount
+    ? new Date(lastCount).toLocaleDateString("es-CR", { day: "numeric", month: "short", year: "numeric" })
+    : "Sin arqueos";
   return (
     <article className="medicine-card">
       <div className="card-head">
@@ -28,6 +32,7 @@ export function MedicineCard({ medicine: m, onMovement, onCount }: Props) {
       <div className="meta">
         <span>Lote<strong>{m.lot || "—"}</strong></span>
         <span>Vence<strong>{m.expiresAt ? new Date(m.expiresAt + "T12:00:00").toLocaleDateString("es-CR", { month: "short", year: "numeric" }) : "—"}</strong></span>
+        <span>Últ. arqueo<strong>{lastCountLabel}</strong></span>
       </div>
       <div className="card-actions">
         <button className="card-action in" onClick={() => onMovement("IN")}>＋ Ingreso</button>

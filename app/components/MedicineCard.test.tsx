@@ -51,4 +51,16 @@ describe("MedicineCard", () => {
     await userEvent.click(screen.getByText("≡ Conteo"));
     expect(onCount).toHaveBeenCalledOnce();
   });
+
+  it("muestra 'Sin arqueos' cuando no hay último arqueo", () => {
+    render(<MedicineCard medicine={med()} onMovement={() => {}} onCount={() => {}} />);
+    expect(screen.getByText("Sin arqueos")).toBeInTheDocument();
+  });
+
+  it("muestra la fecha del último arqueo cuando existe", () => {
+    render(<MedicineCard medicine={med()} lastCount="2026-07-16T10:00:00.000Z" onMovement={() => {}} onCount={() => {}} />);
+    expect(screen.getByText("Últ. arqueo")).toBeInTheDocument();
+    // La fecha se formatea con día/mes/año (es-CR); verificamos el año.
+    expect(screen.getByText(/2026/)).toBeInTheDocument();
+  });
 });

@@ -1,0 +1,109 @@
+import { useCallback, useMemo, useState } from "react";
+import { collection, getDocs, orderBy, query as fbQuery } from "firebase/firestore";
+import { db } from "../firebase";
+import { displayPharmacist, type Movement } from "../lib/inventory";
+import { movementsToCsv } from "../lib/csv";
+import { filterAndSortMovements, summarizeMovements, type MovementSort, type MovementTypeFilter } from "../lib/movements";
+import { clampPage, pageCount, pageRange, paginate } from "../lib/pagination";
+import { dateStamp, downloadTextFile } from "../lib/download";
+
+type Props = {
+  movements: Movement[];
+  pharmacistNames: ReadonlyMap<string, string>;
+  onNotice: (msg: string) => void;
+};
+
+/** Pestaña de Movimientos: filtros, resumen del período, tabla y paginación. */
+export function MovementsTab({ movements, pharmacistNames, onNotice }: Props) {
+  const [type, setType] = useState<MovementTypeFilter>("ALL");
+  const [text, setText] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [sort, setSort] = useState<MovementSort>("date-desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  const filter = useMemo(() => ({ type, text, from, to }), [type, text, from, to]);
+  const visible = useMemo(() => filterAndSortMovements(movements, filter, sort), [movements, filter, sort]);
+  const summary = useMemo(() => summarizeMovements(visible), [visible]);
+  const filtered = type !== "ALL" || !!text || !!from || !!to;
+  const clearFilters = useCallback(() => { setType("ALL"); setText(""); setFrom(""); setTo(""); }, []);
+
+  // Al cambiar filtros, orden o tamaño de página, vuelve a la primera página.
+  const sig = `${type}|${text}|${from}|${to}|${sort}|${pageSize}`;
+  const [prevSig, setPrevSig] = useState(sig);
+  if (sig !== prevSig) { setPrevSig(sig); setPage(1); }
+
+  const pageNum = clampPage(page, visible.length, pageSize);
+  const totalPages = pageCount(visible.length, pageSize);
+  const pageItems = useMemo(() => paginate(visible, pageNum, pageSize), [visible, pageNum, pageSize]);
+  const shown = pageRange(visible.length, pageNum, pageSize);
+  const resolveName = useCallback((email: string) => displayPharmacist(email, pharmacistNames), [pharmacistNames]);
+
+  const onExport = useCallback(async () => {
+    try {
+      // La vista carga solo los más recientes; para exportar traemos el historial
+      // completo y aplicamos los mismos filtros y orden que ve el usuario.
+      const snap = await getDocs(fbQuery(collection(db, "movements"), orderBy("createdAt", "desc")));
+      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Movement));
+      const rows = filterAndSortMovements(all, filter, sort);
+      if (!rows.length) { onNotice("No hay movimientos que coincidan para exportar"); return; }
+      const range = [from, to].filter(Boolean).join("_");
+      downloadTextFile(`movimientos_${range || dateStamp()}.csv`, movementsToCsv(rows, resolveName));
+      onNotice(`Movimientos exportados (${rows.length})`);
+    } catch { onNotice("No se pudo exportar los movimientos"); }
+  }, [filter, sort, from, to, resolveName, onNotice]);
+
+  return (
+    <div className="panel">
+      <div className="panel-title">
+        <div><h2>Actividad reciente</h2><p>Cada operación conserva responsable, fecha y referencia.</p></div>
+        <button className="secondary" onClick={onExport}>⭳ Exportar CSV</button>
+      </div>
+      <div className="mov-filters">
+        <label className="search"><span>⌕</span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={text} onChange={(e) => setText(e.target.value)} /></label>
+        <label>Tipo<select aria-label="Filtrar por tipo" value={type} onChange={(e) => setType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option></select></label>
+        <label>Desde<input type="date" aria-label="Desde" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label>
+        <label>Hasta<input type="date" aria-label="Hasta" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>
+        <label>Orden<select aria-label="Ordenar" value={sort} onChange={(e) => setSort(e.target.value as MovementSort)}><option value="date-desc">Fecha (reciente)</option><option value="date-asc">Fecha (antiguo)</option><option value="qty-desc">Cantidad (mayor)</option><option value="qty-asc">Cantidad (menor)</option></select></label>
+        {filtered && <button type="button" className="mov-clear" onClick={clearFilters}>Limpiar</button>}
+        <span className="mov-count">{visible.length} de {movements.length}</span>
+      </div>
+      <div className="mov-summary">
+        <div><small>{from || to ? "Período" : "Movimientos"}</small><strong>{summary.count}</strong><em>{from || "inicio"} → {to || "hoy"}</em></div>
+        <div className="in"><small>Ingresos</small><strong>+{summary.inQuantity.toLocaleString("es-CR")}</strong><em>{summary.inCount} registros</em></div>
+        <div className="out"><small>Egresos</small><strong>−{summary.outQuantity.toLocaleString("es-CR")}</strong><em>{summary.outCount} registros</em></div>
+        <div><small>Variación neta</small><strong className={summary.net < 0 ? "neg" : summary.net > 0 ? "pos" : ""}>{summary.net > 0 ? "+" : ""}{summary.net.toLocaleString("es-CR")}</strong><em>{summary.medicineCount} medicamentos</em></div>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th></tr></thead>
+          <tbody>
+            {!movements.length ? <tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>
+              : pageItems.length ? pageItems.map((m) => (
+                <tr key={m.id}>
+                  <td>{new Date(m.createdAt).toLocaleString("es-CR")}</td>
+                  <td><strong>{m.medicineName}</strong></td>
+                  <td><span className={`type ${m.type}`}>{m.type === "IN" ? "Ingreso" : "Egreso"}</span></td>
+                  <td>{m.quantity}</td>
+                  <td>{m.prescriptionRef || "—"}</td>
+                  <td>{resolveName(m.pharmacistEmail)}</td>
+                </tr>
+              )) : <tr><td colSpan={6} className="empty">Ningún movimiento coincide con los filtros.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {visible.length > 0 && (
+        <div className="pager">
+          <span className="pager-info">{shown.start}–{shown.end} de {visible.length}</span>
+          <label className="pager-size">Por página<select aria-label="Movimientos por página" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select></label>
+          <div className="pager-nav">
+            <button onClick={() => setPage(pageNum - 1)} disabled={pageNum <= 1} aria-label="Página anterior">‹</button>
+            <span>Página {pageNum} de {totalPages}</span>
+            <button onClick={() => setPage(pageNum + 1)} disabled={pageNum >= totalPages} aria-label="Página siguiente">›</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

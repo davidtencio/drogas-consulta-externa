@@ -29,26 +29,32 @@ describe("ArqueoScreen", () => {
     render(<ArqueoScreen email="op@h.cr" />);
     expect(screen.getByText("Metformina")).toBeInTheDocument();
     expect(screen.getByText("Ibuprofeno")).toBeInTheDocument();
-    expect(screen.getByText("0 contados de 2")).toBeInTheDocument();
+    expect(screen.getByText("0 confirmados de 2")).toBeInTheDocument();
   });
 
-  it("registra solo los medicamentos con físico ingresado", async () => {
+  it("confirma el saldo con la casilla y registra el físico = sistema", async () => {
     render(<ArqueoScreen email="op@h.cr" />);
-    const inputs = screen.getAllByLabelText("Físico");
-    await userEvent.type(inputs[0], "98"); // solo Metformina
+    await userEvent.click(screen.getByLabelText("Confirmar saldo de Metformina"));
     await userEvent.selectOptions(screen.getByLabelText("Farmacéutico responsable"), "ana@h.cr");
-    expect(screen.getByText("1 contado de 2")).toBeInTheDocument();
+    expect(screen.getByText("1 confirmado de 2")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Registrar arqueo/ }));
     expect(registerCounts).toHaveBeenCalledOnce();
     const [entries, , pharmacistEmail] = registerCounts.mock.calls[0];
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ countedQuantity: 98, medicine: { id: "a" } });
+    // El físico confirmado coincide con el sistema (100), sin ingreso manual.
+    expect(entries[0]).toMatchObject({ countedQuantity: 100, medicine: { id: "a", stock: 100 } });
     expect(pharmacistEmail).toBe("ana@h.cr");
+  });
+
+  it("'Confirmar todos' selecciona todo el inventario", async () => {
+    render(<ArqueoScreen email="op@h.cr" />);
+    await userEvent.click(screen.getByLabelText("Confirmar todos"));
+    expect(screen.getByText("2 confirmados de 2")).toBeInTheDocument();
   });
 
   it("no permite registrar sin farmacéutico responsable", async () => {
     render(<ArqueoScreen email="op@h.cr" />);
-    await userEvent.type(screen.getAllByLabelText("Físico")[0], "98");
+    await userEvent.click(screen.getByLabelText("Confirmar saldo de Metformina"));
     expect(screen.getByRole("button", { name: /Registrar arqueo/ })).toBeDisabled();
   });
 });

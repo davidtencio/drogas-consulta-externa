@@ -15,17 +15,21 @@ button{cursor:pointer}
 .arqueo-controls select,.arqueo-controls>label:not(.search) input{border:1px solid #d8e2e9;border-radius:8px;padding:10px;background:#fff;font-size:14.4px;font-weight:400;color:var(--text);outline:none}
 .arqueo-controls select:focus,.arqueo-controls input:focus{border-color:#14948d;box-shadow:0 0 0 3px #14948d18}
 .arqueo-list{display:flex;flex-direction:column;gap:8px}
-.arqueo-row{display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+.arqueo-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;background:#fff;border:1px solid var(--line);border-radius:11px;padding:14px;cursor:pointer}
 .arqueo-row.counted{border-color:#bfe3db;background:#f6fcfb}
 .arqueo-med strong{display:block;font-size:14.4px;color:#1b3a54}
 .arqueo-med small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
 .arqueo-sys{text-align:center;color:var(--muted)}
 .arqueo-sys small{display:block;font-size:9.6px;text-transform:uppercase;letter-spacing:.5px}
 .arqueo-sys span{font-family:var(--font-display);font-size:18px;color:#42607a}
-.arqueo-input{display:grid;gap:4px;font-size:10px;font-weight:700;color:#435869;text-align:center}
-.arqueo-input input{width:84px;border:1px solid #d8e2e9;border-radius:8px;padding:9px;font-size:16.8px;text-align:center;outline:none}
-.arqueo-input input:focus{border-color:#14948d;box-shadow:0 0 0 3px #14948d18}
+
+
+
 .arqueo-footer{position:sticky;bottom:0;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end;background:#f4f7faee;backdrop-filter:blur(4px);border-top:1px solid var(--line);padding:14px 4px;margin-top:18px}
 .arqueo-progress{margin-right:auto;font-size:13.2px;color:var(--muted);font-weight:700}
 .arqueo-user{text-align:center;color:#9fb0bd;font-size:11px;margin-top:18px}
-@media(max-width:560px){.arqueo-controls{grid-template-columns:1fr}.arqueo-row{grid-template-columns:1fr auto auto;grid-template-areas:"med sys input" "diff diff diff";row-gap:8px}.arqueo-row .count-diff{grid-area:diff}}
+@media(max-width:560px){.arqueo-controls{grid-template-columns:1fr}}
+
+.arqueo-check{width:24px;height:24px;accent-color:#14948d;flex:none}
+.arqueo-all{display:inline-flex;align-items:center;gap:9px;font-size:13.2px;font-weight:700;color:#435869;margin-bottom:10px;cursor:pointer}
+.arqueo-all input{width:20px;height:20px;accent-color:#14948d}

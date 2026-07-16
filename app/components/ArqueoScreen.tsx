@@ -2,21 +2,22 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { activeMedicines, isValidCount, type Medicine } from "../lib/inventory";
+import { activeMedicines } from "../lib/inventory";
 import * as dataApi from "../lib/db";
 import { useInventoryData } from "../hooks/useInventoryData";
 import { useOnline } from "../hooks/useOnline";
 import { ConnectionBanner } from "./ConnectionBanner";
 
 /**
- * Pantalla de arqueo: contar varios medicamentos en una sola sesión y
- * registrarlos como evidencia (conteos) de un solo envío. No ajusta el stock.
+ * Pantalla de arqueo: confirmar el saldo de cada medicamento con una casilla
+ * (el físico coincide con el sistema). Registra los conteos como evidencia de
+ * un solo envío. No ajusta el stock.
  */
 export function ArqueoScreen({ email }: { email: string }) {
   const { medicines, pharmacists, pendingWrites } = useInventoryData(true);
   const online = useOnline();
 
-  const [counts, setCounts] = useState<Record<string, string>>({});
+  const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
   const [pharmacistEmail, setPharmacistEmail] = useState("");
   const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
@@ -32,40 +33,29 @@ export function ArqueoScreen({ email }: { email: string }) {
     [activeMeds, q]
   );
 
-  // Entradas con un físico válido (entero ≥ 0).
-  const entries = useMemo(() => {
-    const list: { medicine: Medicine; countedQuantity: number }[] = [];
-    for (const m of activeMeds) {
-      const raw = counts[m.id];
-      if (raw == null || raw.trim() === "") continue;
-      const n = Number(raw);
-      if (isValidCount(n)) list.push({ medicine: m, countedQuantity: n });
-    }
-    return list;
-  }, [activeMeds, counts]);
+  const confirmedCount = useMemo(() => activeMeds.filter((m) => confirmed[m.id]).length, [activeMeds, confirmed]);
+  const allOn = activeMeds.length > 0 && confirmedCount === activeMeds.length;
 
   const flash = useCallback((msg: string) => { setNotice(msg); setTimeout(() => setNotice(""), 4000); }, []);
-  const setCount = useCallback((id: string, value: string) => setCounts((c) => ({ ...c, [id]: value })), []);
+  const toggle = useCallback((id: string) => setConfirmed((c) => ({ ...c, [id]: !c[id] })), []);
+  const toggleAll = useCallback(() => {
+    setConfirmed(allOn ? {} : Object.fromEntries(activeMeds.map((m) => [m.id, true])));
+  }, [allOn, activeMeds]);
 
   const submit = useCallback(async () => {
     if (!pharmacistEmail) { flash("Seleccione el farmacéutico responsable."); return; }
-    if (!entries.length) { flash("Ingrese al menos un conteo."); return; }
+    const entries = activeMeds.filter((m) => confirmed[m.id]).map((m) => ({ medicine: { id: m.id, name: m.name, stock: m.stock }, countedQuantity: m.stock }));
+    if (!entries.length) { flash("Confirme al menos un saldo."); return; }
     setBusy(true);
     try {
-      const now = new Date().toISOString();
-      await dataApi.registerCounts(
-        entries.map((e) => ({ medicine: { id: e.medicine.id, name: e.medicine.name, stock: e.medicine.stock }, countedQuantity: e.countedQuantity })),
-        note.trim(),
-        pharmacistEmail,
-        now
-      );
-      flash(`Arqueo registrado: ${entries.length} conteo${entries.length > 1 ? "s" : ""}${online ? "" : " (se sincronizará al reconectar)"}`);
-      setCounts({});
+      await dataApi.registerCounts(entries, note.trim() || "Saldo confirmado", pharmacistEmail, new Date().toISOString());
+      flash(`Arqueo registrado: ${entries.length} saldo${entries.length > 1 ? "s" : ""} confirmado${entries.length > 1 ? "s" : ""}${online ? "" : " (se sincronizará al reconectar)"}`);
+      setConfirmed({});
       setNote("");
     } catch {
       flash("No se pudo registrar el arqueo");
     } finally { setBusy(false); }
-  }, [entries, pharmacistEmail, note, online, flash]);
+  }, [activeMeds, confirmed, pharmacistEmail, note, online, flash]);
 
   return (
     <main className="arqueo">
@@ -73,7 +63,7 @@ export function ArqueoScreen({ email }: { email: string }) {
         <div>
           <p className="eyebrow">{today}</p>
           <h1>Arqueo de inventario</h1>
-          <p>Cuente el físico de cada medicamento. Se registra como evidencia; no modifica existencias.</p>
+          <p>Confirme el saldo de cada medicamento. Se registra como evidencia; no modifica existencias.</p>
         </div>
         <Link className="secondary" href="/">← Volver a la app</Link>
       </header>
@@ -86,31 +76,28 @@ export function ArqueoScreen({ email }: { email: string }) {
         <label>Nota del arqueo<input aria-label="Nota del arqueo" placeholder="Opcional" value={note} onChange={(e) => setNote(e.target.value)} /></label>
       </div>
 
-      {!activeMeds.length ? <div className="panel"><div className="empty-block">No hay medicamentos activos para contar.</div></div>
-        : <div className="arqueo-list">
-            {shown.map((m) => {
-              const raw = counts[m.id] ?? "";
-              const n = Number(raw);
-              const has = raw.trim() !== "" && isValidCount(n);
-              const diff = has ? n - m.stock : null;
-              const diffClass = diff === null || diff === 0 ? "" : diff > 0 ? "pos" : "neg";
-              const diffLabel = diff === null ? "" : diff === 0 ? "Sin diferencia" : diff > 0 ? `Sobrante +${diff}` : `Faltante ${diff}`;
-              return (
-                <div className={`arqueo-row${has ? " counted" : ""}`} key={m.id}>
-                  <div className="arqueo-med"><strong>{m.name}</strong><small>{m.strength} · {m.form}</small></div>
-                  <div className="arqueo-sys"><small>Sistema</small><span>{m.stock.toLocaleString("es-CR")}</span></div>
-                  <label className="arqueo-input">Físico<input inputMode="numeric" type="number" min="0" step="1" value={raw} onChange={(e) => setCount(m.id, e.target.value)} /></label>
-                  {diff !== null && <span className={`count-diff ${diffClass}`}>{diffLabel}</span>}
-                </div>
-              );
-            })}
-            {!shown.length && <div className="empty-block">Ningún medicamento coincide con la búsqueda.</div>}
-          </div>}
+      {!activeMeds.length ? <div className="panel"><div className="empty-block">No hay medicamentos activos para arquear.</div></div>
+        : <>
+            <label className="arqueo-all"><input type="checkbox" checked={allOn} onChange={toggleAll} /> Confirmar todos</label>
+            <div className="arqueo-list">
+              {shown.map((m) => {
+                const on = !!confirmed[m.id];
+                return (
+                  <label className={`arqueo-row${on ? " counted" : ""}`} key={m.id}>
+                    <input type="checkbox" className="arqueo-check" checked={on} onChange={() => toggle(m.id)} aria-label={`Confirmar saldo de ${m.name}`} />
+                    <div className="arqueo-med"><strong>{m.name}</strong><small>{m.strength} · {m.form}</small></div>
+                    <div className="arqueo-sys"><small>Sistema</small><span>{m.stock.toLocaleString("es-CR")}</span></div>
+                  </label>
+                );
+              })}
+              {!shown.length && <div className="empty-block">Ningún medicamento coincide con la búsqueda.</div>}
+            </div>
+          </>}
 
       <div className="arqueo-footer">
-        <span className="arqueo-progress">{entries.length} contado{entries.length === 1 ? "" : "s"} de {activeMeds.length}</span>
+        <span className="arqueo-progress">{confirmedCount} confirmado{confirmedCount === 1 ? "" : "s"} de {activeMeds.length}</span>
         {!activePharmacists.length && <small className="form-hint">Registre un farmacéutico autorizado en la app para poder continuar.</small>}
-        <button className="primary" onClick={submit} disabled={busy || !entries.length || !pharmacistEmail}>{busy ? "Registrando…" : `Registrar arqueo (${entries.length})`}</button>
+        <button className="primary" onClick={submit} disabled={busy || !confirmedCount || !pharmacistEmail}>{busy ? "Registrando…" : `Registrar arqueo (${confirmedCount})`}</button>
       </div>
 
       <p className="arqueo-user">Sesión: {email}</p>

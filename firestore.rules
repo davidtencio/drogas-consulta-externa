@@ -3,19 +3,26 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Solo usuarios autenticados (personal farmacéutico dado de alta en la
-    // consola de Firebase) pueden leer o escribir el inventario.
-    // Para endurecer a una lista blanca por correo, reemplace la condición por:
-    //   allow read, write: if request.auth != null
-    //     && request.auth.token.email in ['farmaceutico1@dominio', ...];
+    // Lista blanca: solo estos correos de Google (verificados) pueden operar.
+    // Para autorizar a más personal, agregue su correo a esta lista y despliegue:
+    //   firebase deploy --only firestore:rules
+    function isAuthorized() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          'davidtencio@gmail.com',
+          'fhsvp2208@gmail.com'
+        ];
+    }
+
     match /medicines/{id} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthorized();
     }
     match /pharmacists/{id} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthorized();
     }
     match /movements/{id} {
-      allow read, create: if request.auth != null;
+      allow read, create: if isAuthorized();
       // Los movimientos son un registro de trazabilidad: no se editan ni borran.
       allow update, delete: if false;
     }

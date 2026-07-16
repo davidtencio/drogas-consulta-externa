@@ -40,3 +40,11 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# claude code tooling
+/.claude/
+
+# firebase
+.firebase/
+firebase-debug.log*
+firestore-debug.log*

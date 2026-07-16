@@ -1,0 +1,13 @@
+# Configuración de Firebase App Hosting
+# https://firebase.google.com/docs/app-hosting/configure
+#
+# La configuración web de Firebase es pública y va embebida en app/firebase.ts,
+# por lo que no se necesitan secretos ni variables de entorno aquí.
+
+runConfig:
+  # Escala a cero cuando no hay tráfico (menor costo).
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512

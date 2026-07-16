@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export type Tab = "dashboard" | "movements" | "settings";
 
 type Props = {
@@ -19,6 +21,7 @@ export function Sidebar({ email, tab, onTab, onSignOut }: Props) {
         <button className={tab === "dashboard" ? "active" : ""} onClick={() => onTab("dashboard")}><span>▦</span> Inventario</button>
         <button className={tab === "movements" ? "active" : ""} onClick={() => onTab("movements")}><span>⇄</span> Movimientos</button>
         <button className={tab === "settings" ? "active" : ""} onClick={() => onTab("settings")}><span>⚙</span> Configuración</button>
+        <Link href="/arqueo"><span>☑</span> Arqueo</Link>
       </nav>
       <div className="secure">
         <span>✓</span>

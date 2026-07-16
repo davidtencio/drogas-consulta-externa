@@ -5,6 +5,9 @@ const updateDoc = vi.fn(async () => undefined);
 const runTransaction = vi.fn(async () => undefined);
 const doc = vi.fn((_db: unknown, col: string, id?: string) => ({ col, id }));
 const collection = vi.fn((_db: unknown, name: string) => ({ name }));
+const batchSet = vi.fn();
+const batchCommit = vi.fn(async () => undefined);
+const writeBatch = vi.fn(() => ({ set: batchSet, commit: batchCommit }));
 
 vi.mock("../firebase", () => ({ db: {} }));
 vi.mock("firebase/firestore", () => ({
@@ -13,6 +16,7 @@ vi.mock("firebase/firestore", () => ({
   runTransaction: (...a: unknown[]) => runTransaction(...(a as [])),
   doc: (...a: unknown[]) => doc(...(a as [unknown, string, string?])),
   collection: (...a: unknown[]) => collection(...(a as [unknown, string])),
+  writeBatch: (...a: unknown[]) => writeBatch(...(a as [])),
 }));
 
 import * as dbApi from "./db";
@@ -25,6 +29,8 @@ beforeEach(() => {
   runTransaction.mockClear();
   doc.mockClear();
   collection.mockClear();
+  batchSet.mockClear();
+  batchCommit.mockClear();
 });
 
 describe("setActive", () => {
@@ -73,5 +79,26 @@ describe("registerCount", () => {
     expect(addDoc).toHaveBeenCalledTimes(1);
     const rec = addDoc.mock.calls[0][1] as Record<string, unknown>;
     expect(rec).toMatchObject({ type: "COUNT", quantity: 95, systemQuantity: 100, difference: -5, note: "faltante", medicineName: "Metformina" });
+  });
+});
+
+describe("registerCounts", () => {
+  it("registra varios conteos en un lote (sin transacción) y confirma", async () => {
+    await dbApi.registerCounts(
+      [
+        { medicine: { id: "a", name: "Metformina", stock: 100 }, countedQuantity: 98 },
+        { medicine: { id: "b", name: "Ibuprofeno", stock: 40 }, countedQuantity: 45 },
+      ],
+      "arqueo diario",
+      "ana@h.cr",
+      "2026-07-16T10:00:00.000Z"
+    );
+    expect(runTransaction).not.toHaveBeenCalled();
+    expect(batchSet).toHaveBeenCalledTimes(2);
+    expect(batchCommit).toHaveBeenCalledOnce();
+    const first = batchSet.mock.calls[0][1] as Record<string, unknown>;
+    expect(first).toMatchObject({ type: "COUNT", quantity: 98, systemQuantity: 100, difference: -2, note: "arqueo diario" });
+    const second = batchSet.mock.calls[1][1] as Record<string, unknown>;
+    expect(second).toMatchObject({ type: "COUNT", quantity: 45, difference: 5 });
   });
 });

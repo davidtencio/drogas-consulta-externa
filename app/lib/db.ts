@@ -1,7 +1,7 @@
 // Capa de acceso a datos: encapsula las escrituras a Firestore para que la UI
 // no dependa directamente del SDK. La lógica de dominio vive en inventory.ts.
 
-import { addDoc, collection, doc, runTransaction, updateDoc } from "firebase/firestore";
+import { addDoc, collection, doc, runTransaction, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "../firebase";
 import { prepareCount, prepareMovement, type MovementType } from "./inventory";
 
@@ -106,4 +106,22 @@ export function registerCount(req: CountRequest): Promise<unknown> {
     createdAt: req.now,
   });
   return addDoc(collection(db, "movements"), record);
+}
+
+export type CountEntry = { medicine: { id: string; name: string; stock: number }; countedQuantity: number };
+
+/**
+ * Registra varios conteos (arqueo de sesión) en una sola escritura por lote.
+ * No usa transacción ni ajusta stock, así que también funciona sin conexión.
+ */
+export function registerCounts(entries: readonly CountEntry[], note: string, pharmacistEmail: string, now: string): Promise<void> {
+  const batch = writeBatch(db);
+  for (const e of entries) {
+    const record = prepareCount(
+      { name: e.medicine.name, stock: e.medicine.stock },
+      { medicineId: e.medicine.id, countedQuantity: e.countedQuantity, note, pharmacistEmail, createdAt: now }
+    );
+    batch.set(doc(collection(db, "movements")), record);
+  }
+  return batch.commit();
 }

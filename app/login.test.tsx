@@ -14,7 +14,7 @@ vi.mock("firebase/firestore", () => ({}));
 // Mock de nuestro módulo de Firebase para no inicializar la app real.
 vi.mock("./firebase", () => ({ auth: {}, db: {} }));
 
-import { Login } from "./page";
+import { Login } from "./components/Login";
 
 describe("Login", () => {
   beforeEach(() => {

@@ -69,6 +69,7 @@ export default function Home() {
 
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
   const activeMeds=useMemo(()=>activeMedicines(medicines),[medicines]);
+  const activePharmacists=useMemo(()=>pharmacists.filter(p=>p.active!==false),[pharmacists]);
   const filtered=useMemo(()=>filterMedicines(activeMeds,query),[activeMeds,query]);
   const total=totalStock(activeMeds), low=lowStockCount(activeMeds);
   const expiring=useMemo(()=>expiringCount(activeMeds),[activeMeds]);
@@ -142,7 +143,20 @@ export default function Home() {
         if(!name||!strength) throw new Error("Nombre y concentración son obligatorios.");
         const fields={name,strength,form:g("form")||"Tableta",minimumStock:Math.max(0,Number(form.get("minimumStock"))||0),lot:g("lot"),expiresAt:g("expiresAt")};
         if(editing) await updateDoc(doc(db,"medicines",editing.id),fields);
-        else await addDoc(collection(db,"medicines"),{...fields,unit:"unidades",stock:Math.max(0,Number(form.get("stock"))||0),active:true,createdAt:now});
+        else {
+          const initial=Math.max(0,Number(form.get("stock"))||0);
+          const pharmacistEmail=g("pharmacistEmail");
+          if(initial>0){
+            if(!Number.isInteger(initial)) throw new Error("La existencia inicial debe ser un número entero.");
+            if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable del ingreso inicial.");
+          }
+          const ref=await addDoc(collection(db,"medicines"),{...fields,unit:"unidades",stock:initial,active:true,createdAt:now});
+          // La existencia inicial queda como un movimiento de ingreso trazable.
+          if(initial>0){
+            const {record}=prepareMovement({name,stock:0},{medicineId:ref.id,type:"IN",quantity:initial,prescriptionRef:"Existencia inicial",pharmacistEmail,createdAt:now});
+            await addDoc(collection(db,"movements"),record);
+          }
+        }
       } else if(action==="pharmacist"){
         const name=g("name"), email=g("email").toLowerCase(), license=g("license");
         if(!name||!email||!license) throw new Error("Complete todos los datos del farmacéutico.");
@@ -152,13 +166,15 @@ export default function Home() {
         const medicineId=g("medicineId");
         const quantity=Number(form.get("quantity"));
         const type=form.get("type")==="IN"?"IN":"OUT";
+        const pharmacistEmail=g("pharmacistEmail");
         if(!medicineId) throw new Error("Cantidad inválida.");
+        if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable.");
         await runTransaction(db,async tx=>{
           const ref=doc(db,"medicines",medicineId);
           const snap=await tx.get(ref);
           if(!snap.exists()) throw new Error("Medicamento no disponible.");
           const data=snap.data();
-          const {nextStock:next,record}=prepareMovement({name:data.name,stock:Number(data.stock)||0},{medicineId,type,quantity,prescriptionRef:g("prescriptionRef"),pharmacistEmail:user?.email||"",createdAt:now});
+          const {nextStock:next,record}=prepareMovement({name:data.name,stock:Number(data.stock)||0},{medicineId,type,quantity,prescriptionRef:g("prescriptionRef"),pharmacistEmail,createdAt:now});
           tx.update(ref,{stock:next});
           tx.set(doc(collection(db,"movements")),record);
         });
@@ -166,7 +182,7 @@ export default function Home() {
       flash("Registro guardado correctamente");closeModal();
     }catch(err){flash(err instanceof Error?err.message:"No se pudo guardar")}
     finally{setBusy(false)}
-  },[user,editing,flash,closeModal]);
+  },[editing,flash,closeModal]);
 
   if(!authReady) return <div className="auth-screen"><div className="auth-loading">Cargando…</div></div>;
   if(!user) return <Login/>;
@@ -212,6 +228,6 @@ export default function Home() {
     </section>
 
     {notice&&<div className="toast" role="status">{notice}</div>}
-    {modal&&<div className="overlay" onMouseDown={closeModal}><div className="modal" onMouseDown={e=>e.stopPropagation()}><button className="close" onClick={closeModal} aria-label="Cerrar">×</button>{modal==="movement"&&<><h2>Registrar movimiento</h2><p>Actualice existencias con trazabilidad completa.</p><form onSubmit={e=>submit(e,"movement")}><label>Medicamento<select name="medicineId" required>{activeMeds.map(m=><option key={m.id} value={m.id}>{m.name} {m.strength} — {m.stock} disp.</option>)}</select></label><div className="form-row"><label>Tipo<select name="type"><option value="OUT">Egreso</option><option value="IN">Ingreso</option></select></label><label>Cantidad<input name="quantity" type="number" min="1" required/></label></div><label>Referencia de prescripción<input name="prescriptionRef" placeholder="Ej. RX-2026-00481"/></label><button className="primary full" disabled={busy}>{busy?"Guardando...":"Confirmar movimiento"}</button></form></>}{modal==="medicine"&&<><h2>{editing?"Editar medicamento":"Agregar medicamento"}</h2><p>{editing?"Las existencias solo cambian mediante movimientos.":"Defina la presentación y niveles de control."}</p><form onSubmit={e=>submit(e,"medicine")}><label>Nombre<input name="name" required placeholder="Ej. Metformina" defaultValue={em?.name||""}/></label><div className="form-row"><label>Concentración<input name="strength" required placeholder="500 mg" defaultValue={em?.strength||""}/></label><label>Forma<input name="form" placeholder="Tableta" defaultValue={em?.form||""}/></label></div><div className="form-row">{!editing&&<label>Existencia inicial<input name="stock" type="number" min="0" defaultValue="0"/></label>}<label>Stock mínimo<input name="minimumStock" type="number" min="0" defaultValue={em?String(em.minimumStock):"0"}/></label></div><div className="form-row"><label>Lote<input name="lot" defaultValue={em?.lot||""}/></label><label>Vencimiento<input name="expiresAt" type="date" defaultValue={em?.expiresAt||""}/></label></div><button className="primary full" disabled={busy}>{busy?"Guardando...":editing?"Guardar cambios":"Guardar medicamento"}</button></form></>}{modal==="pharmacist"&&<><h2>{editing?"Editar farmacéutico":"Autorizar farmacéutico"}</h2><p>El correo será su identificador de acceso.</p><form onSubmit={e=>submit(e,"pharmacist")}><label>Nombre completo<input name="name" required defaultValue={ep?.name||""}/></label><label>Correo institucional<input name="email" type="email" required defaultValue={ep?.email||""}/></label><label>Código profesional<input name="license" required placeholder="Ej. CF-1234" defaultValue={ep?.license||""}/></label><button className="primary full" disabled={busy}>{busy?"Guardando...":editing?"Guardar cambios":"Autorizar usuario"}</button></form></>}</div></div>}
+    {modal&&<div className="overlay" onMouseDown={closeModal}><div className="modal" onMouseDown={e=>e.stopPropagation()}><button className="close" onClick={closeModal} aria-label="Cerrar">×</button>{modal==="movement"&&<><h2>Registrar movimiento</h2><p>Actualice existencias con trazabilidad completa.</p><form onSubmit={e=>submit(e,"movement")}><label>Medicamento<select name="medicineId" required>{activeMeds.map(m=><option key={m.id} value={m.id}>{m.name} {m.strength} — {m.stock} disp.</option>)}</select></label><div className="form-row"><label>Tipo<select name="type"><option value="OUT">Egreso</option><option value="IN">Ingreso</option></select></label><label>Cantidad<input name="quantity" type="number" min="1" required/></label></div><label>Referencia de prescripción<input name="prescriptionRef" placeholder="Ej. RX-2026-00481"/></label><label>Farmacéutico responsable<select name="pharmacistEmail" required defaultValue=""><option value="" disabled>Seleccione…</option>{activePharmacists.map(p=><option key={p.id} value={p.email}>{p.name} — {p.license}</option>)}</select></label>{!activePharmacists.length&&<small className="form-hint">Registre un farmacéutico autorizado en Configuración para poder continuar.</small>}<button className="primary full" disabled={busy||!activePharmacists.length}>{busy?"Guardando...":"Confirmar movimiento"}</button></form></>}{modal==="medicine"&&<><h2>{editing?"Editar medicamento":"Agregar medicamento"}</h2><p>{editing?"Las existencias solo cambian mediante movimientos.":"Defina la presentación y niveles de control."}</p><form onSubmit={e=>submit(e,"medicine")}><label>Nombre<input name="name" required placeholder="Ej. Metformina" defaultValue={em?.name||""}/></label><div className="form-row"><label>Concentración<input name="strength" required placeholder="500 mg" defaultValue={em?.strength||""}/></label><label>Forma<input name="form" placeholder="Tableta" defaultValue={em?.form||""}/></label></div><div className="form-row">{!editing&&<label>Existencia inicial<input name="stock" type="number" min="0" defaultValue="0"/></label>}<label>Stock mínimo<input name="minimumStock" type="number" min="0" defaultValue={em?String(em.minimumStock):"0"}/></label></div><div className="form-row"><label>Lote<input name="lot" defaultValue={em?.lot||""}/></label><label>Vencimiento<input name="expiresAt" type="date" defaultValue={em?.expiresAt||""}/></label></div>{!editing&&<label>Farmacéutico responsable<small className="inline-hint">Requerido si la existencia inicial es mayor a 0</small><select name="pharmacistEmail" defaultValue=""><option value="">Sin ingreso inicial</option>{activePharmacists.map(p=><option key={p.id} value={p.email}>{p.name} — {p.license}</option>)}</select></label>}<button className="primary full" disabled={busy}>{busy?"Guardando...":editing?"Guardar cambios":"Guardar medicamento"}</button></form></>}{modal==="pharmacist"&&<><h2>{editing?"Editar farmacéutico":"Autorizar farmacéutico"}</h2><p>El correo será su identificador de acceso.</p><form onSubmit={e=>submit(e,"pharmacist")}><label>Nombre completo<input name="name" required defaultValue={ep?.name||""}/></label><label>Correo institucional<input name="email" type="email" required defaultValue={ep?.email||""}/></label><label>Código profesional<input name="license" required placeholder="Ej. CF-1234" defaultValue={ep?.license||""}/></label><button className="primary full" disabled={busy}>{busy?"Guardando...":editing?"Guardar cambios":"Autorizar usuario"}</button></form></>}</div></div>}
   </main>;
 }

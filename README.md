@@ -28,9 +28,33 @@ npm install
 npm run dev      # http://localhost:3000
 npm run build    # build de producción
 npm run lint
+npm test         # ejecuta las pruebas una vez
 ```
 
 La configuración web de Firebase (pública) está en `app/firebase.ts`.
+
+## Pruebas
+
+Las pruebas usan **Vitest** con **React Testing Library** (entorno `jsdom`).
+
+```bash
+npm test              # corre toda la suite una vez
+npm run test:watch    # modo interactivo (re-ejecuta al guardar)
+npm run test:coverage # reporte de cobertura
+```
+
+Convención: cada archivo de prueba vive junto al código que verifica, con
+sufijo `.test.ts` / `.test.tsx`.
+
+- `app/lib/inventory.ts` concentra la **lógica de dominio pura** (existencias,
+  stock bajo, filtrado, validación de movimientos). Es la capa con mayor valor
+  de prueba y se cubre en `app/lib/inventory.test.ts`.
+- Los componentes se prueban con Firebase **mockeado** (ver
+  `app/login.test.tsx`), sin red ni credenciales reales.
+
+Conforme la app crece, agregue lógica nueva en `app/lib/` con su prueba
+correspondiente, y una prueba de componente cuando cambie el comportamiento de
+la interfaz.
 
 ## Modelo de datos (Firestore)
 

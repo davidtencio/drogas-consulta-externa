@@ -4,12 +4,9 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
 import { addDoc, collection, doc, limit, onSnapshot, orderBy, query as fbQuery, runTransaction, updateDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
+import { activeMedicines, filterMedicines, isLowStock, isValidQuantity, lowStockCount, nextStock, sortByName, stockPercent, totalStock, type Medicine, type Pharmacist, type Movement } from "./lib/inventory";
 
-type Medicine = { id:string; name:string; strength:string; form:string; unit:string; stock:number; minimumStock:number; lot:string; expiresAt:string; active?:boolean };
-type Pharmacist = { id:string; name:string; email:string; license:string; active?:boolean };
-type Movement = { id:string; type:"IN"|"OUT"; quantity:number; medicineName:string; prescriptionRef:string; pharmacistEmail:string; createdAt:string };
-
-function Login(){
+export function Login(){
   const [error,setError]=useState(""),[busy,setBusy]=useState(false);
   async function google(){
     setBusy(true);setError("");
@@ -48,10 +45,10 @@ export default function Home() {
   useEffect(()=>{
     if(!user) return;
     const unsubMed=onSnapshot(collection(db,"medicines"),s=>setMedicines(
-      s.docs.map(d=>({id:d.id,...d.data()} as Medicine)).sort((a,b)=>a.name.localeCompare(b.name))
+      sortByName(s.docs.map(d=>({id:d.id,...d.data()} as Medicine)))
     ));
     const unsubPh=onSnapshot(collection(db,"pharmacists"),s=>setPharmacists(
-      s.docs.map(d=>({id:d.id,...d.data()} as Pharmacist)).sort((a,b)=>a.name.localeCompare(b.name))
+      sortByName(s.docs.map(d=>({id:d.id,...d.data()} as Pharmacist)))
     ));
     const unsubMov=onSnapshot(fbQuery(collection(db,"movements"),orderBy("createdAt","desc"),limit(8)),s=>setMovements(
       s.docs.map(d=>({id:d.id,...d.data()} as Movement))
@@ -60,9 +57,9 @@ export default function Home() {
   },[user]);
 
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
-  const activeMeds=useMemo(()=>medicines.filter(m=>m.active!==false),[medicines]);
-  const filtered=useMemo(()=>activeMeds.filter(m=>`${m.name} ${m.strength}`.toLowerCase().includes(query.toLowerCase())),[activeMeds,query]);
-  const total=activeMeds.reduce((a,m)=>a+m.stock,0), low=activeMeds.filter(m=>m.stock<=m.minimumStock).length;
+  const activeMeds=useMemo(()=>activeMedicines(medicines),[medicines]);
+  const filtered=useMemo(()=>filterMedicines(activeMeds,query),[activeMeds,query]);
+  const total=totalStock(activeMeds), low=lowStockCount(activeMeds);
 
   const closeModal=useCallback(()=>{setModal(null);setEditing(null)},[]);
   const openCreate=useCallback((kind:"medicine"|"pharmacist"|"movement")=>{setEditing(null);setModal(kind)},[]);
@@ -97,15 +94,13 @@ export default function Home() {
         const medicineId=g("medicineId");
         const quantity=Number(form.get("quantity"));
         const type=form.get("type")==="IN"?"IN":"OUT";
-        if(!medicineId||!Number.isInteger(quantity)||quantity<=0) throw new Error("Cantidad inválida.");
+        if(!medicineId||!isValidQuantity(quantity)) throw new Error("Cantidad inválida.");
         await runTransaction(db,async tx=>{
           const ref=doc(db,"medicines",medicineId);
           const snap=await tx.get(ref);
           if(!snap.exists()) throw new Error("Medicamento no disponible.");
           const data=snap.data();
-          const delta=type==="IN"?quantity:-quantity;
-          const next=(Number(data.stock)||0)+delta;
-          if(next<0) throw new Error("Existencias insuficientes.");
+          const next=nextStock(Number(data.stock)||0,type,quantity);
           tx.update(ref,{stock:next});
           tx.set(doc(collection(db,"movements")),{medicineId,medicineName:data.name,type,quantity,prescriptionRef:g("prescriptionRef"),pharmacistEmail:user?.email||"",createdAt:now});
         });
@@ -137,7 +132,7 @@ export default function Home() {
       {tab==="dashboard"&&<>
         <div className="stats"><article><span className="stat-icon blue">▤</span><div><small>Existencias totales</small><strong>{total.toLocaleString("es-CR")}</strong><em>unidades disponibles</em></div></article><article><span className="stat-icon amber">!</span><div><small>Stock bajo</small><strong>{low}</strong><em>requieren atención</em></div></article><article><span className="stat-icon green">⇄</span><div><small>Movimientos recientes</small><strong>{movements.length}</strong><em>últimos registros</em></div></article></div>
         <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar por medicamento o concentración..." value={query} onChange={e=>setQuery(e.target.value)}/></label><span>{filtered.length} medicamentos</span></div>
-        {activeMeds.length?<div className="medicine-grid">{filtered.map(m=>{const pct=Math.min(100,Math.round(m.stock/Math.max(m.minimumStock*2,1)*100));const status=m.stock<=m.minimumStock?"low":"ok";return <article className="medicine-card" key={m.id}><div className="card-head"><span className="pill-icon">✚</span><span className={`badge ${status}`}>{status==="low"?"Stock bajo":"Disponible"}</span></div><h2>{m.name}</h2><p>{m.strength} · {m.form}</p><div className="stock-row"><strong>{m.stock.toLocaleString("es-CR")}</strong><span>{m.unit}</span></div><div className="bar"><i className={status} style={{width:`${pct}%`}}/></div><div className="meta"><span>Lote<strong>{m.lot||"—"}</strong></span><span>Vence<strong>{m.expiresAt?new Date(m.expiresAt+"T12:00:00").toLocaleDateString("es-CR",{month:"short",year:"numeric"}):"—"}</strong></span></div><button className="card-action" onClick={()=>openCreate("movement")}>Registrar movimiento <span>→</span></button></article>})}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
+        {activeMeds.length?<div className="medicine-grid">{filtered.map(m=>{const pct=stockPercent(m);const status=isLowStock(m)?"low":"ok";return <article className="medicine-card" key={m.id}><div className="card-head"><span className="pill-icon">✚</span><span className={`badge ${status}`}>{status==="low"?"Stock bajo":"Disponible"}</span></div><h2>{m.name}</h2><p>{m.strength} · {m.form}</p><div className="stock-row"><strong>{m.stock.toLocaleString("es-CR")}</strong><span>{m.unit}</span></div><div className="bar"><i className={status} style={{width:`${pct}%`}}/></div><div className="meta"><span>Lote<strong>{m.lot||"—"}</strong></span><span>Vence<strong>{m.expiresAt?new Date(m.expiresAt+"T12:00:00").toLocaleDateString("es-CR",{month:"short",year:"numeric"}):"—"}</strong></span></div><button className="card-action" onClick={()=>openCreate("movement")}>Registrar movimiento <span>→</span></button></article>})}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}
 
       {tab==="movements"&&<div className="panel"><div className="panel-title"><div><h2>Actividad reciente</h2><p>Cada operación conserva responsable, fecha y referencia.</p></div></div><div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th></tr></thead><tbody>{movements.length?movements.map(m=><tr key={m.id}><td>{new Date(m.createdAt).toLocaleString("es-CR")}</td><td><strong>{m.medicineName}</strong></td><td><span className={`type ${m.type}`}>{m.type==="IN"?"Ingreso":"Egreso"}</span></td><td>{m.quantity}</td><td>{m.prescriptionRef||"—"}</td><td>{m.pharmacistEmail}</td></tr>):<tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>}</tbody></table></div></div>}

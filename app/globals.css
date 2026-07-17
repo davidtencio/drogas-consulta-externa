@@ -80,4 +80,8 @@ button{cursor:pointer}
 }
 
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* Fase 3: contraste AA verificado para texto secundario y estados en tema claro. */
+:root[data-theme=light]{--faint:#64737e;--in:#126b52;--out:#8a4810}
+.card-action.count{background:color-mix(in srgb,var(--count-tint) 65%,var(--surface-2));border-left:2px solid var(--line)}
 @media(max-width:760px){.theme-toggle{width:auto;margin-top:12px}.theme-toggle-label{display:none}}

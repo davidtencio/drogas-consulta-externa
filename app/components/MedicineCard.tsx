@@ -36,9 +36,9 @@ export function MedicineCard({ medicine: m, lastCount, onMovement, onCount }: Pr
         <span>Últ. arqueo<strong>{lastCountLabel}</strong></span>
       </div>
       <div className="card-actions">
-        <button className="card-action in" onClick={() => onMovement("IN")}>＋ Ingreso</button>
-        <button className="card-action out" onClick={() => onMovement("OUT")}>− Egreso</button>
-        <button className="card-action count" onClick={onCount}>≡ Conteo</button>
+        <button className="card-action in" onClick={() => onMovement("IN")} aria-label={`Registrar ingreso de ${m.name}`}>＋ Ingreso</button>
+        <button className="card-action out" onClick={() => onMovement("OUT")} aria-label={`Registrar egreso de ${m.name}`}>− Egreso</button>
+        <button className="card-action count" onClick={onCount} aria-label={`Confirmar conteo de ${m.name}`}>≡ Conteo</button>
       </div>
     </article>
   );

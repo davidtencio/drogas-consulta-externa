@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "./ThemeToggle";
 
 export type Tab = "dashboard" | "movements" | "settings";
 
@@ -27,6 +28,7 @@ export function Sidebar({ email, tab, onTab, onSignOut }: Props) {
         <span>✓</span>
         <div><strong>Conexión protegida</strong><small>Datos cifrados en tránsito y reposo</small></div>
       </div>
+      <ThemeToggle />
       <div className="profile">
         <div className="avatar">{(email || "?").slice(0, 2).toUpperCase()}</div>
         <div><strong>{email}</strong><small>Sesión autorizada</small></div>

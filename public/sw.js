@@ -1,7 +1,14 @@
 // Service worker mínimo para que la interfaz cargue sin conexión (app shell).
 // No toca peticiones a Firestore/Google (otro origen): esas van a la red y
 // Firestore maneja su propio offline por IndexedDB.
-const CACHE = "drogas-cache-v1";
+// La versión viene en la URL (?v=<build>), así cada despliegue usa una caché
+// nueva y descarta las anteriores en "activate".
+const VERSION = new URL(self.location.href).searchParams.get("v") || "v1";
+const CACHE = "drogas-cache-" + VERSION;
+
+self.addEventListener("message", (event) => {
+  if (event.data === "skip-waiting") self.skipWaiting();
+});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

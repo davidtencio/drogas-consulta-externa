@@ -21,3 +21,7 @@ La implementación técnica queda completa cuando pruebas, lint y build aprueban
 - Build Next.js correcto.
 - Revisión de buenas prácticas React: lógica de foco compartida en `useFocusErrorField`, hooks incondicionales y props tipadas.
 - Permanece únicamente la advertencia no bloqueante de métricas fallback para Google Sans.
+
+## Compatibilidad de CI
+
+La primera ejecución remota detectó un lockfile inconsistente entre npm 11 en Windows y `npm ci` en Linux para dos paquetes opcionales de `@emnapi`. Se fijó la resolución transitiva compatible mediante `overrides`; una instalación limpia con `npm ci`, la puerta WCAG y el build aprobaron después del ajuste.

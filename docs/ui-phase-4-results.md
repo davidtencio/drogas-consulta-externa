@@ -24,4 +24,4 @@ La implementación técnica queda completa cuando pruebas, lint y build aprueban
 
 ## Compatibilidad de CI
 
-La primera ejecución remota detectó un lockfile inconsistente entre npm 11 en Windows y `npm ci` en Linux para dos paquetes opcionales de `@emnapi`. Se fijó la resolución transitiva compatible mediante `overrides`; una instalación limpia con `npm ci`, la puerta WCAG y el build aprobaron después del ajuste.
+La primera ejecución remota detectó un lockfile inconsistente entre npm 11 en Windows y `npm ci` en Linux para dos paquetes de `@emnapi`. Se fijaron como dependencias de desarrollo en las versiones transitivas exactas requeridas, de modo que el lockfile incluya nodos portables; una instalación limpia con `npm ci --dry-run` aprobó después del ajuste.

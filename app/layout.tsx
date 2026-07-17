@@ -20,6 +20,14 @@ export const viewport: Viewport = {
   themeColor: "#0e7c6f",
 };
 
+// Aplica el tema guardado antes de pintar para evitar el parpadeo (FOUC).
+const themeInit = "(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();";
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="es"><body className={appFont.variable}>{children}<ServiceWorkerRegister /></body></html>;
+  return (
+    <html lang="es">
+      <head><script dangerouslySetInnerHTML={{ __html: themeInit }} /></head>
+      <body className={appFont.variable}>{children}<ServiceWorkerRegister /></body>
+    </html>
+  );
 }

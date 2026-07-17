@@ -27,7 +27,7 @@ export function MedicineCard({ medicine: m, lastCount, onMovement, onCount }: Pr
       </div>
       <h2>{m.name}</h2>
       <p>{m.strength} · {m.form}</p>
-      <div className="stock-row"><strong>{m.stock.toLocaleString("es-CR")}</strong><span>{m.unit}</span></div>
+      <div className="stock-row"><small>Existencia</small><strong>{m.stock.toLocaleString("es-CR")}</strong><span>{m.unit}</span><em>Mínimo {m.minimumStock.toLocaleString("es-CR")}</em></div>
       <div className="bar"><i className={status} style={{ width: `${pct}%` }} /></div>
       <div className="meta">
         <span>Lote<strong>{m.lot || "—"}</strong></span>

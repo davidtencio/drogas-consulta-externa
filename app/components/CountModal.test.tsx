@@ -48,4 +48,11 @@ describe("CountModal", () => {
     expect(screen.getByText(/Registre un farmacéutico autorizado/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Confirmar saldo" })).toBeDisabled();
   });
+
+  it("enlaza el error al selector responsable", () => {
+    render(<CountModal {...base({ error: "Seleccione el farmacéutico responsable.", errorField: "pharmacistEmail" })} />);
+    const field = screen.getByLabelText("Farmacéutico responsable");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveFocus();
+  });
 });

@@ -68,4 +68,13 @@ describe("Modals", () => {
     await userEvent.click(screen.getByLabelText("Cerrar"));
     expect(props.onClose).toHaveBeenCalledOnce();
   });
+
+  it("asocia el error al campo y mueve el foco", () => {
+    render(<Modals {...base({ error: "Cantidad inválida.", errorField: "quantity" })} />);
+    const quantity = screen.getByLabelText("Cantidad");
+    expect(quantity).toHaveAttribute("aria-invalid", "true");
+    expect(quantity).toHaveAttribute("aria-describedby", "modal-error");
+    expect(quantity).toHaveFocus();
+    expect(screen.getByRole("alert")).toHaveTextContent("Cantidad inválida.");
+  });
 });

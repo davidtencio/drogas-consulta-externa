@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:a11y": "vitest run app/components/accessibility.test.tsx app/components/AccessibleDialog.test.tsx app/themeContrast.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },

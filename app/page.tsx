@@ -27,6 +27,7 @@ import { DEMO_MODE } from "./lib/demo";
 /** Estado de modal de la app: los diálogos de Modals más el conteo físico. */
 type AppModal = ModalState | { kind: "count"; medicineId: string };
 type Deactivation = { col: "medicines" | "pharmacists"; id: string; label: string };
+type FormIssue = { message: string; field?: string };
 
 const trimmed=(form:FormData,k:string)=>String(form.get(k)||"").trim();
 
@@ -80,7 +81,7 @@ export default function Home() {
   const [query,setQuery]=useState("");
   const [modal,setModal]=useState<AppModal|null>(null);
   const [notice,setNotice]=useState<{message:string;critical:boolean}|null>(null);
-  const [modalError,setModalError]=useState("");
+  const [modalError,setModalError]=useState<FormIssue|null>(null);
   const [deactivation,setDeactivation]=useState<Deactivation|null>(null);
   const [busy,setBusy]=useState(false);
   const [alertDismissed,setAlertDismissed]=useState(false);
@@ -98,15 +99,15 @@ export default function Home() {
   const expAlert=useMemo(()=>expirySummary(medicines),[medicines]);
   const lastCounts=useMemo(()=>lastCountByMedicine(movements),[movements]);
 
-  const closeModal=useCallback(()=>{setModal(null);setModalError("")},[]);
+  const closeModal=useCallback(()=>{setModal(null);setModalError(null)},[]);
   const openCreate=useCallback((kind:"medicine"|"pharmacist"|"movement")=>{
-    setModalError("");setModal(kind==="movement"?{kind:"movement"}:kind==="medicine"?{kind:"medicine",editing:null}:{kind:"pharmacist",editing:null});
+    setModalError(null);setModal(kind==="movement"?{kind:"movement"}:kind==="medicine"?{kind:"medicine",editing:null}:{kind:"pharmacist",editing:null});
   },[]);
   const openEdit=useCallback((kind:"medicine"|"pharmacist",item:Medicine|Pharmacist)=>{
-    setModalError("");setModal(kind==="medicine"?{kind:"medicine",editing:item as Medicine}:{kind:"pharmacist",editing:item as Pharmacist});
+    setModalError(null);setModal(kind==="medicine"?{kind:"medicine",editing:item as Medicine}:{kind:"pharmacist",editing:item as Pharmacist});
   },[]);
-  const openMovement=useCallback((medicineId?:string,type?:MovementType)=>{setModalError("");setModal({kind:"movement",medicineId,type})},[]);
-  const openCount=useCallback((medicineId:string)=>{setModalError("");setModal({kind:"count",medicineId})},[]);
+  const openMovement=useCallback((medicineId?:string,type?:MovementType)=>{setModalError(null);setModal({kind:"movement",medicineId,type})},[]);
+  const openCount=useCallback((medicineId:string)=>{setModalError(null);setModal({kind:"count",medicineId})},[]);
 
   const flash=useCallback((message:string,critical=false)=>setNotice({message,critical}),[]);
   useEffect(()=>{
@@ -135,7 +136,7 @@ export default function Home() {
   },[deactivation,flash]);
 
   const submit=useCallback(async(e:FormEvent<HTMLFormElement>, action:string)=>{
-    e.preventDefault();setBusy(true);setModalError("");
+    e.preventDefault();setBusy(true);setModalError(null);
     const form=new FormData(e.currentTarget);
     const now=new Date().toISOString();
     try{
@@ -144,7 +145,12 @@ export default function Home() {
       else if(action==="movement") await saveMovement(form,now);
       else if(action==="count") await saveCount(form,now,modal?.kind==="count"?medicines.find(m=>m.id===modal.medicineId):undefined);
       flash(action==="count"?"Saldo confirmado correctamente":"Registro guardado correctamente");closeModal();
-    }catch(err){setModalError(err instanceof Error?err.message:"No se pudo guardar")}
+    }catch(err){
+      const message=err instanceof Error?err.message:"No se pudo guardar";
+      const lower=message.toLowerCase();
+      const field=lower.includes("código")?"code":lower.includes("concentración")?"strength":lower.includes("nombre")?"name":lower.includes("existencia")?"stock":lower.includes("cantidad")?"quantity":lower.includes("medicamento")?"medicineId":lower.includes("farmacéutico")?"pharmacistEmail":undefined;
+      setModalError({message,field});
+    }
     finally{setBusy(false)}
   },[modal,medicines,flash,closeModal]);
 
@@ -173,8 +179,8 @@ export default function Home() {
 
     {notice&&<div className={`toast${notice.critical?" toast-critical":""}`} role={notice.critical?"alert":"status"}>{notice.message}{notice.critical&&<button type="button" onClick={()=>setNotice(null)} aria-label="Descartar mensaje">×</button>}</div>}
     {modal&&(modal.kind==="count"
-      ? <CountModal medicine={medicines.find(m=>m.id===modal.medicineId)} activePharmacists={activePharmacists} busy={busy} error={modalError} onClose={closeModal} onSubmit={submit}/>
-      : <Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} online={online} error={modalError} onClose={closeModal} onSubmit={submit}/>)}
+      ? <CountModal medicine={medicines.find(m=>m.id===modal.medicineId)} activePharmacists={activePharmacists} busy={busy} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit}/>
+      : <Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} online={online} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit}/>)}
     {deactivation&&<ConfirmDialog label={deactivation.label} busy={busy} onCancel={()=>setDeactivation(null)} onConfirm={()=>void confirmDeactivation()}/>}
   </main>;
 }

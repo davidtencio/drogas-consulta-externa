@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { formatMedicineCode, type Medicine, type MovementType, type Pharmacist } from "../lib/inventory";
 import { AccessibleDialog } from "./AccessibleDialog";
+import { useFocusErrorField } from "../hooks/useFocusErrorField";
 
 export type ModalState =
   | { kind: "movement"; medicineId?: string; type?: MovementType }
@@ -9,12 +10,12 @@ export type ModalState =
 
 type Props = {
   state: ModalState; activeMeds: Medicine[]; activePharmacists: Pharmacist[];
-  busy: boolean; online: boolean; error?: string;
+  busy: boolean; online: boolean; error?: string; errorField?: string;
   onClose: () => void; onSubmit: (e: FormEvent<HTMLFormElement>, action: string) => void;
 };
 
 /** Diálogos accesibles de movimiento, medicamento y farmacéutico. */
-export function Modals({ state, activeMeds, activePharmacists, busy, online, error, onClose, onSubmit }: Props) {
+export function Modals({ state, activeMeds, activePharmacists, busy, online, error, errorField, onClose, onSubmit }: Props) {
   const em = state.kind === "medicine" ? state.editing : null;
   const ep = state.kind === "pharmacist" ? state.editing : null;
   const editing = em ?? ep;
@@ -28,18 +29,20 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
     : state.kind === "medicine" ? editing ? "Las existencias solo cambian mediante movimientos." : "Defina la presentación y niveles de control."
     : "El correo será su identificador de acceso.";
   const errorMessage = error && <div id="modal-error" className="form-error" role="alert">{error}</div>;
+  const invalid = (name: string) => errorField === name ? { "aria-invalid": true as const, "aria-describedby": "modal-error" } : {};
+  useFocusErrorField(errorField, error);
 
   return (
     <AccessibleDialog title={title} description={description} onClose={onClose}>
       {state.kind === "movement" && (
         <form onSubmit={(e) => onSubmit(e, "movement")} aria-describedby={error ? "modal-error" : undefined}>
-          <label>Medicamento<select name="medicineId" required defaultValue={state.medicineId ?? ""} data-autofocus>{state.medicineId ? null : <option value="" disabled>Seleccione…</option>}{activeMeds.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength} — {m.stock} disp.</option>)}</select></label>
+          <label>Medicamento<select name="medicineId" required defaultValue={state.medicineId ?? ""} data-autofocus {...invalid("medicineId")}>{state.medicineId ? null : <option value="" disabled>Seleccione…</option>}{activeMeds.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength} — {m.stock} disp.</option>)}</select></label>
           <div className="form-row">
             <label>Tipo<select name="type" defaultValue={state.type ?? "OUT"}><option value="OUT">Egreso</option><option value="IN">Ingreso</option></select></label>
-            <label>Cantidad<input name="quantity" type="number" min="1" step="1" required /></label>
+            <label>Cantidad<input name="quantity" type="number" min="1" step="1" required {...invalid("quantity")} /></label>
           </div>
           <label>Referencia de prescripción<input name="prescriptionRef" placeholder="Ej. RX-2026-00481" /></label>
-          <label>Farmacéutico responsable<select name="pharmacistEmail" required defaultValue=""><option value="" disabled>Seleccione…</option>{pharmacistOptions}</select></label>
+          <label>Farmacéutico responsable<select name="pharmacistEmail" required defaultValue="" {...invalid("pharmacistEmail")}><option value="" disabled>Seleccione…</option>{pharmacistOptions}</select></label>
           {!activePharmacists.length && <small className="form-hint">Registre un farmacéutico autorizado en Configuración para poder continuar.</small>}
           {!online && <small className="form-hint">Sin conexión: el registro de movimientos requiere conexión. Se habilitará al reconectar.</small>}
           {errorMessage}
@@ -50,15 +53,15 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
       {state.kind === "medicine" && (
         <form onSubmit={(e) => onSubmit(e, "medicine")} aria-describedby={error ? "modal-error" : undefined}>
           <div className="form-row">
-            <label>Nombre<input name="name" required placeholder="Ej. Metformina" defaultValue={em?.name || ""} data-autofocus /></label>
-            <label>Código<input name="code" inputMode="numeric" placeholder="000-00-0000" value={code} onChange={(e) => setCode(formatMedicineCode(e.target.value))} /></label>
+            <label>Nombre<input name="name" required placeholder="Ej. Metformina" defaultValue={em?.name || ""} data-autofocus {...invalid("name")} /></label>
+            <label>Código<input name="code" inputMode="numeric" placeholder="000-00-0000" value={code} onChange={(e) => setCode(formatMedicineCode(e.target.value))} {...invalid("code")} /></label>
           </div>
           <div className="form-row">
-            <label>Concentración<input name="strength" required placeholder="500 mg" defaultValue={em?.strength || ""} /></label>
+            <label>Concentración<input name="strength" required placeholder="500 mg" defaultValue={em?.strength || ""} {...invalid("strength")} /></label>
             <label>Forma<input name="form" placeholder="Tableta" defaultValue={em?.form || ""} /></label>
           </div>
           <div className="form-row">
-            {!editing && <label>Existencia inicial<input name="stock" type="number" min="0" step="1" defaultValue="0" /></label>}
+            {!editing && <label>Existencia inicial<input name="stock" type="number" min="0" step="1" defaultValue="0" {...invalid("stock")} /></label>}
             <label>Stock mínimo<input name="minimumStock" type="number" min="0" step="1" defaultValue={em ? String(em.minimumStock) : "0"} /></label>
           </div>
           <div className="form-row">

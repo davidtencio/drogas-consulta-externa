@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans } from "next/font/google";
+import { Google_Sans } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "./components/ServiceWorkerRegister";
 
-const appFont = IBM_Plex_Sans({
+const appFont = Google_Sans({
   variable: "--font-app-sans",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+  adjustFontFallback: false,
 });
 
 export const metadata: Metadata = {

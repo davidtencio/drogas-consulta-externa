@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Source_Serif_4 } from "next/font/google";
+import { IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "./components/ServiceWorkerRegister";
 
-const sourceSerif = Source_Serif_4({ variable: "--font-source-serif", subsets: ["latin"] });
+const appFont = IBM_Plex_Sans({
+  variable: "--font-app-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: "Control de Drogas Consulta Externa",
@@ -13,9 +17,9 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#147d7c",
+  themeColor: "#0e7c6f",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="es"><body className={sourceSerif.variable}>{children}<ServiceWorkerRegister /></body></html>;
+  return <html lang="es"><body className={appFont.variable}>{children}<ServiceWorkerRegister /></body></html>;
 }

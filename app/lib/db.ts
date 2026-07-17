@@ -2,7 +2,7 @@
 // no dependa directamente del SDK. La lógica de dominio vive en inventory.ts.
 
 import { addDoc, collection, doc, runTransaction, updateDoc, writeBatch } from "firebase/firestore";
-import { db } from "../firebase";
+import { auth, db } from "../firebase";
 import { prepareCount, prepareMovement, type MovementType } from "./inventory";
 import { DEMO_MODE, demoCreateMedicine, demoCreatePharmacist, demoRegisterCount, demoRegisterMovement, demoSetActive, demoUpdateMedicine, demoUpdatePharmacist } from "./demo";
 
@@ -18,10 +18,36 @@ export type MedicineFields = {
 
 export type PharmacistFields = { name: string; email: string; license: string };
 
+function actorEmail(): string {
+  const email = auth.currentUser?.email?.trim().toLowerCase();
+  if (!email) throw new Error("Sesión no disponible para registrar la trazabilidad.");
+  return email;
+}
+
+async function addAudit(action: string, entityType: string, entityId: string, details: Record<string, unknown> = {}) {
+  await addDoc(collection(db, "auditLogs"), { action, entityType, entityId, details, actorEmail: actorEmail(), createdAt: new Date().toISOString() });
+}
+
+/** Registra fallos inesperados para revisión administrativa durante el piloto. */
+export async function recordOperationalEvent(type: string, details: Record<string, unknown>): Promise<void> {
+  if (DEMO_MODE || !auth.currentUser?.email) return;
+  try {
+    await addDoc(collection(db, "operationalEvents"), {
+      type,
+      details,
+      actorEmail: actorEmail(),
+      createdAt: new Date().toISOString(),
+    });
+  } catch {
+    // El reporte nunca debe provocar un segundo fallo en la interfaz.
+  }
+}
+
 /** Actualiza los datos de un medicamento (sin tocar existencias). */
-export function updateMedicine(id: string, fields: MedicineFields): Promise<void> {
+export async function updateMedicine(id: string, fields: MedicineFields): Promise<void> {
   if (DEMO_MODE) { demoUpdateMedicine(id, fields); return Promise.resolve(); }
-  return updateDoc(doc(db, "medicines", id), fields);
+  await updateDoc(doc(db, "medicines", id), fields);
+  await addAudit("medicine.update", "medicine", id, { name: fields.name });
 }
 
 /**
@@ -44,24 +70,28 @@ export async function createMedicine(
       { name: fields.name, stock: 0 },
       { medicineId: ref.id, type: "IN", quantity: initialStock, prescriptionRef: "Existencia inicial", pharmacistEmail, createdAt: now }
     );
-    await addDoc(collection(db, "movements"), record);
+    await addDoc(collection(db, "movements"), { ...record, actorEmail: actorEmail() });
   }
+  await addAudit("medicine.create", "medicine", ref.id, { name: fields.name, initialStock });
 }
 
-export function createPharmacist(fields: PharmacistFields, now: string): Promise<unknown> {
+export async function createPharmacist(fields: PharmacistFields, now: string): Promise<void> {
   if (DEMO_MODE) { demoCreatePharmacist({ ...fields, active: true }); return Promise.resolve(); }
-  return addDoc(collection(db, "pharmacists"), { ...fields, active: true, createdAt: now });
+  const ref = await addDoc(collection(db, "pharmacists"), { ...fields, active: true, createdAt: now });
+  await addAudit("pharmacist.create", "pharmacist", ref.id, { email: fields.email });
 }
 
-export function updatePharmacist(id: string, fields: PharmacistFields): Promise<void> {
+export async function updatePharmacist(id: string, fields: PharmacistFields): Promise<void> {
   if (DEMO_MODE) { demoUpdatePharmacist(id, fields); return Promise.resolve(); }
-  return updateDoc(doc(db, "pharmacists", id), fields);
+  await updateDoc(doc(db, "pharmacists", id), fields);
+  await addAudit("pharmacist.update", "pharmacist", id, { email: fields.email });
 }
 
 /** Activa o da de baja un registro de medicamentos o farmacéuticos. */
-export function setActive(col: "medicines" | "pharmacists", id: string, active: boolean): Promise<void> {
+export async function setActive(col: "medicines" | "pharmacists", id: string, active: boolean): Promise<void> {
   if (DEMO_MODE) { demoSetActive(col, id, active); return Promise.resolve(); }
-  return updateDoc(doc(db, col, id), { active });
+  await updateDoc(doc(db, col, id), { active });
+  await addAudit(`${col === "medicines" ? "medicine" : "pharmacist"}.${active ? "activate" : "deactivate"}`, col.slice(0, -1), id);
 }
 
 export type MovementRequest = {
@@ -93,7 +123,7 @@ export function registerMovement(req: MovementRequest): Promise<void> {
       { medicineId: req.medicineId, type: req.type, quantity: req.quantity, prescriptionRef: req.prescriptionRef, pharmacistEmail: req.pharmacistEmail, createdAt: req.now }
     );
     tx.update(ref, { stock: nextStock });
-    tx.set(doc(collection(db, "movements")), record);
+    tx.set(doc(collection(db, "movements")), { ...record, actorEmail: actorEmail() });
   });
 }
 
@@ -120,7 +150,7 @@ export function registerCount(req: CountRequest): Promise<unknown> {
     createdAt: req.now,
   });
   if (DEMO_MODE) { demoRegisterCount(record); return Promise.resolve(); }
-  return addDoc(collection(db, "movements"), record);
+  return addDoc(collection(db, "movements"), { ...record, actorEmail: actorEmail() });
 }
 
 export type CountEntry = { medicine: { id: string; name: string; stock: number }; countedQuantity: number };
@@ -142,7 +172,7 @@ export function registerCounts(entries: readonly CountEntry[], note: string, pha
       { name: e.medicine.name, stock: e.medicine.stock },
       { medicineId: e.medicine.id, countedQuantity: e.countedQuantity, note, pharmacistEmail, createdAt: now }
     );
-    batch.set(doc(collection(db, "movements")), record);
+    batch.set(doc(collection(db, "movements")), { ...record, actorEmail: actorEmail() });
   }
   return batch.commit();
 }

@@ -3,6 +3,7 @@ import { collection, limit, onSnapshot, orderBy, query as fbQuery, type QuerySna
 import { db } from "../firebase";
 import { sortByName, type Medicine, type Pharmacist, type Movement } from "../lib/inventory";
 import { DEMO_MODE, getDemoSnapshot, subscribeDemo } from "../lib/demo";
+import type { AuditLog } from "../lib/authz";
 
 /** Últimos movimientos que se mantienen en memoria para la vista. */
 const MOVEMENTS_LIMIT = 200;
@@ -13,11 +14,12 @@ const MOVEMENTS_LIMIT = 200;
  * suscripciones al desmontar o al deshabilitarse. También reporta
  * `pendingWrites`: si hay escrituras locales aún sin sincronizar con el servidor.
  */
-export function useInventoryData(enabled: boolean) {
+export function useInventoryData(enabled: boolean, includeAudit = false) {
   const demo = useSyncExternalStore(subscribeDemo, getDemoSnapshot, getDemoSnapshot);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [pharmacists, setPharmacists] = useState<Pharmacist[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   // Escrituras pendientes por colección; el indicador combina las tres.
   const [pending, setPending] = useState({ medicines: false, pharmacists: false, movements: false });
 
@@ -40,10 +42,14 @@ export function useInventoryData(enabled: boolean) {
         setPending((p) => ({ ...p, movements: s.metadata.hasPendingWrites }));
       }
     );
-    return () => { unsubMed(); unsubPh(); unsubMov(); };
-  }, [enabled]);
+    const unsubAudit = includeAudit ? onSnapshot(
+      fbQuery(collection(db, "auditLogs"), orderBy("createdAt", "desc"), limit(100)),
+      (s: QuerySnapshot) => setAuditLogs(s.docs.map((d) => ({ id: d.id, ...d.data() } as AuditLog)))
+    ) : () => undefined;
+    return () => { unsubMed(); unsubPh(); unsubMov(); unsubAudit(); };
+  }, [enabled, includeAudit]);
 
-  if (DEMO_MODE) return { ...demo, pendingWrites: false };
+  if (DEMO_MODE) return { ...demo, auditLogs: [], pendingWrites: false };
   const pendingWrites = pending.medicines || pending.pharmacists || pending.movements;
-  return { medicines, pharmacists, movements, pendingWrites };
+  return { medicines, pharmacists, movements, auditLogs, pendingWrites };
 }

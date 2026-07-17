@@ -49,6 +49,12 @@ npm run dev
 No configure `NEXT_PUBLIC_DEMO_MODE=1` en producción. El valor predeterminado
 es `0`, documentado en `.env.example`.
 
+### Piloto controlado
+
+Para identificar un despliegue autenticado de piloto sin desactivar Firebase,
+configure `NEXT_PUBLIC_PILOT_MODE=1`. La interfaz mostrará un aviso persistente;
+los permisos continúan aplicándose mediante Auth y las reglas de Firestore.
+
 ## Pruebas
 
 Las pruebas usan **Vitest** con **React Testing Library** (entorno `jsdom`).

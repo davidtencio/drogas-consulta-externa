@@ -9,7 +9,7 @@ const batchSet = vi.fn();
 const batchCommit = vi.fn(async () => undefined);
 const writeBatch = vi.fn(() => ({ set: batchSet, commit: batchCommit }));
 
-vi.mock("../firebase", () => ({ db: {} }));
+vi.mock("../firebase", () => ({ db: {}, auth: { currentUser: { email: "admin@h.cr" } } }));
 vi.mock("firebase/firestore", () => ({
   addDoc: (...a: unknown[]) => addDoc(...(a as [])),
   updateDoc: (...a: unknown[]) => updateDoc(...(a as [])),
@@ -52,16 +52,16 @@ describe("createPharmacist", () => {
 describe("createMedicine", () => {
   it("sin existencia inicial solo crea el medicamento (stock 0, sin movimiento)", async () => {
     await dbApi.createMedicine(fields, 0, "", "2026-07-16T10:00:00.000Z");
-    expect(addDoc).toHaveBeenCalledTimes(1);
+    expect(addDoc).toHaveBeenCalledTimes(2);
     expect(addDoc.mock.calls[0][1]).toMatchObject({ stock: 0, active: true });
   });
 
   it("con existencia inicial crea el medicamento y un movimiento de ingreso", async () => {
     await dbApi.createMedicine(fields, 5, "ana@h.cr", "2026-07-16T10:00:00.000Z");
-    expect(addDoc).toHaveBeenCalledTimes(2);
+    expect(addDoc).toHaveBeenCalledTimes(3);
     expect(addDoc.mock.calls[0][1]).toMatchObject({ stock: 5 });
     const movement = addDoc.mock.calls[1][1] as Record<string, unknown>;
-    expect(movement).toMatchObject({ type: "IN", quantity: 5, pharmacistEmail: "ana@h.cr", prescriptionRef: "Existencia inicial", medicineName: "Metformina" });
+    expect(movement).toMatchObject({ type: "IN", quantity: 5, pharmacistEmail: "ana@h.cr", actorEmail: "admin@h.cr", prescriptionRef: "Existencia inicial", medicineName: "Metformina" });
   });
 });
 
@@ -78,7 +78,7 @@ describe("registerCount", () => {
     expect(runTransaction).not.toHaveBeenCalled();
     expect(addDoc).toHaveBeenCalledTimes(1);
     const rec = addDoc.mock.calls[0][1] as Record<string, unknown>;
-    expect(rec).toMatchObject({ type: "COUNT", quantity: 95, systemQuantity: 100, difference: -5, note: "faltante", medicineName: "Metformina" });
+    expect(rec).toMatchObject({ type: "COUNT", quantity: 95, systemQuantity: 100, difference: -5, note: "faltante", medicineName: "Metformina", actorEmail: "admin@h.cr" });
   });
 });
 

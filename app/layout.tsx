@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Google_Sans } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "./components/ServiceWorkerRegister";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 
 const appFont = Google_Sans({
   variable: "--font-app-sans",
@@ -28,7 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="es">
       <head><script dangerouslySetInnerHTML={{ __html: themeInit }} /></head>
-      <body className={appFont.variable}>{children}<ServiceWorkerRegister /></body>
+      <body className={appFont.variable}><AppErrorBoundary>{children}</AppErrorBoundary><ServiceWorkerRegister /></body>
     </html>
   );
 }

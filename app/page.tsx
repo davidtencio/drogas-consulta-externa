@@ -23,6 +23,8 @@ import { Modals, type ModalState } from "./components/Modals";
 import { CountModal } from "./components/CountModal";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { DEMO_MODE } from "./lib/demo";
+import { canManageCatalog, canOperateInventory, roleForEmail } from "./lib/authz";
+import { PILOT_MODE } from "./lib/pilot";
 
 /** Estado de modal de la app: los diálogos de Modals más el conteo físico. */
 type AppModal = ModalState | { kind: "count"; medicineId: string };
@@ -77,6 +79,7 @@ async function saveCount(form:FormData, now:string, medicine:Medicine|undefined)
 
 export default function Home() {
   const {user,authReady}=useAuthUser();
+  const role=DEMO_MODE?"admin" as const:roleForEmail(user?.email);
   const [tab,setTab]=useState<"dashboard"|"movements"|"settings">("dashboard");
   const [query,setQuery]=useState("");
   const [modal,setModal]=useState<AppModal|null>(null);
@@ -86,7 +89,7 @@ export default function Home() {
   const [busy,setBusy]=useState(false);
   const [alertDismissed,setAlertDismissed]=useState(false);
 
-  const {medicines,pharmacists,movements,pendingWrites}=useInventoryData(!!user);
+  const {medicines,pharmacists,movements,auditLogs,pendingWrites}=useInventoryData(!!user,role==="admin"&&!DEMO_MODE);
   const online=useOnline();
 
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
@@ -109,7 +112,7 @@ export default function Home() {
   const openMovement=useCallback((medicineId?:string,type?:MovementType)=>{setModalError(null);setModal({kind:"movement",medicineId,type})},[]);
   const openCount=useCallback((medicineId:string)=>{setModalError(null);setModal({kind:"count",medicineId})},[]);
 
-  const flash=useCallback((message:string,critical=false)=>setNotice({message,critical}),[]);
+  const flash=useCallback((message:string,critical=false)=>setNotice({message,critical}),[setNotice]);
   useEffect(()=>{
     if(!notice||notice.critical) return;
     const timer=window.setTimeout(()=>setNotice(null),4000);
@@ -126,14 +129,14 @@ export default function Home() {
     if(!active){setDeactivation({col,id,label});return}
     try{await dataApi.setActive(col,id,true);flash("Reactivado correctamente")}
     catch{flash("No se pudo actualizar",true)}
-  },[flash]);
+  },[flash,setDeactivation]);
 
   const confirmDeactivation=useCallback(async()=>{
     if(!deactivation) return;
     setBusy(true);
     try{await dataApi.setActive(deactivation.col,deactivation.id,false);flash("Dado de baja correctamente");setDeactivation(null)}
     catch{flash("No se pudo actualizar",true)}finally{setBusy(false)}
-  },[deactivation,flash]);
+  },[deactivation,flash,setDeactivation]);
 
   const submit=useCallback(async(e:FormEvent<HTMLFormElement>, action:string)=>{
     e.preventDefault();setBusy(true);setModalError(null);
@@ -156,12 +159,14 @@ export default function Home() {
 
   if(!authReady) return <div className="auth-screen"><div className="auth-loading">Cargando…</div></div>;
   if(!user) return <Login/>;
+  if(!canOperateInventory(role)) return <div className="auth-screen"><div className="auth-card"><div className="brand-mark">Rx</div><h1>Acceso no autorizado</h1><p>Tu cuenta no tiene un rol habilitado para este piloto.</p><button className="primary" onClick={()=>void signOut(auth)}>Cerrar sesión</button></div></div>;
 
   return <main className="app-shell">
     <a className="skip-link" href="#contenido-principal">Saltar al contenido principal</a>
-    <Sidebar email={user.email||""} tab={tab} onTab={setTab} onSignOut={()=>void signOut(auth)} demo={DEMO_MODE}/>
+    <Sidebar email={user.email||""} tab={tab} onTab={setTab} onSignOut={()=>void signOut(auth)} demo={DEMO_MODE} role={role}/>
     <section className="content" id="contenido-principal" tabIndex={-1}>
       {DEMO_MODE&&<div className="demo-banner" role="status"><strong>Modo demostración</strong><span>Datos ficticios · los cambios solo permanecen durante esta sesión</span></div>}
+      {!DEMO_MODE&&PILOT_MODE&&<div className="pilot-banner" role="status"><strong>Piloto controlado</strong><span>Uso limitado a personal autorizado · reporte cualquier incidente antes de continuar</span></div>}
       <ConnectionBanner online={online} pendingWrites={pendingWrites}/>
       {!alertDismissed&&<ExpiryAlert summary={expAlert} showViewButton={tab!=="dashboard"} onView={()=>{setTab("dashboard");setAlertDismissed(true)}} onDismiss={()=>setAlertDismissed(true)}/>}
       <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Existencias disponibles y alertas de control":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openMovement()} disabled={!activeMeds.length}>＋ Registrar movimiento</button>}</header>
@@ -174,7 +179,7 @@ export default function Home() {
 
       {tab==="movements"&&<MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash}/>}
 
-      {tab==="settings"&&<SettingsTab medicines={medicines} pharmacists={pharmacists} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount}/>}
+      {tab==="settings"&&canManageCatalog(role)&&<SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount}/>}
     </section>
 
     {notice&&<div className={`toast${notice.critical?" toast-critical":""}`} role={notice.critical?"alert":"status"}>{notice.message}{notice.critical&&<button type="button" onClick={()=>setNotice(null)} aria-label="Descartar mensaje">×</button>}</div>}

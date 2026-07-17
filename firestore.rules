@@ -3,27 +3,53 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Lista blanca: solo estos correos de Google (verificados) pueden operar.
-    // Para autorizar a más personal, agregue su correo a esta lista y despliegue:
-    //   firebase deploy --only firestore:rules
-    function isAuthorized() {
+    function hasVerifiedEmail() {
       return request.auth != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email in [
-          'davidtencio@gmail.com',
-          'fhsvp2208@gmail.com'
-        ];
+        && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return hasVerifiedEmail()
+        && request.auth.token.email == 'davidtencio@gmail.com';
+    }
+
+    function isOperator() {
+      return hasVerifiedEmail()
+        && request.auth.token.email in ['davidtencio@gmail.com', 'fhsvp2208@gmail.com'];
     }
 
     match /medicines/{id} {
-      allow read, write: if isAuthorized();
+      allow read: if isOperator();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isOperator()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
+          && request.resource.data.stock is number
+          && request.resource.data.stock >= 0);
     }
     match /pharmacists/{id} {
-      allow read, write: if isAuthorized();
+      allow read: if isOperator();
+      allow create, update, delete: if isAdmin();
     }
     match /movements/{id} {
-      allow read, create: if isAuthorized();
+      allow read: if isOperator();
+      allow create: if isOperator()
+        && request.resource.data.actorEmail == request.auth.token.email;
       // Los movimientos son un registro de trazabilidad: no se editan ni borran.
+      allow update, delete: if false;
+    }
+
+    match /auditLogs/{id} {
+      allow read: if isAdmin();
+      allow create: if isOperator()
+        && request.resource.data.actorEmail == request.auth.token.email;
+      allow update, delete: if false;
+    }
+
+    match /operationalEvents/{id} {
+      allow read: if isAdmin();
+      allow create: if isOperator()
+        && request.resource.data.actorEmail == request.auth.token.email;
       allow update, delete: if false;
     }
 

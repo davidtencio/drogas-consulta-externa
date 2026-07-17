@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ThemeToggle } from "./ThemeToggle";
+import type { AppRole } from "../lib/authz";
 
 export type Tab = "dashboard" | "movements" | "settings";
 
@@ -9,10 +10,11 @@ type Props = {
   onTab: (tab: Tab) => void;
   onSignOut: () => void;
   demo?: boolean;
+  role: AppRole;
 };
 
 /** Barra lateral: navegación entre pestañas y perfil de la sesión. */
-export function Sidebar({ email, tab, onTab, onSignOut, demo = false }: Props) {
+export function Sidebar({ email, tab, onTab, onSignOut, demo = false, role }: Props) {
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -22,7 +24,7 @@ export function Sidebar({ email, tab, onTab, onSignOut, demo = false }: Props) {
       <nav aria-label="Navegación principal">
         <button className={tab === "dashboard" ? "active" : ""} aria-current={tab === "dashboard" ? "page" : undefined} onClick={() => onTab("dashboard")}><span aria-hidden="true">▦</span> Inventario</button>
         <button className={tab === "movements" ? "active" : ""} aria-current={tab === "movements" ? "page" : undefined} onClick={() => onTab("movements")}><span aria-hidden="true">⇄</span> Movimientos</button>
-        <button className={tab === "settings" ? "active" : ""} aria-current={tab === "settings" ? "page" : undefined} onClick={() => onTab("settings")}><span aria-hidden="true">⚙</span> Configuración</button>
+        {role === "admin" && <button className={tab === "settings" ? "active" : ""} aria-current={tab === "settings" ? "page" : undefined} onClick={() => onTab("settings")}><span aria-hidden="true">⚙</span> Configuración</button>}
         <Link href="/arqueo"><span aria-hidden="true">☑</span> Arqueo</Link>
       </nav>
       <div className="secure">
@@ -32,7 +34,7 @@ export function Sidebar({ email, tab, onTab, onSignOut, demo = false }: Props) {
       <ThemeToggle />
       <div className="profile">
         <div className="avatar">{(email || "?").slice(0, 2).toUpperCase()}</div>
-        <div><strong>{email}</strong><small>{demo ? "Datos ficticios" : "Sesión autorizada"}</small></div>
+        <div><strong>{email}</strong><small>{demo ? "Administrador demo" : role === "admin" ? "Administrador" : "Operador"}</small></div>
         {!demo&&<button className="logout" onClick={onSignOut} aria-label="Cerrar sesión" title="Cerrar sesión">⎋</button>}
       </div>
     </aside>

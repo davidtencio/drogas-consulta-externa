@@ -1,4 +1,5 @@
 import { expiryStatus, type Medicine, type MovementType, type Pharmacist } from "../lib/inventory";
+import type { AuditLog } from "../lib/authz";
 
 type Props = {
   medicines: Medicine[];
@@ -8,10 +9,11 @@ type Props = {
   onSetActive: (col: "medicines" | "pharmacists", id: string, active: boolean, label: string) => void;
   onMovement: (medicineId: string, type: MovementType) => void;
   onCount: (medicineId: string) => void;
+  auditLogs?: AuditLog[];
 };
 
 /** Pestaña de Configuración: catálogo de medicamentos y farmacéuticos autorizados. */
-export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetActive, onMovement, onCount }: Props) {
+export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetActive, onMovement, onCount, auditLogs = [] }: Props) {
   return (
     <div className="settings-grid">
       <div className="panel">
@@ -61,6 +63,10 @@ export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetAct
             </div>
           </div>
         )) : <div className="empty-block">Registre al primer farmacéutico autorizado.</div>}
+      </div>
+      <div className="panel audit-panel">
+        <div className="panel-title"><div><h2>Bitácora administrativa</h2><p>Últimos cambios de catálogo y autorizaciones. Los registros no se pueden editar ni eliminar.</p></div></div>
+        {auditLogs.length ? auditLogs.map((entry) => <div className="list-row audit-row" key={entry.id}><span className="mini-icon">⌁</span><div><strong>{entry.action}</strong><small>{entry.entityType} · {entry.entityId}</small></div><div className="audit-who"><strong>{entry.actorEmail}</strong><small>{new Date(entry.createdAt).toLocaleString("es-CR")}</small></div></div>) : <div className="empty-block">Aún no hay cambios administrativos registrados.</div>}
       </div>
     </div>
   );

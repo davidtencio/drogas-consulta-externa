@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'claude/**']
   pull_request:
     branches: [main]
 
@@ -10,6 +10,10 @@ on:
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  # Evita el prompt interactivo la primera vez que Corepack descarga npm.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
 
 jobs:
   verify:
@@ -24,6 +28,18 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Fijar la versión de npm con Corepack
+        # Usa la versión declarada en el campo "packageManager" de package.json,
+        # para que el lockfile no varíe según la versión de npm del runner.
+        run: |
+          corepack enable
+          npm --version
+
+      - name: Verificar que el lockfile está sincronizado
+        # Falla temprano y con un mensaje claro si package.json y
+        # package-lock.json no están en sync (el modo en que "npm ci" aborta).
+        run: npm ci --dry-run
 
       - name: Instalar dependencias
         run: npm ci

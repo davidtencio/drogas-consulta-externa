@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { collection, limit, onSnapshot, orderBy, query as fbQuery, type QuerySnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { sortByName, type Medicine, type Pharmacist, type Movement } from "../lib/inventory";
+import { DEMO_MODE, getDemoSnapshot, subscribeDemo } from "../lib/demo";
 
 /** Últimos movimientos que se mantienen en memoria para la vista. */
 const MOVEMENTS_LIMIT = 200;
@@ -13,6 +14,7 @@ const MOVEMENTS_LIMIT = 200;
  * `pendingWrites`: si hay escrituras locales aún sin sincronizar con el servidor.
  */
 export function useInventoryData(enabled: boolean) {
+  const demo = useSyncExternalStore(subscribeDemo, getDemoSnapshot, getDemoSnapshot);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [pharmacists, setPharmacists] = useState<Pharmacist[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
@@ -20,7 +22,7 @@ export function useInventoryData(enabled: boolean) {
   const [pending, setPending] = useState({ medicines: false, pharmacists: false, movements: false });
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || DEMO_MODE) return;
     const opts = { includeMetadataChanges: true };
     const unsubMed = onSnapshot(collection(db, "medicines"), opts, (s: QuerySnapshot) => {
       setMedicines(sortByName(s.docs.map((d) => ({ id: d.id, ...d.data() } as Medicine))));
@@ -41,6 +43,7 @@ export function useInventoryData(enabled: boolean) {
     return () => { unsubMed(); unsubPh(); unsubMov(); };
   }, [enabled]);
 
+  if (DEMO_MODE) return { ...demo, pendingWrites: false };
   const pendingWrites = pending.medicines || pending.pharmacists || pending.movements;
   return { medicines, pharmacists, movements, pendingWrites };
 }

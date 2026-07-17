@@ -33,6 +33,22 @@ npm test         # ejecuta las pruebas una vez
 
 La configuración web de Firebase (pública) está en `app/firebase.ts`.
 
+### Modo demostración
+
+Permite revisar la interfaz sin iniciar sesión y sin leer o escribir datos de
+Firebase. Todos los medicamentos, farmacéuticos y movimientos son ficticios;
+los cambios se guardan únicamente en memoria y se restablecen al reiniciar.
+
+En PowerShell:
+
+```powershell
+$env:NEXT_PUBLIC_DEMO_MODE='1'
+npm run dev
+```
+
+No configure `NEXT_PUBLIC_DEMO_MODE=1` en producción. El valor predeterminado
+es `0`, documentado en `.env.example`.
+
 ## Pruebas
 
 Las pruebas usan **Vitest** con **React Testing Library** (entorno `jsdom`).

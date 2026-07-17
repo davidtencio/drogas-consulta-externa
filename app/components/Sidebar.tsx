@@ -8,10 +8,11 @@ type Props = {
   tab: Tab;
   onTab: (tab: Tab) => void;
   onSignOut: () => void;
+  demo?: boolean;
 };
 
 /** Barra lateral: navegación entre pestañas y perfil de la sesión. */
-export function Sidebar({ email, tab, onTab, onSignOut }: Props) {
+export function Sidebar({ email, tab, onTab, onSignOut, demo = false }: Props) {
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -19,10 +20,10 @@ export function Sidebar({ email, tab, onTab, onSignOut }: Props) {
         <div><strong>Control de Drogas</strong><small>Consulta externa</small></div>
       </div>
       <nav aria-label="Navegación principal">
-        <button className={tab === "dashboard" ? "active" : ""} onClick={() => onTab("dashboard")}><span>▦</span> Inventario</button>
-        <button className={tab === "movements" ? "active" : ""} onClick={() => onTab("movements")}><span>⇄</span> Movimientos</button>
-        <button className={tab === "settings" ? "active" : ""} onClick={() => onTab("settings")}><span>⚙</span> Configuración</button>
-        <Link href="/arqueo"><span>☑</span> Arqueo</Link>
+        <button className={tab === "dashboard" ? "active" : ""} aria-current={tab === "dashboard" ? "page" : undefined} onClick={() => onTab("dashboard")}><span aria-hidden="true">▦</span> Inventario</button>
+        <button className={tab === "movements" ? "active" : ""} aria-current={tab === "movements" ? "page" : undefined} onClick={() => onTab("movements")}><span aria-hidden="true">⇄</span> Movimientos</button>
+        <button className={tab === "settings" ? "active" : ""} aria-current={tab === "settings" ? "page" : undefined} onClick={() => onTab("settings")}><span aria-hidden="true">⚙</span> Configuración</button>
+        <Link href="/arqueo"><span aria-hidden="true">☑</span> Arqueo</Link>
       </nav>
       <div className="secure">
         <span>✓</span>
@@ -31,8 +32,8 @@ export function Sidebar({ email, tab, onTab, onSignOut }: Props) {
       <ThemeToggle />
       <div className="profile">
         <div className="avatar">{(email || "?").slice(0, 2).toUpperCase()}</div>
-        <div><strong>{email}</strong><small>Sesión autorizada</small></div>
-        <button className="logout" onClick={onSignOut} aria-label="Cerrar sesión" title="Cerrar sesión">⎋</button>
+        <div><strong>{email}</strong><small>{demo ? "Datos ficticios" : "Sesión autorizada"}</small></div>
+        {!demo&&<button className="logout" onClick={onSignOut} aria-label="Cerrar sesión" title="Cerrar sesión">⎋</button>}
       </div>
     </aside>
   );

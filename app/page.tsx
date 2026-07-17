@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import { activeMedicines, expiringCount, expirySummary, filterMedicines, isValidMedicineCode, lowStockCount, pharmacistNameByEmail, totalStock, type Medicine, type MovementType, type Pharmacist } from "./lib/inventory";
@@ -21,9 +21,12 @@ import { MedicineCard } from "./components/MedicineCard";
 import { SettingsTab } from "./components/SettingsTab";
 import { Modals, type ModalState } from "./components/Modals";
 import { CountModal } from "./components/CountModal";
+import { ConfirmDialog } from "./components/ConfirmDialog";
+import { DEMO_MODE } from "./lib/demo";
 
 /** Estado de modal de la app: los diálogos de Modals más el conteo físico. */
 type AppModal = ModalState | { kind: "count"; medicineId: string };
+type Deactivation = { col: "medicines" | "pharmacists"; id: string; label: string };
 
 const trimmed=(form:FormData,k:string)=>String(form.get(k)||"").trim();
 
@@ -76,7 +79,9 @@ export default function Home() {
   const [tab,setTab]=useState<"dashboard"|"movements"|"settings">("dashboard");
   const [query,setQuery]=useState("");
   const [modal,setModal]=useState<AppModal|null>(null);
-  const [notice,setNotice]=useState("");
+  const [notice,setNotice]=useState<{message:string;critical:boolean}|null>(null);
+  const [modalError,setModalError]=useState("");
+  const [deactivation,setDeactivation]=useState<Deactivation|null>(null);
   const [busy,setBusy]=useState(false);
   const [alertDismissed,setAlertDismissed]=useState(false);
 
@@ -93,17 +98,22 @@ export default function Home() {
   const expAlert=useMemo(()=>expirySummary(medicines),[medicines]);
   const lastCounts=useMemo(()=>lastCountByMedicine(movements),[movements]);
 
-  const closeModal=useCallback(()=>setModal(null),[]);
+  const closeModal=useCallback(()=>{setModal(null);setModalError("")},[]);
   const openCreate=useCallback((kind:"medicine"|"pharmacist"|"movement")=>{
-    setModal(kind==="movement"?{kind:"movement"}:kind==="medicine"?{kind:"medicine",editing:null}:{kind:"pharmacist",editing:null});
+    setModalError("");setModal(kind==="movement"?{kind:"movement"}:kind==="medicine"?{kind:"medicine",editing:null}:{kind:"pharmacist",editing:null});
   },[]);
   const openEdit=useCallback((kind:"medicine"|"pharmacist",item:Medicine|Pharmacist)=>{
-    setModal(kind==="medicine"?{kind:"medicine",editing:item as Medicine}:{kind:"pharmacist",editing:item as Pharmacist});
+    setModalError("");setModal(kind==="medicine"?{kind:"medicine",editing:item as Medicine}:{kind:"pharmacist",editing:item as Pharmacist});
   },[]);
-  const openMovement=useCallback((medicineId?:string,type?:MovementType)=>{setModal({kind:"movement",medicineId,type})},[]);
-  const openCount=useCallback((medicineId:string)=>{setModal({kind:"count",medicineId})},[]);
+  const openMovement=useCallback((medicineId?:string,type?:MovementType)=>{setModalError("");setModal({kind:"movement",medicineId,type})},[]);
+  const openCount=useCallback((medicineId:string)=>{setModalError("");setModal({kind:"count",medicineId})},[]);
 
-  const flash=useCallback((msg:string)=>{setNotice(msg);setTimeout(()=>setNotice(""),4000)},[]);
+  const flash=useCallback((message:string,critical=false)=>setNotice({message,critical}),[]);
+  useEffect(()=>{
+    if(!notice||notice.critical) return;
+    const timer=window.setTimeout(()=>setNotice(null),4000);
+    return ()=>window.clearTimeout(timer);
+  },[notice]);
 
   const exportMedicines=useCallback(()=>{
     if(!medicines.length){flash("No hay medicamentos para exportar");return}
@@ -112,13 +122,20 @@ export default function Home() {
   },[medicines,flash]);
 
   const setActive=useCallback(async(col:"medicines"|"pharmacists",id:string,active:boolean,label:string)=>{
-    if(!active&&!window.confirm(`¿Dar de baja "${label}"? Podrá reactivarlo luego.`)) return;
-    try{await dataApi.setActive(col,id,active);flash(active?"Reactivado correctamente":"Dado de baja correctamente")}
-    catch{flash("No se pudo actualizar")}
+    if(!active){setDeactivation({col,id,label});return}
+    try{await dataApi.setActive(col,id,true);flash("Reactivado correctamente")}
+    catch{flash("No se pudo actualizar",true)}
   },[flash]);
 
+  const confirmDeactivation=useCallback(async()=>{
+    if(!deactivation) return;
+    setBusy(true);
+    try{await dataApi.setActive(deactivation.col,deactivation.id,false);flash("Dado de baja correctamente");setDeactivation(null)}
+    catch{flash("No se pudo actualizar",true)}finally{setBusy(false)}
+  },[deactivation,flash]);
+
   const submit=useCallback(async(e:FormEvent<HTMLFormElement>, action:string)=>{
-    e.preventDefault();setBusy(true);
+    e.preventDefault();setBusy(true);setModalError("");
     const form=new FormData(e.currentTarget);
     const now=new Date().toISOString();
     try{
@@ -127,7 +144,7 @@ export default function Home() {
       else if(action==="movement") await saveMovement(form,now);
       else if(action==="count") await saveCount(form,now,modal?.kind==="count"?medicines.find(m=>m.id===modal.medicineId):undefined);
       flash(action==="count"?"Saldo confirmado correctamente":"Registro guardado correctamente");closeModal();
-    }catch(err){flash(err instanceof Error?err.message:"No se pudo guardar")}
+    }catch(err){setModalError(err instanceof Error?err.message:"No se pudo guardar")}
     finally{setBusy(false)}
   },[modal,medicines,flash,closeModal]);
 
@@ -135,8 +152,10 @@ export default function Home() {
   if(!user) return <Login/>;
 
   return <main className="app-shell">
-    <Sidebar email={user.email||""} tab={tab} onTab={setTab} onSignOut={()=>void signOut(auth)}/>
-    <section className="content">
+    <a className="skip-link" href="#contenido-principal">Saltar al contenido principal</a>
+    <Sidebar email={user.email||""} tab={tab} onTab={setTab} onSignOut={()=>void signOut(auth)} demo={DEMO_MODE}/>
+    <section className="content" id="contenido-principal" tabIndex={-1}>
+      {DEMO_MODE&&<div className="demo-banner" role="status"><strong>Modo demostración</strong><span>Datos ficticios · los cambios solo permanecen durante esta sesión</span></div>}
       <ConnectionBanner online={online} pendingWrites={pendingWrites}/>
       {!alertDismissed&&<ExpiryAlert summary={expAlert} showViewButton={tab!=="dashboard"} onView={()=>{setTab("dashboard");setAlertDismissed(true)}} onDismiss={()=>setAlertDismissed(true)}/>}
       <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Existencias disponibles y alertas de control":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openMovement()} disabled={!activeMeds.length}>＋ Registrar movimiento</button>}</header>
@@ -152,9 +171,10 @@ export default function Home() {
       {tab==="settings"&&<SettingsTab medicines={medicines} pharmacists={pharmacists} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount}/>}
     </section>
 
-    {notice&&<div className="toast" role="status">{notice}</div>}
+    {notice&&<div className={`toast${notice.critical?" toast-critical":""}`} role={notice.critical?"alert":"status"}>{notice.message}{notice.critical&&<button type="button" onClick={()=>setNotice(null)} aria-label="Descartar mensaje">×</button>}</div>}
     {modal&&(modal.kind==="count"
-      ? <CountModal medicine={medicines.find(m=>m.id===modal.medicineId)} activePharmacists={activePharmacists} busy={busy} onClose={closeModal} onSubmit={submit}/>
-      : <Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} online={online} onClose={closeModal} onSubmit={submit}/>)}
+      ? <CountModal medicine={medicines.find(m=>m.id===modal.medicineId)} activePharmacists={activePharmacists} busy={busy} error={modalError} onClose={closeModal} onSubmit={submit}/>
+      : <Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} online={online} error={modalError} onClose={closeModal} onSubmit={submit}/>)}
+    {deactivation&&<ConfirmDialog label={deactivation.label} busy={busy} onCancel={()=>setDeactivation(null)} onConfirm={()=>void confirmDeactivation()}/>}
   </main>;
 }

@@ -87,12 +87,12 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice }
             {!movements.length ? <tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>
               : pageItems.length ? pageItems.map((m) => (
                 <tr key={m.id}>
-                  <td>{new Date(m.createdAt).toLocaleString("es-CR")}</td>
-                  <td><strong>{m.medicineName}</strong></td>
-                  <td><span className={`type ${m.type}`}>{m.type === "IN" ? "Ingreso" : m.type === "OUT" ? "Egreso" : "Conteo"}</span></td>
-                  <td>{m.quantity}{m.type === "COUNT" && <small className="cell-sub">sist. {m.systemQuantity} · {m.difference === 0 ? "sin dif." : m.difference != null && m.difference > 0 ? `+${m.difference}` : m.difference}</small>}</td>
-                  <td>{(m.type === "COUNT" ? m.note : m.prescriptionRef) || "—"}</td>
-                  <td>{resolveName(m.pharmacistEmail)}</td>
+                  <td data-label="Fecha">{new Date(m.createdAt).toLocaleString("es-CR")}</td>
+                  <td data-label="Medicamento"><strong>{m.medicineName}</strong></td>
+                  <td data-label="Tipo"><span className={`type ${m.type}`}>{m.type === "IN" ? "Ingreso" : m.type === "OUT" ? "Egreso" : "Conteo"}</span></td>
+                  <td data-label="Cantidad">{m.quantity}{m.type === "COUNT" && <small className="cell-sub">sist. {m.systemQuantity} · {m.difference === 0 ? "sin dif." : m.difference != null && m.difference > 0 ? `+${m.difference}` : m.difference}</small>}</td>
+                  <td data-label="Prescripción">{(m.type === "COUNT" ? m.note : m.prescriptionRef) || "—"}</td>
+                  <td data-label="Responsable">{resolveName(m.pharmacistEmail)}</td>
                 </tr>
               )) : <tr><td colSpan={6} className="empty">Ningún movimiento coincide con los filtros.</td></tr>}
           </tbody>

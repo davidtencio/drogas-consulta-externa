@@ -9,6 +9,7 @@ import { useInventoryData } from "../hooks/useInventoryData";
 import { useOnline } from "../hooks/useOnline";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { Icon } from "./Icon";
+import { ObservationField } from "./ObservationField";
 
 /**
  * Pantalla de arqueo: confirmar el saldo de cada medicamento con una casilla
@@ -51,7 +52,7 @@ export function ArqueoScreen({ email }: { email: string }) {
     if (!entries.length) { flash("Confirme al menos un saldo."); return; }
     setBusy(true);
     try {
-      await dataApi.registerCounts(entries, note.trim() || "Saldo confirmado", pharmacistEmail, new Date().toISOString());
+      await dataApi.registerCounts(entries, note.trim(), pharmacistEmail, new Date().toISOString());
       flash(`Arqueo registrado: ${entries.length} saldo${entries.length > 1 ? "s" : ""} confirmado${entries.length > 1 ? "s" : ""}${online ? "" : " (se sincronizará al reconectar)"}`);
       setConfirmed({});
       setNote("");
@@ -76,8 +77,8 @@ export function ArqueoScreen({ email }: { email: string }) {
       <div className="arqueo-controls">
         <label className="search"><span><Icon name="search" size={16} /></span><input aria-label="Buscar medicamento" placeholder="Buscar medicamento…" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
         <label>Farmacéutico responsable<select aria-label="Farmacéutico responsable" value={pharmacistEmail} onChange={(e) => setPharmacistEmail(e.target.value)}><option value="" disabled>Seleccione…</option>{activePharmacists.map((p) => <option key={p.id} value={p.email}>{p.name} — {p.license}</option>)}</select></label>
-        <label>Nota del arqueo<input aria-label="Nota del arqueo" placeholder="Opcional" value={note} onChange={(e) => setNote(e.target.value)} /></label>
       </div>
+      <div className="arqueo-observation"><ObservationField label="Observación del arqueo" onValueChange={setNote} /></div>
 
       {!activeMeds.length ? <div className="panel"><div className="empty-block">No hay medicamentos activos para arquear.</div></div>
         : <>

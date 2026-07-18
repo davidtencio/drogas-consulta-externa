@@ -66,6 +66,14 @@ describe("MovementsTab", () => {
     expect(screen.getByText("Ningún movimiento coincide con los filtros.")).toBeInTheDocument();
   });
 
+  it("muestra discretamente y abre la observación del movimiento", async () => {
+    render(<MovementsTab movements={[mov({ note: "Entrega parcial autorizada" })]} medicines={[]} pharmacistNames={names} onNotice={noop} />);
+    expect(screen.queryByText("Entrega parcial autorizada")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Ver observación de Metformina" }));
+    expect(screen.getByText("Entrega parcial autorizada")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("indica vacío cuando no hay movimientos", () => {
     render(<MovementsTab movements={[]} medicines={[]} pharmacistNames={names} onNotice={noop} />);
     expect(screen.getByText("Aún no hay movimientos registrados.")).toBeInTheDocument();

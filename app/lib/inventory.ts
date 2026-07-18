@@ -132,6 +132,7 @@ export type MovementInput = {
   type: MovementType;
   quantity: number;
   prescriptionRef: string;
+  note?: string;
   pharmacistEmail: string;
   createdAt: string;
 };
@@ -145,6 +146,7 @@ export type PreparedMovement = {
     type: MovementType;
     quantity: number;
     prescriptionRef: string;
+    note?: string;
     pharmacistEmail: string;
     createdAt: string;
   };
@@ -170,6 +172,7 @@ export function prepareMovement(
       type: input.type,
       quantity: input.quantity,
       prescriptionRef: input.prescriptionRef,
+      ...(input.note?.trim() ? { note: input.note.trim() } : {}),
       pharmacistEmail: input.pharmacistEmail,
       createdAt: input.createdAt,
     },

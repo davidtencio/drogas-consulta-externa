@@ -11,7 +11,7 @@ export type IconName =
   | "grid" | "movements" | "settings" | "arqueo" | "pill" | "search"
   | "download" | "plus" | "minus" | "count" | "close" | "logout"
   | "moon" | "sun" | "alert" | "clock" | "shield" | "box"
-  | "chevron-left" | "chevron-right" | "arrow-left" | "audit" | "check";
+  | "chevron-left" | "chevron-right" | "arrow-left" | "audit" | "check" | "note";
 
 const PATHS: Record<IconName, ReactNode> = {
   grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
@@ -37,6 +37,7 @@ const PATHS: Record<IconName, ReactNode> = {
   "arrow-left": <><path d="M19 12H5" /><path d="m12 19-7-7 7-7" /></>,
   audit: <path d="M3 12h4l3 8 4-16 3 8h4" />,
   check: <path d="M20 6 9 17l-5-5" />,
+  note: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h6" /></>,
 };
 
 type Props = { name: IconName; size?: number; className?: string } & Omit<SVGProps<SVGSVGElement>, "name">;

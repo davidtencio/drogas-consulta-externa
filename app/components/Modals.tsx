@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { formatMedicineCode, type Medicine, type MovementType, type Pharmacist } from "../lib/inventory";
 import { AccessibleDialog } from "./AccessibleDialog";
 import { useFocusErrorField } from "../hooks/useFocusErrorField";
+import { ObservationField } from "./ObservationField";
 
 export type ModalState =
   | { kind: "movement"; medicineId?: string; type?: MovementType }
@@ -42,6 +43,7 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
             <label>Cantidad<input name="quantity" type="number" min="1" step="1" required {...invalid("quantity")} /></label>
           </div>
           <label>Referencia de prescripción<input name="prescriptionRef" placeholder="Ej. RX-2026-00481" /></label>
+          <ObservationField />
           <label>Farmacéutico responsable<select name="pharmacistEmail" required defaultValue="" {...invalid("pharmacistEmail")}><option value="" disabled>Seleccione…</option>{pharmacistOptions}</select></label>
           {!activePharmacists.length && <small className="form-hint">Registre un farmacéutico autorizado en Configuración para poder continuar.</small>}
           {!online && <small className="form-hint">Sin conexión: el registro de movimientos requiere conexión. Se habilitará al reconectar.</small>}

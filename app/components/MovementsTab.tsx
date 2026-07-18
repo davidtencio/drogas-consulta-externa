@@ -8,6 +8,7 @@ import { clampPage, pageCount, pageRange, paginate } from "../lib/pagination";
 import { dateStamp, downloadTextFile } from "../lib/download";
 import { MovementRowsSkeleton } from "./Skeletons";
 import { Icon } from "./Icon";
+import { AccessibleDialog } from "./AccessibleDialog";
 
 type Props = {
   movements: Movement[];
@@ -29,6 +30,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
   const [sort, setSort] = useState<MovementSort>("date-desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [observed, setObserved] = useState<Movement | null>(null);
 
   const medicineOptions = useMemo(() => sortByName(medicines), [medicines]);
   const filter = useMemo(() => ({ type, text, medicineId, from, to }), [type, text, medicineId, from, to]);
@@ -64,7 +66,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
     } catch { onNotice("No se pudo exportar los movimientos"); }
   }, [filter, sort, from, to, resolveName, onNotice]);
 
-  return (
+  return <>
     <div className="panel">
       <div className="panel-title">
         <div><h2>{selectedMedicine ? `Movimientos de ${selectedMedicine.name} ${selectedMedicine.strength}` : "Actividad reciente"}</h2><p>{selectedMedicine ? "Historial filtrado de ingresos, egresos y conteos de este medicamento." : "Cada operación conserva responsable, fecha y referencia."}</p></div>
@@ -100,7 +102,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
                   <td data-label="Medicamento"><strong>{m.medicineName}</strong></td>
                   <td data-label="Tipo"><span className={`type ${m.type}`}>{m.type === "IN" ? "Ingreso" : m.type === "OUT" ? "Egreso" : "Conteo"}</span></td>
                   <td data-label="Cantidad">{m.quantity}{m.type === "COUNT" && <small className="cell-sub">sist. {m.systemQuantity} · {m.difference === 0 ? "sin dif." : m.difference != null && m.difference > 0 ? `+${m.difference}` : m.difference}</small>}</td>
-                  <td data-label="Prescripción">{(m.type === "COUNT" ? m.note : m.prescriptionRef) || "—"}</td>
+                  <td data-label="Prescripción">{m.prescriptionRef || "—"}{m.note && <button type="button" className="observation-icon" title={m.note} aria-label={`Ver observación de ${m.medicineName}`} onClick={() => setObserved(m)}><Icon name="note" size={15} /></button>}</td>
                   <td data-label="Responsable">{resolveName(m.pharmacistEmail)}</td>
                 </tr>
               )) : <tr><td colSpan={6} className="empty">Ningún movimiento coincide con los filtros.</td></tr>}
@@ -119,5 +121,9 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
         </div>
       )}
     </div>
-  );
+    {observed?.note && <AccessibleDialog title="Observación del movimiento" description="Detalle registrado como parte de la trazabilidad." onClose={() => setObserved(null)}>
+      <div className="observation-context"><div><small>Medicamento</small><strong>{observed.medicineName}</strong></div><div><small>Operación</small><strong>{observed.type === "IN" ? "Ingreso" : observed.type === "OUT" ? "Egreso" : "Arqueo / saldo"}</strong></div><div><small>Fecha</small><strong>{new Date(observed.createdAt).toLocaleString("es-CR")}</strong></div><div><small>Responsable</small><strong>{resolveName(observed.pharmacistEmail)}</strong></div></div>
+      <div className="observation-detail">{observed.note}</div>
+    </AccessibleDialog>}
+  </>;
 }

@@ -58,7 +58,7 @@ const MOVEMENT_HEADERS = [
   "Sistema",
   "Diferencia",
   "Prescripción",
-  "Nota",
+  "Observación",
   "Responsable",
 ] as const;
 

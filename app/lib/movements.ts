@@ -40,7 +40,7 @@ export function filterMovements(
     if (from && day < from) return false;
     if (to && day > to) return false;
     if (!q) return true;
-    return `${m.medicineName} ${m.prescriptionRef}`.toLowerCase().includes(q);
+    return `${m.medicineName} ${m.prescriptionRef} ${m.note ?? ""}`.toLowerCase().includes(q);
   });
 }
 

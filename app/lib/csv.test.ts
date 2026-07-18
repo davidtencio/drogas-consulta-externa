@@ -88,7 +88,7 @@ describe("movementsToCsv", () => {
       mov({ type: "OUT", quantity: 3 }),
     ]);
     const lines = csv.split("\r\n");
-    expect(lines[0]).toBe("Fecha,Medicamento,Tipo,Cantidad,Sistema,Diferencia,Prescripción,Nota,Responsable");
+    expect(lines[0]).toBe("Fecha,Medicamento,Tipo,Cantidad,Sistema,Diferencia,Prescripción,Observación,Responsable");
     // Ingreso/egreso dejan vacías las columnas de conteo (Sistema/Diferencia/Nota).
     expect(lines[1]).toBe(
       "2026-07-16T10:00:00.000Z,Metformina,Ingreso,10,,,RX-1,,farma@hospital.cr"

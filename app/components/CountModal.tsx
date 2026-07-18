@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import type { Medicine, Pharmacist } from "../lib/inventory";
 import { AccessibleDialog } from "./AccessibleDialog";
 import { useFocusErrorField } from "../hooks/useFocusErrorField";
+import { ObservationField } from "./ObservationField";
 
 type Props = {
   medicine: Medicine | undefined; activePharmacists: Pharmacist[]; busy: boolean; error?: string; errorField?: string;
@@ -20,7 +21,7 @@ export function CountModal({ medicine, activePharmacists, busy, error, errorFiel
         <label>Medicamento<input value={medicine ? `${medicine.name} ${medicine.strength}` : ""} readOnly /></label>
         <label>En sistema<input value={`${system.toLocaleString("es-CR")} ${medicine?.unit ?? ""}`} readOnly /></label>
         <label className="confirm-check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} data-autofocus /> Confirmo que el saldo físico coincide con el sistema ({system.toLocaleString("es-CR")}).</label>
-        <label>Nota / justificación<input name="note" placeholder="Opcional" /></label>
+        <ObservationField label="Observación del saldo" />
         <label>Farmacéutico responsable<select name="pharmacistEmail" required defaultValue="" aria-invalid={errorField === "pharmacistEmail" || undefined} aria-describedby={errorField === "pharmacistEmail" ? "count-error" : undefined}><option value="" disabled>Seleccione…</option>{activePharmacists.map((p) => <option key={p.id} value={p.email}>{p.name} — {p.license}</option>)}</select></label>
         {!activePharmacists.length && <small className="form-hint">Registre un farmacéutico autorizado en Configuración para poder continuar.</small>}
         {error && <div id="count-error" className="form-error" role="alert">{error}</div>}

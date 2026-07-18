@@ -68,7 +68,7 @@ async function saveMovement(form:FormData, now:string){
   const pharmacistEmail=trimmed(form,"pharmacistEmail");
   if(!medicineId) throw new Error("Cantidad inválida.");
   if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable.");
-  await dataApi.registerMovement({medicineId,type,quantity,prescriptionRef:trimmed(form,"prescriptionRef"),pharmacistEmail,now});
+  await dataApi.registerMovement({medicineId,type,quantity,prescriptionRef:trimmed(form,"prescriptionRef"),note:trimmed(form,"note"),pharmacistEmail,now});
 }
 
 /** Confirma el saldo (conteo físico = sistema) del medicamento; no ajusta stock. */
@@ -76,7 +76,7 @@ async function saveCount(form:FormData, now:string, medicine:Medicine|undefined)
   if(!medicine) throw new Error("Medicamento no disponible.");
   const pharmacistEmail=trimmed(form,"pharmacistEmail");
   if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable.");
-  await dataApi.registerCount({medicine:{name:medicine.name,stock:medicine.stock},medicineId:medicine.id,countedQuantity:medicine.stock,note:trimmed(form,"note")||"Saldo confirmado",pharmacistEmail,now});
+  await dataApi.registerCount({medicine:{name:medicine.name,stock:medicine.stock},medicineId:medicine.id,countedQuantity:medicine.stock,note:trimmed(form,"note"),pharmacistEmail,now});
 }
 
 export default function Home() {

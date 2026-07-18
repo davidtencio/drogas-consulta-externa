@@ -99,6 +99,7 @@ export type MovementRequest = {
   type: MovementType;
   quantity: number;
   prescriptionRef: string;
+  note?: string;
   pharmacistEmail: string;
   now: string;
 };
@@ -110,7 +111,7 @@ export type MovementRequest = {
  */
 export function registerMovement(req: MovementRequest): Promise<void> {
   if (DEMO_MODE) {
-    demoRegisterMovement({ medicineId: req.medicineId, type: req.type, quantity: req.quantity, prescriptionRef: req.prescriptionRef, pharmacistEmail: req.pharmacistEmail, createdAt: req.now });
+    demoRegisterMovement({ medicineId: req.medicineId, type: req.type, quantity: req.quantity, prescriptionRef: req.prescriptionRef, note: req.note, pharmacistEmail: req.pharmacistEmail, createdAt: req.now });
     return Promise.resolve();
   }
   return runTransaction(db, async (tx) => {
@@ -120,7 +121,7 @@ export function registerMovement(req: MovementRequest): Promise<void> {
     const data = snap.data();
     const { nextStock, record } = prepareMovement(
       { name: data.name, stock: Number(data.stock) || 0 },
-      { medicineId: req.medicineId, type: req.type, quantity: req.quantity, prescriptionRef: req.prescriptionRef, pharmacistEmail: req.pharmacistEmail, createdAt: req.now }
+      { medicineId: req.medicineId, type: req.type, quantity: req.quantity, prescriptionRef: req.prescriptionRef, note: req.note, pharmacistEmail: req.pharmacistEmail, createdAt: req.now }
     );
     tx.update(ref, { stock: nextStock });
     tx.set(doc(collection(db, "movements")), { ...record, actorEmail: actorEmail() });

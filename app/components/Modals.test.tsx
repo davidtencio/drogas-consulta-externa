@@ -31,6 +31,14 @@ describe("Modals", () => {
     expect(screen.getByText("Registrar ingreso")).toBeInTheDocument();
     expect((screen.getByLabelText("Medicamento") as HTMLSelectElement).value).toBe("m1");
     expect((screen.getByLabelText("Tipo") as HTMLSelectElement).value).toBe("IN");
+    expect(screen.queryByLabelText("Referencia de prescripción")).not.toBeInTheDocument();
+  });
+
+  it("muestra la referencia únicamente para egresos", async () => {
+    render(<Modals {...base()} />);
+    expect(screen.getByLabelText("Referencia de prescripción")).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("Tipo"), "IN");
+    expect(screen.queryByLabelText("Referencia de prescripción")).not.toBeInTheDocument();
   });
 
   it("movimiento sin farmacéuticos: deshabilita y avisa", () => {

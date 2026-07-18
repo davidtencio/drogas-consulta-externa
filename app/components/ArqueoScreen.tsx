@@ -53,11 +53,11 @@ export function ArqueoScreen({ email }: { email: string }) {
     setBusy(true);
     try {
       await dataApi.registerCounts(entries, note.trim(), pharmacistEmail, new Date().toISOString());
-      flash(`Arqueo registrado: ${entries.length} saldo${entries.length > 1 ? "s" : ""} confirmado${entries.length > 1 ? "s" : ""}${online ? "" : " (se sincronizará al reconectar)"}`);
+      flash(`Toma de inventario registrada: ${entries.length} saldo${entries.length > 1 ? "s" : ""} confirmado${entries.length > 1 ? "s" : ""}${online ? "" : " (se sincronizará al reconectar)"}`);
       setConfirmed({});
       setNote("");
     } catch {
-      flash("No se pudo registrar el arqueo");
+      flash("No se pudo registrar la toma de inventario");
     } finally { setBusy(false); }
   }, [activeMeds, confirmed, pharmacistEmail, note, online, flash]);
 
@@ -66,7 +66,7 @@ export function ArqueoScreen({ email }: { email: string }) {
       <header className="arqueo-head">
         <div>
           <p className="eyebrow">{today}</p>
-          <h1>Arqueo de inventario</h1>
+          <h1>Toma Inventario</h1>
           <p>Confirme el saldo de cada medicamento. Se registra como evidencia; no modifica existencias.</p>
         </div>
         <Link className="secondary" href="/"><Icon name="arrow-left" size={16} /> Volver a la app</Link>
@@ -78,7 +78,7 @@ export function ArqueoScreen({ email }: { email: string }) {
         <label className="search"><span><Icon name="search" size={16} /></span><input aria-label="Buscar medicamento" placeholder="Buscar medicamento…" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
         <label>Farmacéutico responsable<select aria-label="Farmacéutico responsable" value={pharmacistEmail} onChange={(e) => setPharmacistEmail(e.target.value)}><option value="" disabled>Seleccione…</option>{activePharmacists.map((p) => <option key={p.id} value={p.email}>{p.name} — {p.license}</option>)}</select></label>
       </div>
-      <div className="arqueo-observation"><ObservationField label="Observación del arqueo" onValueChange={setNote} /></div>
+      <div className="arqueo-observation"><ObservationField label="Observación de la toma de inventario" onValueChange={setNote} /></div>
 
       {!activeMeds.length ? <div className="panel"><div className="empty-block">No hay medicamentos activos para arquear.</div></div>
         : <>
@@ -92,7 +92,7 @@ export function ArqueoScreen({ email }: { email: string }) {
                     <div className="arqueo-med">
                       <strong>{m.name}</strong>
                       <small>{m.strength} · {m.form}</small>
-                      <small className="arqueo-last">Últ. arqueo: {lastCounts.has(m.id) ? new Date(lastCounts.get(m.id)!).toLocaleDateString("es-CR", { day: "numeric", month: "short", year: "numeric" }) : "sin arqueos"}</small>
+                      <small className="arqueo-last">Últ. toma: {lastCounts.has(m.id) ? new Date(lastCounts.get(m.id)!).toLocaleDateString("es-CR", { day: "numeric", month: "short", year: "numeric" }) : "sin tomas"}</small>
                     </div>
                     <div className="arqueo-sys"><small>Sistema</small><span>{m.stock.toLocaleString("es-CR")}</span></div>
                   </label>
@@ -105,7 +105,7 @@ export function ArqueoScreen({ email }: { email: string }) {
       <div className="arqueo-footer">
         <span className="arqueo-progress">{confirmedCount} confirmado{confirmedCount === 1 ? "" : "s"} de {activeMeds.length}</span>
         {!activePharmacists.length && <small className="form-hint">Registre un farmacéutico autorizado en la app para poder continuar.</small>}
-        <button className="primary" onClick={submit} disabled={busy || !confirmedCount || !pharmacistEmail}>{busy ? "Registrando…" : `Registrar arqueo (${confirmedCount})`}</button>
+        <button className="primary" onClick={submit} disabled={busy || !confirmedCount || !pharmacistEmail}>{busy ? "Registrando…" : `Registrar toma (${confirmedCount})`}</button>
       </div>
 
       <p className="arqueo-user">Sesión: {email}</p>

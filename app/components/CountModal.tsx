@@ -16,7 +16,7 @@ export function CountModal({ medicine, activePharmacists, busy, error, errorFiel
   useFocusErrorField(errorField, error);
 
   return (
-    <AccessibleDialog title="Confirmar saldo" description="Deja evidencia del arqueo del medicamento. No modifica existencias." onClose={onClose}>
+    <AccessibleDialog title="Confirmar saldo" description="Deja evidencia de la toma de inventario del medicamento. No modifica existencias." onClose={onClose}>
       <form onSubmit={(e) => onSubmit(e, "count")} aria-describedby={error ? "count-error" : undefined}>
         <label>Medicamento<input value={medicine ? `${medicine.name} ${medicine.strength}` : ""} readOnly /></label>
         <label>En sistema<input value={`${system.toLocaleString("es-CR")} ${medicine?.unit ?? ""}`} readOnly /></label>

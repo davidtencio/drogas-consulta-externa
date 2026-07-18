@@ -88,7 +88,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
         <div className="in"><small>Ingresos</small><strong>+{summary.inQuantity.toLocaleString("es-CR")}</strong><em>{summary.inCount} registros</em></div>
         <div className="out"><small>Egresos</small><strong>−{summary.outQuantity.toLocaleString("es-CR")}</strong><em>{summary.outCount} registros</em></div>
         <div><small>Variación neta</small><strong className={summary.net < 0 ? "neg" : summary.net > 0 ? "pos" : ""}>{summary.net > 0 ? "+" : ""}{summary.net.toLocaleString("es-CR")}</strong><em>{summary.medicineCount} medicamentos</em></div>
-        <div><small>Conteos</small><strong>{summary.countEvents}</strong><em>arqueos</em></div>
+        <div><small>Conteos</small><strong>{summary.countEvents}</strong><em>tomas de inventario</em></div>
       </div>
       <div className="table-wrap">
         <table>
@@ -122,7 +122,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
       )}
     </div>
     {observed?.note && <AccessibleDialog title="Observación del movimiento" description="Detalle registrado como parte de la trazabilidad." onClose={() => setObserved(null)}>
-      <div className="observation-context"><div><small>Medicamento</small><strong>{observed.medicineName}</strong></div><div><small>Operación</small><strong>{observed.type === "IN" ? "Ingreso" : observed.type === "OUT" ? "Egreso" : "Arqueo / saldo"}</strong></div><div><small>Fecha</small><strong>{new Date(observed.createdAt).toLocaleString("es-CR")}</strong></div><div><small>Responsable</small><strong>{resolveName(observed.pharmacistEmail)}</strong></div></div>
+      <div className="observation-context"><div><small>Medicamento</small><strong>{observed.medicineName}</strong></div><div><small>Operación</small><strong>{observed.type === "IN" ? "Ingreso" : observed.type === "OUT" ? "Egreso" : "Toma Inventario / saldo"}</strong></div><div><small>Fecha</small><strong>{new Date(observed.createdAt).toLocaleString("es-CR")}</strong></div><div><small>Responsable</small><strong>{resolveName(observed.pharmacistEmail)}</strong></div></div>
       <div className="observation-detail">{observed.note}</div>
     </AccessibleDialog>}
   </>;

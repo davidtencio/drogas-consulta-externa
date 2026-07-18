@@ -37,7 +37,7 @@ describe("ArqueoScreen", () => {
     await userEvent.click(screen.getByLabelText("Confirmar saldo de Metformina"));
     await userEvent.selectOptions(screen.getByLabelText("Farmacéutico responsable"), "ana@h.cr");
     expect(screen.getByText("1 confirmado de 2")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /Registrar arqueo/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Registrar toma/ }));
     expect(registerCounts).toHaveBeenCalledOnce();
     const [entries, , pharmacistEmail] = registerCounts.mock.calls[0];
     expect(entries).toHaveLength(1);
@@ -55,6 +55,6 @@ describe("ArqueoScreen", () => {
   it("no permite registrar sin farmacéutico responsable", async () => {
     render(<ArqueoScreen email="op@h.cr" />);
     await userEvent.click(screen.getByLabelText("Confirmar saldo de Metformina"));
-    expect(screen.getByRole("button", { name: /Registrar arqueo/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Registrar toma/ })).toBeDisabled();
   });
 });

@@ -53,14 +53,14 @@ describe("MedicineCard", () => {
     expect(onCount).toHaveBeenCalledOnce();
   });
 
-  it("muestra 'Sin arqueos' cuando no hay último arqueo", () => {
+  it("muestra 'Sin tomas' cuando no hay última toma", () => {
     render(<MedicineCard medicine={med()} onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
-    expect(screen.getByText("Sin arqueos")).toBeInTheDocument();
+    expect(screen.getByText("Sin tomas")).toBeInTheDocument();
   });
 
-  it("muestra la fecha del último arqueo cuando existe", () => {
+  it("muestra la fecha de la última toma cuando existe", () => {
     render(<MedicineCard medicine={med()} lastCount="2026-07-16T10:00:00.000Z" onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
-    expect(screen.getByText("Últ. arqueo")).toBeInTheDocument();
+    expect(screen.getByText("Últ. toma")).toBeInTheDocument();
     // La fecha se formatea con día/mes/año (es-CR); verificamos el año.
     expect(screen.getByText(/2026/)).toBeInTheDocument();
   });

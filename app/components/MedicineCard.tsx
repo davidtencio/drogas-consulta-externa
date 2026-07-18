@@ -16,7 +16,7 @@ export function MedicineCard({ medicine: m, lastCount, onMovement, onCount, onVi
   const exp = expiryStatus(m.expiresAt);
   const lastCountLabel = lastCount
     ? new Date(lastCount).toLocaleDateString("es-CR", { day: "numeric", month: "short", year: "numeric" })
-    : "Sin arqueos";
+    : "Sin tomas";
   return (
     <article className="medicine-card">
       <button className="card-open" type="button" onClick={onViewMovements} aria-label={`Ver movimientos de ${m.name} ${m.strength}`} />
@@ -36,7 +36,7 @@ export function MedicineCard({ medicine: m, lastCount, onMovement, onCount, onVi
       <div className="meta">
         <span>Lote<strong>{m.lot || "—"}</strong></span>
         <span>Vence<strong>{m.expiresAt ? new Date(m.expiresAt + "T12:00:00").toLocaleDateString("es-CR", { month: "short", year: "numeric" }) : "—"}</strong></span>
-        <span>Últ. arqueo<strong>{lastCountLabel}</strong></span>
+        <span>Últ. toma<strong>{lastCountLabel}</strong></span>
       </div>
       <div className="card-actions">
         <button className="card-action in" onClick={() => onMovement("IN")} aria-label={`Registrar ingreso de ${m.name}`}><Icon name="plus" size={15} /> Ingreso</button>

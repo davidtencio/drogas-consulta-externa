@@ -26,7 +26,7 @@ export function Sidebar({ email, tab, onTab, onSignOut, demo = false, role }: Pr
         <button className={tab === "dashboard" ? "active" : ""} aria-current={tab === "dashboard" ? "page" : undefined} onClick={() => onTab("dashboard")}><span aria-hidden="true"><Icon name="grid" /></span> Inventario</button>
         <button className={tab === "movements" ? "active" : ""} aria-current={tab === "movements" ? "page" : undefined} onClick={() => onTab("movements")}><span aria-hidden="true"><Icon name="movements" /></span> Movimientos</button>
         {role === "admin" && <button className={tab === "settings" ? "active" : ""} aria-current={tab === "settings" ? "page" : undefined} onClick={() => onTab("settings")}><span aria-hidden="true"><Icon name="settings" /></span> Configuración</button>}
-        <Link href="/arqueo"><span aria-hidden="true"><Icon name="arqueo" /></span> Arqueo</Link>
+        <Link href="/arqueo"><span aria-hidden="true"><Icon name="arqueo" /></span> Toma Inventario</Link>
       </nav>
       <div className="secure">
         <span><Icon name="shield" size={18} /></span>

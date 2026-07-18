@@ -22,6 +22,7 @@ import { SettingsTab } from "./components/SettingsTab";
 import { Modals, type ModalState } from "./components/Modals";
 import { CountModal } from "./components/CountModal";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { StatsSkeleton, MedicineGridSkeleton } from "./components/Skeletons";
 import { DEMO_MODE } from "./lib/demo";
 import { canManageCatalog, canOperateInventory, roleForEmail } from "./lib/authz";
 import { PILOT_MODE } from "./lib/pilot";
@@ -89,7 +90,7 @@ export default function Home() {
   const [busy,setBusy]=useState(false);
   const [alertDismissed,setAlertDismissed]=useState(false);
 
-  const {medicines,pharmacists,movements,auditLogs,pendingWrites}=useInventoryData(!!user,role==="admin"&&!DEMO_MODE);
+  const {medicines,pharmacists,movements,auditLogs,pendingWrites,loading}=useInventoryData(!!user,role==="admin"&&!DEMO_MODE);
   const online=useOnline();
 
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
@@ -172,12 +173,17 @@ export default function Home() {
       <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Existencias disponibles y alertas de control":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openMovement()} disabled={!activeMeds.length}>＋ Registrar movimiento</button>}</header>
 
       {tab==="dashboard"&&<>
-        <StatsBar total={total} low={low} expiring={expiring} recent={Math.min(movements.length,8)}/>
+        {loading?<StatsSkeleton/>:<StatsBar total={total} low={low} expiring={expiring} recent={Math.min(movements.length,8)}/>}
         <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar medicamento, concentración, código o lote…" value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="toolbar-end"><span>{filtered.length} medicamentos</span><button className="secondary" onClick={exportMedicines} disabled={!medicines.length}>⭳ Exportar CSV</button></div></div>
-        {activeMeds.length?<div className="medicine-grid">{filtered.map(m=><MedicineCard key={m.id} medicine={m} lastCount={lastCounts.get(m.id)} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)}/>)}</div>:<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
+        {loading?<div role="status" aria-label="Cargando inventario"><MedicineGridSkeleton/></div>
+          :activeMeds.length
+            ?(filtered.length
+              ?<div className="medicine-grid">{filtered.map(m=><MedicineCard key={m.id} medicine={m} lastCount={lastCounts.get(m.id)} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)}/>)}</div>
+              :<div className="panel"><div className="empty-block">Ningún medicamento coincide con «{query}».<br/><button className="secondary full" style={{width:"auto",margin:"12px auto 0"}} onClick={()=>setQuery("")}>Limpiar búsqueda</button></div></div>)
+            :<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}
 
-      {tab==="movements"&&<MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash}/>}
+      {tab==="movements"&&<MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} loading={loading}/>}
 
       {tab==="settings"&&canManageCatalog(role)&&<SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount}/>}
     </section>

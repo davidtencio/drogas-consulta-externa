@@ -170,3 +170,55 @@ header h1{font-size:clamp(22px,4.5vw,30px)}
   .sidebar nav button span,.sidebar nav a span{width:auto}
   .theme-toggle{align-self:flex-start;width:auto;padding:9px 14px}
 }
+
+/* ===========================================================================
+   Fase 7b — Estados de carga y sin resultados
+   Esqueletos que reservan el espacio del contenido real para evitar saltos de
+   layout y comunicar progreso. El brillo se detiene con prefers-reduced-motion
+   (regla global) para respetar la preferencia del usuario.
+   =========================================================================== */
+.sk{display:block;border-radius:6px;background:var(--surface-2);position:relative;overflow:hidden}
+.sk::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--text) 9%,transparent),transparent);transform:translateX(-100%);animation:sk-shimmer 1.3s ease-in-out infinite}
+@keyframes sk-shimmer{100%{transform:translateX(100%)}}
+.sk-line{height:12px;margin:6px 0}
+.sk-line.sk-xs{width:38%}.sk-line.sk-sm{width:55%}.sk-line.sk-lg{width:70%;height:20px}
+.sk-title{height:18px;width:66%;margin:14px 0 6px}
+.sk-num{height:24px;width:44%;margin:16px 0 8px}
+.sk-bar{height:8px;width:100%;margin:8px 0 14px;border-radius:9px}
+.sk-pill{width:35px;height:35px;border-radius:9px}
+.sk-badge{width:72px;height:20px;border-radius:20px}
+.sk-icon{width:42px;height:42px;border-radius:10px;flex:none}
+.skeleton-stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:flex;align-items:center;gap:15px}
+.skeleton-stat>div{flex:1}
+.skeleton-card .meta .sk{height:10px;margin:4px 0}
+.skeleton-actions{display:flex;width:calc(100% + 36px);margin-left:-18px;border-top:1px solid var(--hairline-2)}
+.skeleton-actions .sk{flex:1;height:44px;border-radius:0}
+.skeleton-actions .sk+.sk{border-left:1px solid var(--hairline-2)}
+.skeleton-row .sk-line{height:14px;margin:0}
+
+/* ===========================================================================
+   Fase 8 — Navegación móvil tipo aplicación (barra inferior fija)
+   Reemplaza la barra superior que se desbordaba: la cabecera queda arriba con
+   marca, tema y salida, y las secciones pasan a una barra inferior fija donde
+   todas son visibles a la vez, con objetivos táctiles amplios.
+   =========================================================================== */
+@media(max-width:760px){
+  /* Cabecera compacta: marca a la izquierda, tema y salida a la derecha. */
+  .sidebar{flex-direction:row;align-items:center;gap:10px;height:auto;position:sticky;top:0;z-index:15;padding:10px 14px}
+  .brand{padding:0;flex:0 0 auto}
+  .secure{display:none}
+  .theme-toggle{margin:0 0 0 auto;align-self:center;width:auto;padding:9px 12px}
+  .profile{display:flex;align-items:center;margin:0;padding:0;border-top:0;flex:0 0 auto}
+  .profile .avatar,.profile>div{display:none}
+  .logout{margin:0}
+
+  /* Barra inferior: todas las secciones visibles como pestañas ícono + etiqueta. */
+  .sidebar nav{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:30;display:flex;justify-content:space-around;gap:0;margin:0;padding:6px 4px calc(6px + env(safe-area-inset-bottom));background:linear-gradient(180deg,#0b1a27,#06121d);border-top:1px solid #183044;overflow:visible}
+  .sidebar nav button,.sidebar nav a{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px;padding:6px 2px;border:0;border-radius:10px;font-size:11px;font-weight:600;line-height:1.15;text-align:center;white-space:normal;color:#9fb6c6}
+  .sidebar nav button span,.sidebar nav a span{width:auto;font-size:21px}
+  .sidebar nav button.active,.sidebar nav [aria-current=page]{box-shadow:none;background:#ffffff14;color:#4de9df}
+
+  /* El contenido y los toasts dejan espacio para no quedar bajo la barra. */
+  .content{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+  .toast{bottom:calc(78px + env(safe-area-inset-bottom))}
+}

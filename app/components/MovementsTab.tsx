@@ -6,16 +6,18 @@ import { movementsToCsv } from "../lib/csv";
 import { filterAndSortMovements, summarizeMovements, type MovementSort, type MovementTypeFilter } from "../lib/movements";
 import { clampPage, pageCount, pageRange, paginate } from "../lib/pagination";
 import { dateStamp, downloadTextFile } from "../lib/download";
+import { MovementRowsSkeleton } from "./Skeletons";
 
 type Props = {
   movements: Movement[];
   medicines: Medicine[];
   pharmacistNames: ReadonlyMap<string, string>;
   onNotice: (msg: string) => void;
+  loading?: boolean;
 };
 
 /** Pestaña de Movimientos: filtros, resumen del período, tabla y paginación. */
-export function MovementsTab({ movements, medicines, pharmacistNames, onNotice }: Props) {
+export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, loading = false }: Props) {
   const [type, setType] = useState<MovementTypeFilter>("ALL");
   const [text, setText] = useState("");
   const [medicineId, setMedicineId] = useState("");
@@ -84,7 +86,8 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice }
         <table>
           <thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th></tr></thead>
           <tbody>
-            {!movements.length ? <tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>
+            {loading ? <MovementRowsSkeleton />
+              : !movements.length ? <tr><td colSpan={6} className="empty">Aún no hay movimientos registrados.</td></tr>
               : pageItems.length ? pageItems.map((m) => (
                 <tr key={m.id}>
                   <td data-label="Fecha">{new Date(m.createdAt).toLocaleString("es-CR")}</td>

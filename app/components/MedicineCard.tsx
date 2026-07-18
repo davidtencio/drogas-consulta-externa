@@ -1,4 +1,5 @@
 import { expiryStatus, isLowStock, stockPercent, type Medicine, type MovementType } from "../lib/inventory";
+import { Icon } from "./Icon";
 
 type Props = {
   medicine: Medicine;
@@ -18,7 +19,7 @@ export function MedicineCard({ medicine: m, lastCount, onMovement, onCount }: Pr
   return (
     <article className="medicine-card">
       <div className="card-head">
-        <span className="pill-icon">✚</span>
+        <span className="pill-icon"><Icon name="pill" size={19} /></span>
         <div className="badges">
           <span className={`badge ${status}`}>{status === "low" ? "Stock bajo" : "Disponible"}</span>
           {exp === "vencido" && <span className="badge expired">Vencido</span>}
@@ -36,9 +37,9 @@ export function MedicineCard({ medicine: m, lastCount, onMovement, onCount }: Pr
         <span>Últ. arqueo<strong>{lastCountLabel}</strong></span>
       </div>
       <div className="card-actions">
-        <button className="card-action in" onClick={() => onMovement("IN")} aria-label={`Registrar ingreso de ${m.name}`}>＋ Ingreso</button>
-        <button className="card-action out" onClick={() => onMovement("OUT")} aria-label={`Registrar egreso de ${m.name}`}>− Egreso</button>
-        <button className="card-action count" onClick={onCount} aria-label={`Confirmar conteo de ${m.name}`}>≡ Conteo</button>
+        <button className="card-action in" onClick={() => onMovement("IN")} aria-label={`Registrar ingreso de ${m.name}`}><Icon name="plus" size={15} /> Ingreso</button>
+        <button className="card-action out" onClick={() => onMovement("OUT")} aria-label={`Registrar egreso de ${m.name}`}><Icon name="minus" size={15} /> Egreso</button>
+        <button className="card-action count" onClick={onCount} aria-label={`Confirmar conteo de ${m.name}`}><Icon name="count" size={15} /> Conteo</button>
       </div>
     </article>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Icon } from "./Icon";
 
 type Theme = "light" | "dark";
 
@@ -51,7 +52,7 @@ export function ThemeToggle() {
       aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
       title="Cambiar tema"
     >
-      <span aria-hidden="true">{isDark ? "☀" : "☾"}</span>
+      <span aria-hidden="true"><Icon name={isDark ? "sun" : "moon"} size={17} /></span>
       <span className="theme-toggle-label">{isDark ? "Modo claro" : "Modo oscuro"}</span>
     </button>
   );

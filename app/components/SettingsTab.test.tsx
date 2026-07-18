@@ -34,7 +34,7 @@ describe("SettingsTab", () => {
 
   it("crea con el tipo correcto", async () => {
     const { onCreate } = setup();
-    await userEvent.click(screen.getAllByText("＋ Agregar")[0]);
+    await userEvent.click(screen.getAllByRole("button", { name: "Agregar" })[0]);
     expect(onCreate).toHaveBeenCalledWith("medicine");
   });
 

@@ -1,4 +1,5 @@
 import { expiryStatus, type Medicine, type MovementType, type Pharmacist } from "../lib/inventory";
+import { Icon } from "./Icon";
 import type { AuditLog } from "../lib/authz";
 
 type Props = {
@@ -19,13 +20,13 @@ export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetAct
       <div className="panel">
         <div className="panel-title">
           <div><h2>Medicamentos</h2><p>Catálogo del inventario.</p></div>
-          <button className="secondary" onClick={() => onCreate("medicine")}>＋ Agregar</button>
+          <button className="secondary" onClick={() => onCreate("medicine")}><Icon name="plus" size={15} /> Agregar</button>
         </div>
         {medicines.length ? medicines.map((m) => {
           const exp = expiryStatus(m.expiresAt);
           return (
             <div className={`list-row${m.active === false ? " inactive" : ""}`} key={m.id}>
-              <span className="mini-icon">✚</span>
+              <span className="mini-icon"><Icon name="pill" size={17} /></span>
               <div><strong>{m.name}</strong><small>{m.strength} · {m.form}{m.code ? ` · ${m.code}` : ""}</small></div>
               {exp === "vencido" && <span className="badge expired">Vencido</span>}
               {exp === "por-vencer" && <span className="badge soon">Vence pronto</span>}
@@ -48,7 +49,7 @@ export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetAct
       <div className="panel">
         <div className="panel-title">
           <div><h2>Farmacéuticos autorizados</h2><p>Usuarios habilitados para operar.</p></div>
-          <button className="secondary" onClick={() => onCreate("pharmacist")}>＋ Agregar</button>
+          <button className="secondary" onClick={() => onCreate("pharmacist")}><Icon name="plus" size={15} /> Agregar</button>
         </div>
         {pharmacists.length ? pharmacists.map((p) => (
           <div className={`list-row${p.active === false ? " inactive" : ""}`} key={p.id}>
@@ -66,7 +67,7 @@ export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetAct
       </div>
       <div className="panel audit-panel">
         <div className="panel-title"><div><h2>Bitácora administrativa</h2><p>Últimos cambios de catálogo y autorizaciones. Los registros no se pueden editar ni eliminar.</p></div></div>
-        {auditLogs.length ? auditLogs.map((entry) => <div className="list-row audit-row" key={entry.id}><span className="mini-icon">⌁</span><div><strong>{entry.action}</strong><small>{entry.entityType} · {entry.entityId}</small></div><div className="audit-who"><strong>{entry.actorEmail}</strong><small>{new Date(entry.createdAt).toLocaleString("es-CR")}</small></div></div>) : <div className="empty-block">Aún no hay cambios administrativos registrados.</div>}
+        {auditLogs.length ? auditLogs.map((entry) => <div className="list-row audit-row" key={entry.id}><span className="mini-icon"><Icon name="audit" size={16} /></span><div><strong>{entry.action}</strong><small>{entry.entityType} · {entry.entityId}</small></div><div className="audit-who"><strong>{entry.actorEmail}</strong><small>{new Date(entry.createdAt).toLocaleString("es-CR")}</small></div></div>) : <div className="empty-block">Aún no hay cambios administrativos registrados.</div>}
       </div>
     </div>
   );

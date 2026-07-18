@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
-import { activeMedicines, expiringCount, expirySummary, filterMedicines, isValidMedicineCode, lowStockCount, pharmacistNameByEmail, totalStock, type Medicine, type MovementType, type Pharmacist } from "./lib/inventory";
+import { activeMedicines, expiringCount, expirySummary, expiryStatus, filterMedicines, isLowStock, isValidMedicineCode, lowStockCount, pharmacistNameByEmail, totalStock, type Medicine, type MovementType, type Pharmacist } from "./lib/inventory";
 import { medicinesToCsv } from "./lib/csv";
 import { lastCountByMedicine } from "./lib/movements";
 import { dateStamp, downloadTextFile } from "./lib/download";
@@ -15,7 +15,8 @@ import { Login } from "./components/Login";
 import { Sidebar } from "./components/Sidebar";
 import { ConnectionBanner } from "./components/ConnectionBanner";
 import { ExpiryAlert } from "./components/ExpiryAlert";
-import { StatsBar } from "./components/StatsBar";
+import { StatsBar, type StatKey } from "./components/StatsBar";
+import { Icon } from "./components/Icon";
 import { MovementsTab } from "./components/MovementsTab";
 import { MedicineCard } from "./components/MedicineCard";
 import { SettingsTab } from "./components/SettingsTab";
@@ -83,6 +84,8 @@ export default function Home() {
   const role=DEMO_MODE?"admin" as const:roleForEmail(user?.email);
   const [tab,setTab]=useState<"dashboard"|"movements"|"settings">("dashboard");
   const [query,setQuery]=useState("");
+  const [statFilter,setStatFilter]=useState<StatKey>("all");
+  const searchRef=useRef<HTMLInputElement>(null);
   const [modal,setModal]=useState<AppModal|null>(null);
   const [notice,setNotice]=useState<{message:string;critical:boolean}|null>(null);
   const [modalError,setModalError]=useState<FormIssue|null>(null);
@@ -98,6 +101,17 @@ export default function Home() {
   const activePharmacists=useMemo(()=>pharmacists.filter(p=>p.active!==false),[pharmacists]);
   const pharmacistNames=useMemo(()=>pharmacistNameByEmail(pharmacists),[pharmacists]);
   const filtered=useMemo(()=>filterMedicines(activeMeds,query),[activeMeds,query]);
+  // Filtro por métrica seleccionada en las tarjetas de estadística (KPI accionable).
+  const shownMeds=useMemo(()=>{
+    if(statFilter==="low") return filtered.filter(isLowStock);
+    if(statFilter==="expiring") return filtered.filter(m=>{const e=expiryStatus(m.expiresAt);return e==="vencido"||e==="por-vencer"});
+    return filtered;
+  },[filtered,statFilter]);
+  const onSelectStat=useCallback((key:StatKey)=>{
+    if(key==="recent"){setTab("movements");return}
+    setStatFilter(prev=>prev===key?"all":key);
+    setTab("dashboard");
+  },[]);
   const total=totalStock(activeMeds), low=lowStockCount(activeMeds);
   const expiring=useMemo(()=>expiringCount(activeMeds),[activeMeds]);
   const expAlert=useMemo(()=>expirySummary(medicines),[medicines]);
@@ -119,6 +133,21 @@ export default function Home() {
     const timer=window.setTimeout(()=>setNotice(null),4000);
     return ()=>window.clearTimeout(timer);
   },[notice]);
+
+  // Atajos de teclado globales: «/» enfoca la búsqueda del inventario, «n»
+  // abre el registro de movimiento. Se ignoran al escribir o con un modal abierto.
+  useEffect(()=>{
+    if(!user||!canOperateInventory(role)) return;
+    const onKey=(e:KeyboardEvent)=>{
+      if(e.ctrlKey||e.metaKey||e.altKey||modal||deactivation) return;
+      const el=e.target as HTMLElement|null;
+      if(el&&(el.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      if(e.key==="/"){e.preventDefault();setTab("dashboard");requestAnimationFrame(()=>searchRef.current?.focus())}
+      else if(e.key==="n"||e.key==="N"){if(activeMeds.length){e.preventDefault();openMovement()}}
+    };
+    window.addEventListener("keydown",onKey);
+    return ()=>window.removeEventListener("keydown",onKey);
+  },[user,role,modal,deactivation,activeMeds.length,openMovement]);
 
   const exportMedicines=useCallback(()=>{
     if(!medicines.length){flash("No hay medicamentos para exportar");return}
@@ -170,16 +199,16 @@ export default function Home() {
       {!DEMO_MODE&&PILOT_MODE&&<div className="pilot-banner" role="status"><strong>Piloto controlado</strong><span>Uso limitado a personal autorizado · reporte cualquier incidente antes de continuar</span></div>}
       <ConnectionBanner online={online} pendingWrites={pendingWrites}/>
       {!alertDismissed&&<ExpiryAlert summary={expAlert} showViewButton={tab!=="dashboard"} onView={()=>{setTab("dashboard");setAlertDismissed(true)}} onDismiss={()=>setAlertDismissed(true)}/>}
-      <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Existencias disponibles y alertas de control":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openMovement()} disabled={!activeMeds.length}>＋ Registrar movimiento</button>}</header>
+      <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Existencias disponibles y alertas de control":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openMovement()} disabled={!activeMeds.length}><Icon name="plus" size={16} /> Registrar movimiento</button>}</header>
 
       {tab==="dashboard"&&<>
-        {loading?<StatsSkeleton/>:<StatsBar total={total} low={low} expiring={expiring} recent={Math.min(movements.length,8)}/>}
-        <div className="toolbar"><label><span>⌕</span><input aria-label="Buscar medicamentos" placeholder="Buscar medicamento, concentración, código o lote…" value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="toolbar-end"><span>{filtered.length} medicamentos</span><button className="secondary" onClick={exportMedicines} disabled={!medicines.length}>⭳ Exportar CSV</button></div></div>
+        {loading?<StatsSkeleton/>:<StatsBar total={total} low={low} expiring={expiring} recent={Math.min(movements.length,8)} onSelect={onSelectStat} active={statFilter}/>}
+        <div className="toolbar"><label><span><Icon name="search" size={17} /></span><input ref={searchRef} aria-label="Buscar medicamentos" placeholder="Buscar medicamento, concentración, código o lote… ( / )" value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="toolbar-end"><span>{shownMeds.length} medicamentos</span><button className="secondary" onClick={exportMedicines} disabled={!medicines.length}><Icon name="download" size={16} /> Exportar CSV</button></div></div>
         {loading?<div role="status" aria-label="Cargando inventario"><MedicineGridSkeleton/></div>
           :activeMeds.length
-            ?(filtered.length
-              ?<div className="medicine-grid">{filtered.map(m=><MedicineCard key={m.id} medicine={m} lastCount={lastCounts.get(m.id)} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)}/>)}</div>
-              :<div className="panel"><div className="empty-block">Ningún medicamento coincide con «{query}».<br/><button className="secondary full" style={{width:"auto",margin:"12px auto 0"}} onClick={()=>setQuery("")}>Limpiar búsqueda</button></div></div>)
+            ?(shownMeds.length
+              ?<div className="medicine-grid">{shownMeds.map(m=><MedicineCard key={m.id} medicine={m} lastCount={lastCounts.get(m.id)} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)}/>)}</div>
+              :<div className="panel"><div className="empty-block">{statFilter!=="all"?`Ningún medicamento en «${statFilter==="low"?"Stock bajo":"Próximos a vencer"}»${query?` coincide con «${query}»`:""}.`:`Ningún medicamento coincide con «${query}».`}<br/><button className="secondary" style={{margin:"12px auto 0"}} onClick={()=>{setQuery("");setStatFilter("all")}}>Limpiar filtros</button></div></div>)
             :<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}
 
@@ -188,7 +217,7 @@ export default function Home() {
       {tab==="settings"&&canManageCatalog(role)&&<SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount}/>}
     </section>
 
-    {notice&&<div className={`toast${notice.critical?" toast-critical":""}`} role={notice.critical?"alert":"status"}>{notice.message}{notice.critical&&<button type="button" onClick={()=>setNotice(null)} aria-label="Descartar mensaje">×</button>}</div>}
+    {notice&&<div className={`toast${notice.critical?" toast-critical":""}`} role={notice.critical?"alert":"status"}>{notice.message}{notice.critical&&<button type="button" onClick={()=>setNotice(null)} aria-label="Descartar mensaje"><Icon name="close" size={18} /></button>}</div>}
     {modal&&(modal.kind==="count"
       ? <CountModal medicine={medicines.find(m=>m.id===modal.medicineId)} activePharmacists={activePharmacists} busy={busy} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit}/>
       : <Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} online={online} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit}/>)}

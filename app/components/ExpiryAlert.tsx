@@ -1,3 +1,4 @@
+import { Icon } from "./Icon";
 import type { ExpirySummary } from "../lib/inventory";
 
 /** Mensaje del aviso según cuántos hay vencidos y por vencer. */
@@ -21,7 +22,7 @@ export function ExpiryAlert({ summary, showViewButton, onView, onDismiss }: Prop
   const danger = summary.expired > 0;
   return (
     <div className={`expiry-alert${danger ? " danger" : ""}`} role="alert">
-      <span className="ico">{danger ? "⚠" : "⏱"}</span>
+      <span className="ico"><Icon name={danger ? "alert" : "clock"} size={19} /></span>
       <div className="msg">
         <strong>{expiryAlertMessage(summary)}</strong>
         <small>Revise el inventario para gestionarlos a tiempo.</small>
@@ -29,7 +30,7 @@ export function ExpiryAlert({ summary, showViewButton, onView, onDismiss }: Prop
       {showViewButton && (
         <button className="alert-action" onClick={onView}>Ver inventario</button>
       )}
-      <button className="alert-close" onClick={onDismiss} aria-label="Descartar aviso">×</button>
+      <button className="alert-close" onClick={onDismiss} aria-label="Descartar aviso"><Icon name="close" size={18} /></button>
     </div>
   );
 }

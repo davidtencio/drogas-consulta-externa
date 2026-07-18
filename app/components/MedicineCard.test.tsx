@@ -39,16 +39,16 @@ describe("MedicineCard", () => {
   it("llama onMovement con IN o OUT según el botón", async () => {
     const onMovement = vi.fn();
     render(<MedicineCard medicine={med()} onMovement={onMovement} onCount={() => {}} />);
-    await userEvent.click(screen.getByText("＋ Ingreso"));
+    await userEvent.click(screen.getByRole("button", { name: /Registrar ingreso/ }));
     expect(onMovement).toHaveBeenLastCalledWith("IN");
-    await userEvent.click(screen.getByText("− Egreso"));
+    await userEvent.click(screen.getByRole("button", { name: /Registrar egreso/ }));
     expect(onMovement).toHaveBeenLastCalledWith("OUT");
   });
 
   it("llama onCount al pulsar Conteo", async () => {
     const onCount = vi.fn();
     render(<MedicineCard medicine={med()} onMovement={() => {}} onCount={onCount} />);
-    await userEvent.click(screen.getByText("≡ Conteo"));
+    await userEvent.click(screen.getByRole("button", { name: /Confirmar conteo/ }));
     expect(onCount).toHaveBeenCalledOnce();
   });
 

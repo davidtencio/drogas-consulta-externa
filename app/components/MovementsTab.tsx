@@ -7,6 +7,7 @@ import { filterAndSortMovements, summarizeMovements, type MovementSort, type Mov
 import { clampPage, pageCount, pageRange, paginate } from "../lib/pagination";
 import { dateStamp, downloadTextFile } from "../lib/download";
 import { MovementRowsSkeleton } from "./Skeletons";
+import { Icon } from "./Icon";
 
 type Props = {
   movements: Movement[];
@@ -63,10 +64,10 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
     <div className="panel">
       <div className="panel-title">
         <div><h2>Actividad reciente</h2><p>Cada operación conserva responsable, fecha y referencia.</p></div>
-        <button className="secondary" onClick={onExport}>⭳ Exportar CSV</button>
+        <button className="secondary" onClick={onExport}><Icon name="download" size={16} /> Exportar CSV</button>
       </div>
       <div className="mov-filters">
-        <label className="search"><span>⌕</span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={text} onChange={(e) => setText(e.target.value)} /></label>
+        <label className="search"><span><Icon name="search" size={16} /></span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={text} onChange={(e) => setText(e.target.value)} /></label>
         <label>Medicamento<select aria-label="Filtrar por medicamento" value={medicineId} onChange={(e) => setMedicineId(e.target.value)}><option value="">Todos</option>{medicineOptions.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength}</option>)}</select></label>
         <label>Tipo<select aria-label="Filtrar por tipo" value={type} onChange={(e) => setType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option><option value="COUNT">Conteos</option></select></label>
         <label>Desde<input type="date" lang="es-CR" aria-label="Desde" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label>
@@ -106,9 +107,9 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
           <span className="pager-info">{shown.start}–{shown.end} de {visible.length}</span>
           <label className="pager-size">Por página<select aria-label="Movimientos por página" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select></label>
           <div className="pager-nav">
-            <button onClick={() => setPage(pageNum - 1)} disabled={pageNum <= 1} aria-label="Página anterior">‹</button>
+            <button onClick={() => setPage(pageNum - 1)} disabled={pageNum <= 1} aria-label="Página anterior"><Icon name="chevron-left" size={18} /></button>
             <span>Página {pageNum} de {totalPages}</span>
-            <button onClick={() => setPage(pageNum + 1)} disabled={pageNum >= totalPages} aria-label="Página siguiente">›</button>
+            <button onClick={() => setPage(pageNum + 1)} disabled={pageNum >= totalPages} aria-label="Página siguiente"><Icon name="chevron-right" size={18} /></button>
           </div>
         </div>
       )}

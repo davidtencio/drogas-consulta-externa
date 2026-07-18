@@ -99,7 +99,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
               : pageItems.length ? pageItems.map((m) => (
                 <tr key={m.id}>
                   <td data-label="Fecha">{new Date(m.createdAt).toLocaleString("es-CR")}</td>
-                  <td data-label="Medicamento"><strong>{m.medicineName}</strong></td>
+                  <td data-label="Medicamento"><strong>{m.medicineName}</strong>{m.lotAllocations?.length ? <small className="cell-sub">{m.lotAllocations.map((lot)=>`${lot.lot}: ${lot.quantity}`).join(" · ")}</small> : null}</td>
                   <td data-label="Tipo"><span className={`type ${m.type}`}>{m.type === "IN" ? "Ingreso" : m.type === "OUT" ? "Egreso" : "Conteo"}</span></td>
                   <td data-label="Cantidad">{m.quantity}{m.type === "COUNT" && <small className="cell-sub">sist. {m.systemQuantity} · {m.difference === 0 ? "sin dif." : m.difference != null && m.difference > 0 ? `+${m.difference}` : m.difference}</small>}</td>
                   <td data-label="Prescripción">{m.prescriptionRef || "—"}{m.note && <button type="button" className="observation-icon" title={m.note} aria-label={`Ver observación de ${m.medicineName}`} onClick={() => setObserved(m)}><Icon name="note" size={15} /></button>}</td>

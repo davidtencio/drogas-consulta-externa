@@ -3,6 +3,7 @@ import { Google_Sans } from "next/font/google";
 import "./globals.css";
 import "./card-navigation.css";
 import "./observations.css";
+import "./lots.css";
 import { ServiceWorkerRegister } from "./components/ServiceWorkerRegister";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 

@@ -23,6 +23,7 @@ export function MedicineCard({ medicine: m, certification, onMovement, onCount, 
   const certificationDate = certifiedAt?.toLocaleDateString("es-CR", { day: "2-digit", month: "2-digit", year: "numeric" });
   const certificationTime = certifiedAt?.toLocaleTimeString("es-CR", { hour: "numeric", minute: "2-digit" });
   const tooltip = certification ? `Fecha: ${certificationDate}\nHora: ${certificationTime}\nFarmacéutico: ${certification.pharmacistName}` : "";
+  const availableLots = (m.lots || []).filter((lot) => lot.quantity > 0);
   return (
     <article className="medicine-card">
       <button className="card-open" type="button" onClick={onViewMovements} aria-label={`Ver movimientos de ${m.name} ${m.strength}`} />
@@ -41,7 +42,7 @@ export function MedicineCard({ medicine: m, certification, onMovement, onCount, 
       <div className="bar" role="progressbar" aria-label={`Existencia de ${m.name} respecto al nivel de referencia`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-valuetext={`${pct} % del nivel de referencia`}><i className={status} style={{ width: `${pct}%` }} /></div>
       <span className="sr-only">{pct} % del nivel de referencia</span>
       <div className="meta">
-        <span>Lote<strong>{m.lot || "—"}</strong></span>
+        <span>Lotes<strong>{availableLots.length ? `${availableLots.length} disponibles` : m.lot || "—"}</strong></span>
         <span>Vence<strong>{m.expiresAt ? new Date(m.expiresAt + "T12:00:00").toLocaleDateString("es-CR", { month: "short", year: "numeric" }) : "—"}</strong></span>
         <span>Certificación<strong>{certification ? <button type="button" className="certification-check" title={tooltip} aria-label={`Ver certificación de ${m.name}`} onClick={() => setShowCertification(true)}><Icon name="check" size={15} /></button> : "Sin toma certificada"}</strong></span>
       </div>

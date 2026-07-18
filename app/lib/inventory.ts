@@ -2,6 +2,10 @@
 // React, para que sea fácil de probar y reutilizar. La UI (app/page.tsx) usa
 // estas funciones; los tests viven en app/lib/inventory.test.ts.
 
+export type InventoryLot = { id: string; lot: string; expiresAt: string; quantity: number; receivedAt: string };
+export type LotAllocation = { lotId: string; lot: string; expiresAt: string; quantity: number };
+export type ReceivedLot = { lot: string; expiresAt: string; quantity: number };
+
 export type Medicine = {
   id: string;
   name: string;
@@ -12,6 +16,7 @@ export type Medicine = {
   minimumStock: number;
   lot: string;
   expiresAt: string;
+  lots?: InventoryLot[];
   /** Código del medicamento en formato 000-00-0000 (opcional). */
   code?: string;
   active?: boolean;
@@ -50,6 +55,7 @@ export type Movement = {
   systemQuantity?: number;
   difference?: number;
   note?: string;
+  lotAllocations?: LotAllocation[];
 };
 
 /** Tipos de operación que ajustan existencias (ingreso/egreso). */
@@ -133,6 +139,7 @@ export type MovementInput = {
   quantity: number;
   prescriptionRef: string;
   note?: string;
+  lotAllocations?: LotAllocation[];
   pharmacistEmail: string;
   createdAt: string;
 };
@@ -147,6 +154,7 @@ export type PreparedMovement = {
     quantity: number;
     prescriptionRef: string;
     note?: string;
+    lotAllocations?: LotAllocation[];
     pharmacistEmail: string;
     createdAt: string;
   };
@@ -173,6 +181,7 @@ export function prepareMovement(
       quantity: input.quantity,
       prescriptionRef: input.prescriptionRef,
       ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+      ...(input.lotAllocations?.length ? { lotAllocations: input.lotAllocations } : {}),
       pharmacistEmail: input.pharmacistEmail,
       createdAt: input.createdAt,
     },

@@ -63,12 +63,14 @@ async function savePharmacist(form:FormData, now:string, editing:Pharmacist|null
 /** Registra un movimiento (ingreso/egreso) con el farmacéutico responsable. */
 async function saveMovement(form:FormData, now:string){
   const medicineId=trimmed(form,"medicineId");
-  const quantity=Number(form.get("quantity"));
   const type=form.get("type")==="IN"?"IN":"OUT";
+  const receivedLots=type==="IN"?form.getAll("lotNumber").map((lot,index)=>({lot:String(lot).trim(),expiresAt:String(form.getAll("lotExpiresAt")[index]||""),quantity:Number(form.getAll("lotQuantity")[index])})):undefined;
+  const quantity=type==="IN"?receivedLots!.reduce((sum,lot)=>sum+lot.quantity,0):Number(form.get("quantity"));
+  if(type==="IN"&&receivedLots!.some(lot=>!lot.lot||!lot.expiresAt||!Number.isInteger(lot.quantity)||lot.quantity<=0)) throw new Error("Complete correctamente todos los lotes recibidos.");
   const pharmacistEmail=trimmed(form,"pharmacistEmail");
   if(!medicineId) throw new Error("Cantidad inválida.");
   if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable.");
-  await dataApi.registerMovement({medicineId,type,quantity,prescriptionRef:trimmed(form,"prescriptionRef"),note:trimmed(form,"note"),pharmacistEmail,now});
+  await dataApi.registerMovement({medicineId,type,quantity,receivedLots,prescriptionRef:trimmed(form,"prescriptionRef"),note:trimmed(form,"note"),pharmacistEmail,now});
 }
 
 /** Confirma el saldo (conteo físico = sistema) del medicamento; no ajusta stock. */

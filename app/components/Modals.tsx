@@ -3,6 +3,7 @@ import { formatMedicineCode, type Medicine, type MovementType, type Pharmacist }
 import { AccessibleDialog } from "./AccessibleDialog";
 import { useFocusErrorField } from "../hooks/useFocusErrorField";
 import { ObservationField } from "./ObservationField";
+import { Icon } from "./Icon";
 
 export type ModalState =
   | { kind: "movement"; medicineId?: string; type?: MovementType }
@@ -21,6 +22,8 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
   const ep = state.kind === "pharmacist" ? state.editing : null;
   const editing = em ?? ep;
   const [code, setCode] = useState(em?.code || "");
+  const [movementType, setMovementType] = useState<MovementType>(state.kind === "movement" ? state.type ?? "OUT" : "OUT");
+  const [lotRows, setLotRows] = useState([{ key: 1 }]);
   const pharmacistOptions = activePharmacists.map((p) => <option key={p.id} value={p.email}>{p.name} — {p.license}</option>);
   const title = state.kind === "movement"
     ? state.type === "IN" ? "Registrar ingreso" : state.type === "OUT" ? "Registrar egreso" : "Registrar movimiento"
@@ -39,9 +42,10 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
         <form onSubmit={(e) => onSubmit(e, "movement")} aria-describedby={error ? "modal-error" : undefined}>
           <label>Medicamento<select name="medicineId" required defaultValue={state.medicineId ?? ""} data-autofocus {...invalid("medicineId")}>{state.medicineId ? null : <option value="" disabled>Seleccione…</option>}{activeMeds.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength} — {m.stock} disp.</option>)}</select></label>
           <div className="form-row">
-            <label>Tipo<select name="type" defaultValue={state.type ?? "OUT"}><option value="OUT">Egreso</option><option value="IN">Ingreso</option></select></label>
-            <label>Cantidad<input name="quantity" type="number" min="1" step="1" required {...invalid("quantity")} /></label>
+            <label>Tipo<select name="type" value={movementType} onChange={(e) => setMovementType(e.target.value as MovementType)}><option value="OUT">Egreso</option><option value="IN">Ingreso</option></select></label>
+            {movementType === "OUT" && <label>Cantidad<input name="quantity" type="number" min="1" step="1" required {...invalid("quantity")} /></label>}
           </div>
+          {movementType === "IN" && <fieldset className="lot-entry"><legend>Lotes recibidos</legend>{lotRows.map((row, index) => <div className="lot-entry-row" key={row.key}><label>Lote<input name="lotNumber" required placeholder="Ej. L-2026-01" /></label><label>Expira<input name="lotExpiresAt" type="date" lang="es-CR" required /></label><label>Cantidad<input name="lotQuantity" type="number" min="1" step="1" required /></label>{lotRows.length > 1 && <button type="button" aria-label={`Quitar lote ${index + 1}`} onClick={() => setLotRows((rows) => rows.filter((item) => item.key !== row.key))}><Icon name="close" size={14} /></button>}</div>)}<button type="button" className="observation-toggle" onClick={() => setLotRows((rows) => [...rows, { key: Math.max(...rows.map((row) => row.key)) + 1 }])}><Icon name="plus" size={14} /> Agregar otro lote</button></fieldset>}
           <label>Referencia de prescripción<input name="prescriptionRef" placeholder="Ej. RX-2026-00481" /></label>
           <ObservationField />
           <label>Farmacéutico responsable<select name="pharmacistEmail" required defaultValue="" {...invalid("pharmacistEmail")}><option value="" disabled>Seleccione…</option>{pharmacistOptions}</select></label>

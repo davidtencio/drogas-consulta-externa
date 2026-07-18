@@ -10,8 +10,8 @@ describe("reglas del piloto", () => {
     expect(rules).toContain("allow create, update, delete: if isAdmin()");
   });
 
-  it("limita al operador a modificar únicamente stock no negativo", () => {
-    expect(rules).toContain("affectedKeys().hasOnly(['stock'])");
+  it("limita al operador a modificar stock y trazabilidad de lotes", () => {
+    expect(rules).toContain("affectedKeys().hasOnly(['stock', 'lots', 'lot', 'expiresAt'])");
     expect(rules).toContain("request.resource.data.stock >= 0");
   });
 

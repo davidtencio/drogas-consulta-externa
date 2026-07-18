@@ -27,6 +27,13 @@ describe("MedicineCard", () => {
     expect(screen.getByText("Stock bajo")).toBeInTheDocument();
   });
 
+  it("muestra el código del medicamento y un guion cuando no existe", () => {
+    const { rerender } = render(<MedicineCard medicine={med({ code: "123-45-6789" })} onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
+    expect(screen.getByText("123-45-6789")).toBeInTheDocument();
+    rerender(<MedicineCard medicine={med({ code: undefined })} onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
   it("muestra 'Vencido' con fecha pasada", () => {
     render(<MedicineCard medicine={med({ expiresAt: "2000-01-01" })} onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
     expect(screen.getByText("Vencido")).toBeInTheDocument();

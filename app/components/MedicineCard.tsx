@@ -30,6 +30,7 @@ export function MedicineCard({ medicine: m, lastCount, onMovement, onCount, onVi
       </div>
       <h2>{m.name}</h2>
       <p>{m.strength} · {m.form}</p>
+      <div className="medicine-code"><span>Código</span><strong>{m.code || "—"}</strong></div>
       <div className="stock-row"><small>Existencia</small><strong>{m.stock.toLocaleString("es-CR")}</strong><span>{m.unit}</span><em>Mínimo {m.minimumStock.toLocaleString("es-CR")}</em></div>
       <div className="bar" role="progressbar" aria-label={`Existencia de ${m.name} respecto al nivel de referencia`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-valuetext={`${pct} % del nivel de referencia`}><i className={status} style={{ width: `${pct}%` }} /></div>
       <span className="sr-only">{pct} % del nivel de referencia</span>

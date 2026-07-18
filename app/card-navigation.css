@@ -21,3 +21,23 @@
   position: relative;
   z-index: 2;
 }
+
+.medicine-code {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.medicine-code span {
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  font-size: 9px;
+}
+
+.medicine-code strong {
+  color: var(--label);
+  font-variant-numeric: tabular-nums;
+}

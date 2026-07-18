@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Google_Sans } from "next/font/google";
 import "./globals.css";
+import "./card-navigation.css";
 import { ServiceWorkerRegister } from "./components/ServiceWorkerRegister";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 

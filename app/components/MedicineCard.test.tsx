@@ -14,31 +14,32 @@ function med(o: Partial<Medicine> = {}): Medicine {
 const inDays = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 
 describe("MedicineCard", () => {
+  const view = () => {};
   it("muestra nombre, presentación y estado disponible", () => {
-    render(<MedicineCard medicine={med()} onMovement={() => {}} onCount={() => {}} />);
+    render(<MedicineCard medicine={med()} onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
     expect(screen.getByText("Metformina")).toBeInTheDocument();
     expect(screen.getByText("500 mg · Tableta")).toBeInTheDocument();
     expect(screen.getByText("Disponible")).toBeInTheDocument();
   });
 
   it("marca stock bajo cuando iguala o baja del mínimo", () => {
-    render(<MedicineCard medicine={med({ stock: 20, minimumStock: 20 })} onMovement={() => {}} onCount={() => {}} />);
+    render(<MedicineCard medicine={med({ stock: 20, minimumStock: 20 })} onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
     expect(screen.getByText("Stock bajo")).toBeInTheDocument();
   });
 
   it("muestra 'Vencido' con fecha pasada", () => {
-    render(<MedicineCard medicine={med({ expiresAt: "2000-01-01" })} onMovement={() => {}} onCount={() => {}} />);
+    render(<MedicineCard medicine={med({ expiresAt: "2000-01-01" })} onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
     expect(screen.getByText("Vencido")).toBeInTheDocument();
   });
 
   it("muestra 'Vence pronto' dentro de los 30 días", () => {
-    render(<MedicineCard medicine={med({ expiresAt: inDays(10) })} onMovement={() => {}} onCount={() => {}} />);
+    render(<MedicineCard medicine={med({ expiresAt: inDays(10) })} onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
     expect(screen.getByText("Vence pronto")).toBeInTheDocument();
   });
 
   it("llama onMovement con IN o OUT según el botón", async () => {
     const onMovement = vi.fn();
-    render(<MedicineCard medicine={med()} onMovement={onMovement} onCount={() => {}} />);
+    render(<MedicineCard medicine={med()} onMovement={onMovement} onCount={() => {}} onViewMovements={view} />);
     await userEvent.click(screen.getByRole("button", { name: /Registrar ingreso/ }));
     expect(onMovement).toHaveBeenLastCalledWith("IN");
     await userEvent.click(screen.getByRole("button", { name: /Registrar egreso/ }));
@@ -47,20 +48,27 @@ describe("MedicineCard", () => {
 
   it("llama onCount al pulsar Conteo", async () => {
     const onCount = vi.fn();
-    render(<MedicineCard medicine={med()} onMovement={() => {}} onCount={onCount} />);
+    render(<MedicineCard medicine={med()} onMovement={() => {}} onCount={onCount} onViewMovements={view} />);
     await userEvent.click(screen.getByRole("button", { name: /Confirmar conteo/ }));
     expect(onCount).toHaveBeenCalledOnce();
   });
 
   it("muestra 'Sin arqueos' cuando no hay último arqueo", () => {
-    render(<MedicineCard medicine={med()} onMovement={() => {}} onCount={() => {}} />);
+    render(<MedicineCard medicine={med()} onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
     expect(screen.getByText("Sin arqueos")).toBeInTheDocument();
   });
 
   it("muestra la fecha del último arqueo cuando existe", () => {
-    render(<MedicineCard medicine={med()} lastCount="2026-07-16T10:00:00.000Z" onMovement={() => {}} onCount={() => {}} />);
+    render(<MedicineCard medicine={med()} lastCount="2026-07-16T10:00:00.000Z" onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
     expect(screen.getByText("Últ. arqueo")).toBeInTheDocument();
     // La fecha se formatea con día/mes/año (es-CR); verificamos el año.
     expect(screen.getByText(/2026/)).toBeInTheDocument();
+  });
+
+  it("abre los movimientos del medicamento al pulsar la tarjeta", async () => {
+    const onViewMovements = vi.fn();
+    render(<MedicineCard medicine={med()} onMovement={() => {}} onCount={() => {}} onViewMovements={onViewMovements} />);
+    await userEvent.click(screen.getByRole("button", { name: "Ver movimientos de Metformina 500 mg" }));
+    expect(onViewMovements).toHaveBeenCalledOnce();
   });
 });

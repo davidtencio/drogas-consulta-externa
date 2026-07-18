@@ -6,10 +6,11 @@ type Props = {
   lastCount?: string;
   onMovement: (type: MovementType) => void;
   onCount: () => void;
+  onViewMovements: () => void;
 };
 
 /** Tarjeta de un medicamento en el dashboard, con estado de stock y vencimiento. */
-export function MedicineCard({ medicine: m, lastCount, onMovement, onCount }: Props) {
+export function MedicineCard({ medicine: m, lastCount, onMovement, onCount, onViewMovements }: Props) {
   const pct = stockPercent(m);
   const status = isLowStock(m) ? "low" : "ok";
   const exp = expiryStatus(m.expiresAt);
@@ -18,6 +19,7 @@ export function MedicineCard({ medicine: m, lastCount, onMovement, onCount }: Pr
     : "Sin arqueos";
   return (
     <article className="medicine-card">
+      <button className="card-open" type="button" onClick={onViewMovements} aria-label={`Ver movimientos de ${m.name} ${m.strength}`} />
       <div className="card-head">
         <span className="pill-icon"><Icon name="pill" size={19} /></span>
         <div className="badges">

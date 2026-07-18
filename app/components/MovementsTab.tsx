@@ -15,13 +15,15 @@ type Props = {
   pharmacistNames: ReadonlyMap<string, string>;
   onNotice: (msg: string) => void;
   loading?: boolean;
+  initialMedicineId?: string;
+  onMedicineFilterChange?: (medicineId: string) => void;
 };
 
 /** Pestaña de Movimientos: filtros, resumen del período, tabla y paginación. */
-export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, loading = false }: Props) {
+export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, loading = false, initialMedicineId = "", onMedicineFilterChange }: Props) {
   const [type, setType] = useState<MovementTypeFilter>("ALL");
   const [text, setText] = useState("");
-  const [medicineId, setMedicineId] = useState("");
+  const [medicineId, setMedicineId] = useState(initialMedicineId);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [sort, setSort] = useState<MovementSort>("date-desc");
@@ -33,7 +35,9 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
   const visible = useMemo(() => filterAndSortMovements(movements, filter, sort), [movements, filter, sort]);
   const summary = useMemo(() => summarizeMovements(visible), [visible]);
   const filtered = type !== "ALL" || !!text || !!medicineId || !!from || !!to;
-  const clearFilters = useCallback(() => { setType("ALL"); setText(""); setMedicineId(""); setFrom(""); setTo(""); }, []);
+  const selectedMedicine = useMemo(() => medicines.find((m) => m.id === medicineId), [medicines, medicineId]);
+  const changeMedicine = useCallback((id: string) => { setMedicineId(id); onMedicineFilterChange?.(id); }, [onMedicineFilterChange]);
+  const clearFilters = useCallback(() => { setType("ALL"); setText(""); changeMedicine(""); setFrom(""); setTo(""); }, [changeMedicine]);
 
   // Al cambiar filtros, orden o tamaño de página, vuelve a la primera página.
   const sig = `${type}|${text}|${medicineId}|${from}|${to}|${sort}|${pageSize}`;
@@ -63,17 +67,18 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
   return (
     <div className="panel">
       <div className="panel-title">
-        <div><h2>Actividad reciente</h2><p>Cada operación conserva responsable, fecha y referencia.</p></div>
+        <div><h2>{selectedMedicine ? `Movimientos de ${selectedMedicine.name} ${selectedMedicine.strength}` : "Actividad reciente"}</h2><p>{selectedMedicine ? "Historial filtrado de ingresos, egresos y conteos de este medicamento." : "Cada operación conserva responsable, fecha y referencia."}</p></div>
         <button className="secondary" onClick={onExport}><Icon name="download" size={16} /> Exportar CSV</button>
       </div>
       <div className="mov-filters">
         <label className="search"><span><Icon name="search" size={16} /></span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={text} onChange={(e) => setText(e.target.value)} /></label>
-        <label>Medicamento<select aria-label="Filtrar por medicamento" value={medicineId} onChange={(e) => setMedicineId(e.target.value)}><option value="">Todos</option>{medicineOptions.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength}</option>)}</select></label>
+        <label>Medicamento<select aria-label="Filtrar por medicamento" value={medicineId} onChange={(e) => changeMedicine(e.target.value)}><option value="">Todos</option>{medicineOptions.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength}</option>)}</select></label>
         <label>Tipo<select aria-label="Filtrar por tipo" value={type} onChange={(e) => setType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option><option value="COUNT">Conteos</option></select></label>
         <label>Desde<input type="date" lang="es-CR" aria-label="Desde" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label>
         <label>Hasta<input type="date" lang="es-CR" aria-label="Hasta" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>
         <label>Orden<select aria-label="Ordenar" value={sort} onChange={(e) => setSort(e.target.value as MovementSort)}><option value="date-desc">Fecha (reciente)</option><option value="date-asc">Fecha (antiguo)</option><option value="qty-desc">Cantidad (mayor)</option><option value="qty-asc">Cantidad (menor)</option></select></label>
         {filtered && <button type="button" className="mov-clear" onClick={clearFilters}>Limpiar</button>}
+        {selectedMedicine && <button type="button" className="mov-clear" onClick={() => changeMedicine("")}>Ver todos los movimientos</button>}
         <span className="mov-count">{visible.length} de {movements.length}</span>
       </div>
       <div className="mov-summary">

@@ -86,6 +86,7 @@ export default function Home() {
   const [query,setQuery]=useState("");
   const [statFilter,setStatFilter]=useState<StatKey>("all");
   const searchRef=useRef<HTMLInputElement>(null);
+  const [movementMedicineId,setMovementMedicineId]=useState("");
   const [modal,setModal]=useState<AppModal|null>(null);
   const [notice,setNotice]=useState<{message:string;critical:boolean}|null>(null);
   const [modalError,setModalError]=useState<FormIssue|null>(null);
@@ -126,6 +127,8 @@ export default function Home() {
   },[]);
   const openMovement=useCallback((medicineId?:string,type?:MovementType)=>{setModalError(null);setModal({kind:"movement",medicineId,type})},[]);
   const openCount=useCallback((medicineId:string)=>{setModalError(null);setModal({kind:"count",medicineId})},[]);
+  const viewMedicineMovements=useCallback((medicineId:string)=>{setMovementMedicineId(medicineId);setTab("movements")},[setMovementMedicineId,setTab]);
+  const changeTab=useCallback((next:"dashboard"|"movements"|"settings")=>{if(next==="movements") setMovementMedicineId("");setTab(next)},[setMovementMedicineId,setTab]);
 
   const flash=useCallback((message:string,critical=false)=>setNotice({message,critical}),[setNotice]);
   useEffect(()=>{
@@ -193,7 +196,7 @@ export default function Home() {
 
   return <main className="app-shell">
     <a className="skip-link" href="#contenido-principal">Saltar al contenido principal</a>
-    <Sidebar email={user.email||""} tab={tab} onTab={setTab} onSignOut={()=>void signOut(auth)} demo={DEMO_MODE} role={role}/>
+    <Sidebar email={user.email||""} tab={tab} onTab={changeTab} onSignOut={()=>void signOut(auth)} demo={DEMO_MODE} role={role}/>
     <section className="content" id="contenido-principal" tabIndex={-1}>
       {DEMO_MODE&&<div className="demo-banner" role="status"><strong>Modo demostración</strong><span>Datos ficticios · los cambios solo permanecen durante esta sesión</span></div>}
       {!DEMO_MODE&&PILOT_MODE&&<div className="pilot-banner" role="status"><strong>Piloto controlado</strong><span>Uso limitado a personal autorizado · reporte cualquier incidente antes de continuar</span></div>}
@@ -207,12 +210,12 @@ export default function Home() {
         {loading?<div role="status" aria-label="Cargando inventario"><MedicineGridSkeleton/></div>
           :activeMeds.length
             ?(shownMeds.length
-              ?<div className="medicine-grid">{shownMeds.map(m=><MedicineCard key={m.id} medicine={m} lastCount={lastCounts.get(m.id)} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)}/>)}</div>
+              ?<div className="medicine-grid">{shownMeds.map(m=><MedicineCard key={m.id} medicine={m} lastCount={lastCounts.get(m.id)} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)} onViewMovements={()=>viewMedicineMovements(m.id)}/>)}</div>
               :<div className="panel"><div className="empty-block">{statFilter!=="all"?`Ningún medicamento en «${statFilter==="low"?"Stock bajo":"Próximos a vencer"}»${query?` coincide con «${query}»`:""}.`:`Ningún medicamento coincide con «${query}».`}<br/><button className="secondary" style={{margin:"12px auto 0"}} onClick={()=>{setQuery("");setStatFilter("all")}}>Limpiar filtros</button></div></div>)
             :<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}
 
-      {tab==="movements"&&<MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} loading={loading}/>}
+      {tab==="movements"&&<MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} loading={loading} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId}/>}
 
       {tab==="settings"&&canManageCatalog(role)&&<SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount}/>}
     </section>

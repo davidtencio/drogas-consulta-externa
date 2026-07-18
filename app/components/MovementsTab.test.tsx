@@ -89,4 +89,15 @@ describe("MovementsTab", () => {
     expect(within(body).getByText("Amoxicilina")).toBeInTheDocument();
     expect(within(body).queryByText("Ibuprofeno")).not.toBeInTheDocument();
   });
+
+  it("abre con el medicamento indicado y permite volver a todos", async () => {
+    const movs = [mov({ id: "a", medicineId: "m1", medicineName: "Amoxicilina" }), mov({ id: "b", medicineId: "m2", medicineName: "Ibuprofeno" })];
+    const meds = [medMed({ id: "m1", name: "Amoxicilina", strength: "500 mg" }), medMed({ id: "m2", name: "Ibuprofeno" })];
+    render(<MovementsTab movements={movs} medicines={meds} pharmacistNames={names} onNotice={noop} initialMedicineId="m1" />);
+    expect(screen.getByRole("heading", { name: "Movimientos de Amoxicilina 500 mg" })).toBeInTheDocument();
+    const body = screen.getByRole("table").querySelector("tbody")!;
+    expect(within(body).queryByText("Ibuprofeno")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Ver todos los movimientos" }));
+    expect(within(body).getByText("Ibuprofeno")).toBeInTheDocument();
+  });
 });

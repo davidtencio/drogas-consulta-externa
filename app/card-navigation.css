@@ -1,0 +1,23 @@
+.medicine-card {
+  position: relative;
+}
+
+.card-open {
+  position: absolute;
+  inset: 0 0 41px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.card-open:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: -4px;
+  border-radius: 12px;
+}
+
+.card-actions {
+  position: relative;
+  z-index: 2;
+}

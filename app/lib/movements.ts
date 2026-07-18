@@ -86,6 +86,17 @@ export function lastCountByMedicine(movements: readonly Movement[]): Map<string,
   return map;
 }
 
+/** Último registro completo de toma de inventario por medicamento. */
+export function lastCountMovementByMedicine(movements: readonly Movement[]): Map<string, Movement> {
+  const map = new Map<string, Movement>();
+  for (const movement of movements) {
+    if (movement.type !== "COUNT" || !movement.medicineId) continue;
+    const previous = map.get(movement.medicineId);
+    if (!previous || movement.createdAt > previous.createdAt) map.set(movement.medicineId, movement);
+  }
+  return map;
+}
+
 /** Resumen agregado de un conjunto de movimientos (p. ej. un período filtrado). */
 export type MovementSummary = {
   /** Total de eventos (ingresos, egresos y conteos). */

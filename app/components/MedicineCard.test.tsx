@@ -60,15 +60,18 @@ describe("MedicineCard", () => {
     expect(onCount).toHaveBeenCalledOnce();
   });
 
-  it("muestra 'Sin tomas' cuando no hay última toma", () => {
+  it("indica cuando no existe una toma certificada", () => {
     render(<MedicineCard medicine={med()} onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
-    expect(screen.getByText("Sin tomas")).toBeInTheDocument();
+    expect(screen.getByText("Sin toma certificada")).toBeInTheDocument();
   });
 
-  it("muestra la fecha de la última toma cuando existe", () => {
-    render(<MedicineCard medicine={med()} lastCount="2026-07-16T10:00:00.000Z" onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
-    expect(screen.getByText("Últ. toma")).toBeInTheDocument();
-    // La fecha se formatea con día/mes/año (es-CR); verificamos el año.
+  it("muestra el check y abre los datos de la certificación", async () => {
+    render(<MedicineCard medicine={med()} certification={{ createdAt: "2026-07-16T10:00:00.000Z", pharmacistName: "Ana Rojas" }} onMovement={() => {}} onCount={() => {}} onViewMovements={view} />);
+    const check = screen.getByRole("button", { name: "Ver certificación de Metformina" });
+    expect(check).toHaveAttribute("title", expect.stringContaining("Farmacéutico: Ana Rojas"));
+    await userEvent.click(check);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Ana Rojas")).toBeInTheDocument();
     expect(screen.getByText(/2026/)).toBeInTheDocument();
   });
 

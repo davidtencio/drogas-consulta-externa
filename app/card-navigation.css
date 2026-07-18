@@ -41,3 +41,25 @@
   color: var(--label);
   font-variant-numeric: tabular-nums;
 }
+
+.certification-check {
+  position: relative;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--in) 45%, transparent);
+  border-radius: 50%;
+  background: var(--in-tint);
+  color: var(--in);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.certification-check:hover { transform: scale(1.06); }
+.certification-check:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.certification-detail { display: grid; gap: 12px; }
+.certification-detail div { background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; padding: 12px; }
+.certification-detail small,.certification-detail strong { display: block; }
+.certification-detail small { color: var(--muted); font-size: 11px; }
+.certification-detail strong { margin-top: 3px; color: var(--text); }

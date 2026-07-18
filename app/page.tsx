@@ -5,7 +5,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import { activeMedicines, expiringCount, expirySummary, expiryStatus, filterMedicines, isLowStock, isValidMedicineCode, lowStockCount, pharmacistNameByEmail, totalStock, type Medicine, type MovementType, type Pharmacist } from "./lib/inventory";
 import { medicinesToCsv } from "./lib/csv";
-import { lastCountByMedicine } from "./lib/movements";
+import { lastCountMovementByMedicine } from "./lib/movements";
 import { dateStamp, downloadTextFile } from "./lib/download";
 import * as dataApi from "./lib/db";
 import { useInventoryData } from "./hooks/useInventoryData";
@@ -116,7 +116,7 @@ export default function Home() {
   const total=totalStock(activeMeds), low=lowStockCount(activeMeds);
   const expiring=useMemo(()=>expiringCount(activeMeds),[activeMeds]);
   const expAlert=useMemo(()=>expirySummary(medicines),[medicines]);
-  const lastCounts=useMemo(()=>lastCountByMedicine(movements),[movements]);
+  const lastCounts=useMemo(()=>lastCountMovementByMedicine(movements),[movements]);
 
   const closeModal=useCallback(()=>{setModal(null);setModalError(null)},[]);
   const openCreate=useCallback((kind:"medicine"|"pharmacist"|"movement")=>{
@@ -210,7 +210,7 @@ export default function Home() {
         {loading?<div role="status" aria-label="Cargando inventario"><MedicineGridSkeleton/></div>
           :activeMeds.length
             ?(shownMeds.length
-              ?<div className="medicine-grid">{shownMeds.map(m=><MedicineCard key={m.id} medicine={m} lastCount={lastCounts.get(m.id)} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)} onViewMovements={()=>viewMedicineMovements(m.id)}/>)}</div>
+              ?<div className="medicine-grid">{shownMeds.map(m=>{const certification=lastCounts.get(m.id);return <MedicineCard key={m.id} medicine={m} certification={certification?{createdAt:certification.createdAt,pharmacistName:pharmacistNames.get(certification.pharmacistEmail.toLowerCase())||certification.pharmacistEmail}:undefined} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)} onViewMovements={()=>viewMedicineMovements(m.id)}/>})}</div>
               :<div className="panel"><div className="empty-block">{statFilter!=="all"?`Ningún medicamento en «${statFilter==="low"?"Stock bajo":"Próximos a vencer"}»${query?` coincide con «${query}»`:""}.`:`Ningún medicamento coincide con «${query}».`}<br/><button className="secondary" style={{margin:"12px auto 0"}} onClick={()=>{setQuery("");setStatFilter("all")}}>Limpiar filtros</button></div></div>)
             :<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
       </>}

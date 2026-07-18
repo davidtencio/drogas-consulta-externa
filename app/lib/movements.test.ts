@@ -5,6 +5,7 @@ import {
   filterAndSortMovements,
   summarizeMovements,
   lastCountByMedicine,
+  lastCountMovementByMedicine,
 } from "./movements";
 import type { Movement } from "./inventory";
 
@@ -186,5 +187,13 @@ describe("lastCountByMedicine", () => {
   it("ignora conteos sin medicineId", () => {
     const list = [mov({ id: "1", type: "COUNT", createdAt: "2026-07-16T09:00:00.000Z" })];
     expect(lastCountByMedicine(list).size).toBe(0);
+  });
+});
+
+describe("lastCountMovementByMedicine", () => {
+  it("conserva el último conteo completo con su farmacéutico", () => {
+    const older = mov({ id: "old", medicineId: "a", type: "COUNT", createdAt: "2026-01-01T08:00:00Z", pharmacistEmail: "ana@h.cr" });
+    const latest = mov({ id: "new", medicineId: "a", type: "COUNT", createdAt: "2026-01-02T08:00:00Z", pharmacistEmail: "luis@h.cr" });
+    expect(lastCountMovementByMedicine([latest, older]).get("a")).toEqual(latest);
   });
 });

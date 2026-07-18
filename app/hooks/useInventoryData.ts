@@ -22,6 +22,9 @@ export function useInventoryData(enabled: boolean, includeAudit = false) {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   // Escrituras pendientes por colección; el indicador combina las tres.
   const [pending, setPending] = useState({ medicines: false, pharmacists: false, movements: false });
+  // `ready` pasa a true con el primer snapshot de medicamentos; permite mostrar
+  // esqueletos de carga en lugar de un dashboard vacío mientras llegan los datos.
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (!enabled || DEMO_MODE) return;
@@ -29,6 +32,7 @@ export function useInventoryData(enabled: boolean, includeAudit = false) {
     const unsubMed = onSnapshot(collection(db, "medicines"), opts, (s: QuerySnapshot) => {
       setMedicines(sortByName(s.docs.map((d) => ({ id: d.id, ...d.data() } as Medicine))));
       setPending((p) => ({ ...p, medicines: s.metadata.hasPendingWrites }));
+      setReady(true);
     });
     const unsubPh = onSnapshot(collection(db, "pharmacists"), opts, (s: QuerySnapshot) => {
       setPharmacists(sortByName(s.docs.map((d) => ({ id: d.id, ...d.data() } as Pharmacist))));
@@ -49,7 +53,7 @@ export function useInventoryData(enabled: boolean, includeAudit = false) {
     return () => { unsubMed(); unsubPh(); unsubMov(); unsubAudit(); };
   }, [enabled, includeAudit]);
 
-  if (DEMO_MODE) return { ...demo, auditLogs: [], pendingWrites: false };
+  if (DEMO_MODE) return { ...demo, auditLogs: [], pendingWrites: false, loading: false };
   const pendingWrites = pending.medicines || pending.pharmacists || pending.movements;
-  return { medicines, pharmacists, movements, auditLogs, pendingWrites };
+  return { medicines, pharmacists, movements, auditLogs, pendingWrites, loading: enabled && !ready };
 }

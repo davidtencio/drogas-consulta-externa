@@ -8,6 +8,7 @@ import * as dataApi from "../lib/db";
 import { useInventoryData } from "../hooks/useInventoryData";
 import { useOnline } from "../hooks/useOnline";
 import { ConnectionBanner } from "./ConnectionBanner";
+import { Icon } from "./Icon";
 
 /**
  * Pantalla de arqueo: confirmar el saldo de cada medicamento con una casilla
@@ -67,13 +68,13 @@ export function ArqueoScreen({ email }: { email: string }) {
           <h1>Arqueo de inventario</h1>
           <p>Confirme el saldo de cada medicamento. Se registra como evidencia; no modifica existencias.</p>
         </div>
-        <Link className="secondary" href="/">← Volver a la app</Link>
+        <Link className="secondary" href="/"><Icon name="arrow-left" size={16} /> Volver a la app</Link>
       </header>
 
       <ConnectionBanner online={online} pendingWrites={pendingWrites} />
 
       <div className="arqueo-controls">
-        <label className="search"><span>⌕</span><input aria-label="Buscar medicamento" placeholder="Buscar medicamento…" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
+        <label className="search"><span><Icon name="search" size={16} /></span><input aria-label="Buscar medicamento" placeholder="Buscar medicamento…" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
         <label>Farmacéutico responsable<select aria-label="Farmacéutico responsable" value={pharmacistEmail} onChange={(e) => setPharmacistEmail(e.target.value)}><option value="" disabled>Seleccione…</option>{activePharmacists.map((p) => <option key={p.id} value={p.email}>{p.name} — {p.license}</option>)}</select></label>
         <label>Nota del arqueo<input aria-label="Nota del arqueo" placeholder="Opcional" value={note} onChange={(e) => setNote(e.target.value)} /></label>
       </div>

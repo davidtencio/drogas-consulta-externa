@@ -71,6 +71,12 @@ describe("MovementsTab", () => {
     expect(screen.getByText("Aún no hay movimientos registrados.")).toBeInTheDocument();
   });
 
+  it("muestra esqueletos mientras carga, no el mensaje de vacío", () => {
+    const { container } = render(<MovementsTab movements={[]} medicines={[]} pharmacistNames={names} onNotice={noop} loading />);
+    expect(container.querySelectorAll("tr.skeleton-row").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Aún no hay movimientos registrados.")).not.toBeInTheDocument();
+  });
+
   it("filtra por medicamento con el selector", async () => {
     const movs = [
       mov({ id: "a", medicineId: "m1", medicineName: "Amoxicilina" }),

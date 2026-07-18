@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { Icon } from "./Icon";
 
 type Props = {
   title: string;
@@ -39,7 +40,7 @@ export function AccessibleDialog({ title, description, children, onClose, danger
   return (
     <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div ref={dialogRef} className={`modal${danger ? " modal-danger" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} tabIndex={-1}>
-        <button type="button" className="close" onClick={onClose} aria-label="Cerrar">×</button>
+        <button type="button" className="close" onClick={onClose} aria-label="Cerrar"><Icon name="close" size={20} /></button>
         <h2 id={titleId}>{title}</h2>
         {description && <p id={descriptionId}>{description}</p>}
         {children}

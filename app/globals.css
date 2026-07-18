@@ -87,6 +87,42 @@ button{cursor:pointer}
 :root[data-theme=light]{--faint:#64737e;--in:#126b52;--out:#8a4810}
 .card-action.count{background:color-mix(in srgb,var(--count-tint) 65%,var(--surface-2));border-left:2px solid var(--line)}
 @media(max-width:760px){.theme-toggle{width:auto;margin-top:12px}.theme-toggle-label{display:none}}
+
+/* ===========================================================================
+   Fase 7 — Diseño fluido adaptable al tamaño de la pantalla
+   Sustituye los saltos por conteo de columnas fijo por rejillas que se
+   adaptan de forma continua al ancho disponible, con tipografía y espaciado
+   escalados mediante clamp() y un ancho de barra lateral intermedio para
+   tablets. No modifica ningún token de color, por lo que el contraste AA
+   verificado en las pruebas permanece intacto.
+   =========================================================================== */
+
+/* Espaciado del contenido fluido: crece con el ancho disponible sin saltos. */
+.content{padding:clamp(20px,3vw,34px) clamp(16px,4vw,42px) clamp(40px,6vw,60px)}
+
+/* Tipografía fluida en encabezados: compacta en móvil, generosa en escritorio. */
+header h1{font-size:clamp(22px,4.5vw,30px)}
+.panel h2,.modal h2{font-size:clamp(18px,3.2vw,22px)}
+
+/* Rejillas fluidas: el número de columnas surge del ancho real, no de puntos de
+   quiebre discretos. min(100%,Npx) evita el desbordamiento horizontal cuando la
+   pantalla es más angosta que la pista mínima. */
+.stats{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+.medicine-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,232px),1fr))}
+.settings-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+
+/* Barra lateral intermedia: en tablets se estrecha para dar aire al contenido. */
+@media(min-width:761px) and (max-width:1024px){
+  .app-shell{grid-template-columns:212px 1fr}
+}
+
+/* Teléfonos estrechos: compacta el espaciado y evita que el encabezado apriete. */
+@media(max-width:400px){
+  .content{padding:20px 12px 40px}
+  .stats article{padding:14px;gap:12px}
+  .modal{padding:22px 18px}
+  header{gap:14px}
+}
 .fatal-error{min-height:100dvh;display:grid;place-items:center;padding:24px;background:var(--bg)}
 .fatal-error-card{width:min(100%,520px);padding:32px;text-align:center;border:1px solid var(--line);border-radius:20px;background:var(--surface);box-shadow:0 24px 60px #001b2f33}
 .fatal-error-icon{display:inline-grid;place-items:center;width:48px;height:48px;margin-bottom:12px;border-radius:50%;color:var(--crit);background:var(--crit-tint);font-size:24px;font-weight:700}

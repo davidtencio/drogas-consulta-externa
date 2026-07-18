@@ -67,8 +67,8 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice }
         <label className="search"><span>⌕</span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={text} onChange={(e) => setText(e.target.value)} /></label>
         <label>Medicamento<select aria-label="Filtrar por medicamento" value={medicineId} onChange={(e) => setMedicineId(e.target.value)}><option value="">Todos</option>{medicineOptions.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength}</option>)}</select></label>
         <label>Tipo<select aria-label="Filtrar por tipo" value={type} onChange={(e) => setType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option><option value="COUNT">Conteos</option></select></label>
-        <label>Desde<input type="date" aria-label="Desde" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label>
-        <label>Hasta<input type="date" aria-label="Hasta" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>
+        <label>Desde<input type="date" lang="es-CR" aria-label="Desde" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label>
+        <label>Hasta<input type="date" lang="es-CR" aria-label="Hasta" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>
         <label>Orden<select aria-label="Ordenar" value={sort} onChange={(e) => setSort(e.target.value as MovementSort)}><option value="date-desc">Fecha (reciente)</option><option value="date-asc">Fecha (antiguo)</option><option value="qty-desc">Cantidad (mayor)</option><option value="qty-asc">Cantidad (menor)</option></select></label>
         {filtered && <button type="button" className="mov-clear" onClick={clearFilters}>Limpiar</button>}
         <span className="mov-count">{visible.length} de {movements.length}</span>

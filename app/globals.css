@@ -90,3 +90,47 @@ button{cursor:pointer}
 .fatal-error{min-height:100dvh;display:grid;place-items:center;padding:24px;background:var(--bg)}
 .fatal-error-card{width:min(100%,520px);padding:32px;text-align:center;border:1px solid var(--line);border-radius:20px;background:var(--surface);box-shadow:0 24px 60px #001b2f33}
 .fatal-error-icon{display:inline-grid;place-items:center;width:48px;height:48px;margin-bottom:12px;border-radius:50%;color:var(--crit);background:var(--crit-tint);font-size:24px;font-weight:700}
+
+/* ===========================================================================
+   Fase 6 — Alineación a estándares de diseño
+   1) Tema claro coherente (elimina fugas de color oscuro del rediseño clínico).
+   2) Densidad de listas: las acciones ya no se recortan en Configuración.
+   3) Navegación móvil sin solapes + toggle de tema compacto.
+   4) Escala tokenizada de espaciado/radio/tipografía como base reutilizable.
+   No modifica los tokens de color por tema, por lo que el contraste AA
+   verificado en los tests permanece intacto.
+   =========================================================================== */
+
+/* (4) Escala reutilizable: espaciado de 4px, radios y tipografía modular. */
+:root{
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;
+  --radius-sm:8px;--radius-md:12px;--radius-lg:16px;
+  --fs-2xs:11px;--fs-xs:12px;--fs-sm:13px;--fs-md:14px;--fs-lg:16px;--fs-xl:20px;--fs-2xl:24px;--fs-3xl:30px;
+  --ring:0 0 0 3px color-mix(in srgb,var(--primary) 32%,transparent);
+}
+
+/* (1) Tema claro coherente: el bloque "rediseño clínico" define colores oscuros
+   sin condicionar al tema; aquí se re-tokenizan solo para el tema claro. */
+:root[data-theme=light] .toolbar{background:var(--surface);border-color:var(--line)}
+:root[data-theme=light] .toolbar label{border-color:var(--line)}
+:root[data-theme=light] .toolbar input{color:var(--text)}
+:root[data-theme=light] .card-action{background:var(--surface-2)}
+:root[data-theme=light] .medicine-card .card-actions{border-top-color:var(--line)}
+/* Botón primario alineado al color de marca (teal) en claro, no al cian del tema oscuro. */
+:root[data-theme=light] .primary{background:var(--primary);color:#fff;border-color:transparent;box-shadow:0 4px 12px color-mix(in srgb,var(--primary) 22%,transparent)}
+:root[data-theme=light] .primary:hover{background:var(--primary-ink)}
+
+/* (2) Configuración: permite que las acciones fluyan a una nueva línea en vez de
+   recortarse cuando el nombre y el estado ocupan el ancho de la fila. */
+.list-row{flex-wrap:wrap;row-gap:var(--space-3)}
+.list-row>div{min-width:180px}
+.list-row>.row-actions{flex-wrap:wrap;justify-content:flex-end}
+
+/* (3) Navegación móvil: cada ítem conserva su ancho y la barra hace scroll,
+   evitando el solape de iconos y etiquetas. El toggle de tema se compacta. */
+@media(max-width:760px){
+  .sidebar nav{gap:var(--space-2);padding-bottom:2px}
+  .sidebar nav button,.sidebar nav a{flex:0 0 auto;display:inline-flex;align-items:center;gap:var(--space-2)}
+  .sidebar nav button span,.sidebar nav a span{width:auto}
+  .theme-toggle{align-self:flex-start;width:auto;padding:9px 14px}
+}

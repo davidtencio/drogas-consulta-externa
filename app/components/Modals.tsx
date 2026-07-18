@@ -66,7 +66,7 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
           </div>
           <div className="form-row">
             <label>Lote<input name="lot" defaultValue={em?.lot || ""} /></label>
-            <label>Vencimiento<input name="expiresAt" type="date" defaultValue={em?.expiresAt || ""} /></label>
+            <label>Vencimiento<input name="expiresAt" type="date" lang="es-CR" defaultValue={em?.expiresAt || ""} /></label>
           </div>
           {!editing && <label>Farmacéutico responsable<small className="inline-hint">Requerido si la existencia inicial es mayor a 0</small><select name="pharmacistEmail" defaultValue=""><option value="">Sin ingreso inicial</option>{pharmacistOptions}</select></label>}
           {errorMessage}

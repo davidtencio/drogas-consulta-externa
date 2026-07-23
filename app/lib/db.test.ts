@@ -1,18 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const addDoc = vi.fn(async () => ({ id: "new-id" }));
-const updateDoc = vi.fn(async () => undefined);
 const runTransaction = vi.fn(async () => undefined);
-const doc = vi.fn((_db: unknown, col: string, id?: string) => ({ col, id }));
+const doc = vi.fn((_db: unknown, col?: string, id?: string) => ({ col, id }));
 const collection = vi.fn((_db: unknown, name: string) => ({ name }));
 const batchSet = vi.fn();
+const batchUpdate = vi.fn();
 const batchCommit = vi.fn(async () => undefined);
-const writeBatch = vi.fn(() => ({ set: batchSet, commit: batchCommit }));
+const writeBatch = vi.fn(() => ({ set: batchSet, update: batchUpdate, commit: batchCommit }));
 
 vi.mock("../firebase", () => ({ db: {}, auth: { currentUser: { email: "admin@h.cr" } } }));
 vi.mock("firebase/firestore", () => ({
   addDoc: (...a: unknown[]) => addDoc(...(a as [])),
-  updateDoc: (...a: unknown[]) => updateDoc(...(a as [])),
   runTransaction: (...a: unknown[]) => runTransaction(...(a as [])),
   doc: (...a: unknown[]) => doc(...(a as [unknown, string, string?])),
   collection: (...a: unknown[]) => collection(...(a as [unknown, string])),
@@ -25,43 +24,61 @@ const fields = { name: "Metformina", strength: "500 mg", form: "Tableta", minimu
 
 beforeEach(() => {
   addDoc.mockClear();
-  updateDoc.mockClear();
   runTransaction.mockClear();
   doc.mockClear();
   collection.mockClear();
   batchSet.mockClear();
+  batchUpdate.mockClear();
   batchCommit.mockClear();
 });
 
 describe("setActive", () => {
-  it("actualiza el campo active del documento indicado", async () => {
+  it("actualiza el campo active y su auditoría en un lote atómico", async () => {
     await dbApi.setActive("medicines", "abc", false);
     expect(doc).toHaveBeenCalledWith({}, "medicines", "abc");
-    expect(updateDoc).toHaveBeenCalledWith({ col: "medicines", id: "abc" }, { active: false });
+    expect(batchUpdate).toHaveBeenCalledWith({ col: "medicines", id: "abc" }, { active: false });
+    expect(batchSet.mock.calls[0][1]).toMatchObject({ action: "medicine.deactivate", entityType: "medicine", entityId: "abc", actorEmail: "admin@h.cr" });
+    expect(batchCommit).toHaveBeenCalledOnce();
   });
 });
 
 describe("createPharmacist", () => {
-  it("agrega con active=true", async () => {
+  it("agrega con active=true y su auditoría en el mismo lote", async () => {
     await dbApi.createPharmacist({ name: "Ana", email: "ana@h.cr", license: "CF-1" }, "2026-07-16T10:00:00.000Z");
-    const payload = addDoc.mock.calls[0][1] as Record<string, unknown>;
+    const payload = batchSet.mock.calls[0][1] as Record<string, unknown>;
     expect(payload).toMatchObject({ name: "Ana", email: "ana@h.cr", license: "CF-1", active: true, createdAt: "2026-07-16T10:00:00.000Z" });
+    expect(batchSet.mock.calls[1][1]).toMatchObject({ action: "pharmacist.create", entityType: "pharmacist", actorEmail: "admin@h.cr" });
+    expect(batchCommit).toHaveBeenCalledOnce();
   });
 });
 
 describe("createMedicine", () => {
-  it("sin existencia inicial solo crea el medicamento (stock 0, sin movimiento)", async () => {
+  it("sin existencia inicial escribe medicamento + auditoría en un lote (stock 0, sin movimiento)", async () => {
     await dbApi.createMedicine(fields, 0, "", "2026-07-16T10:00:00.000Z");
-    expect(addDoc).toHaveBeenCalledTimes(2);
-    expect(addDoc.mock.calls[0][1]).toMatchObject({ stock: 0, active: true });
+    expect(addDoc).not.toHaveBeenCalled();
+    expect(batchSet).toHaveBeenCalledTimes(2);
+    expect(batchSet.mock.calls[0][1]).toMatchObject({ stock: 0, active: true });
+    expect(batchSet.mock.calls[1][1]).toMatchObject({ action: "medicine.create", entityType: "medicine" });
+    expect(batchCommit).toHaveBeenCalledOnce();
   });
 
-  it("con existencia inicial crea el medicamento y un movimiento de ingreso", async () => {
+  it("con existencia inicial escribe medicamento, movimiento y auditoría en un solo lote atómico", async () => {
     await dbApi.createMedicine(fields, 5, "ana@h.cr", "2026-07-16T10:00:00.000Z");
-    expect(addDoc).toHaveBeenCalledTimes(3);
-    expect(addDoc.mock.calls[0][1]).toMatchObject({ stock: 5 });
-    const movement = addDoc.mock.calls[1][1] as Record<string, unknown>;
+    expect(batchSet).toHaveBeenCalledTimes(3);
+    expect(batchSet.mock.calls[0][1]).toMatchObject({ stock: 5 });
+    const movement = batchSet.mock.calls[1][1] as Record<string, unknown>;
     expect(movement).toMatchObject({ type: "IN", quantity: 5, pharmacistEmail: "ana@h.cr", actorEmail: "admin@h.cr", prescriptionRef: "Existencia inicial", medicineName: "Metformina" });
+    expect(batchSet.mock.calls[2][1]).toMatchObject({ action: "medicine.create", details: { initialStock: 5 } });
+    expect(batchCommit).toHaveBeenCalledOnce();
+  });
+});
+
+describe("updateMedicine", () => {
+  it("actualiza el medicamento y su auditoría en un lote atómico", async () => {
+    await dbApi.updateMedicine("m1", fields);
+    expect(batchUpdate).toHaveBeenCalledWith({ col: "medicines", id: "m1" }, { ...fields });
+    expect(batchSet.mock.calls[0][1]).toMatchObject({ action: "medicine.update", entityId: "m1" });
+    expect(batchCommit).toHaveBeenCalledOnce();
   });
 });
 

@@ -1,7 +1,7 @@
 // Capa de acceso a datos: encapsula las escrituras a Firestore para que la UI
 // no dependa directamente del SDK. La lógica de dominio vive en inventory.ts.
 
-import { addDoc, collection, doc, runTransaction, updateDoc, writeBatch } from "firebase/firestore";
+import { addDoc, collection, doc, runTransaction, writeBatch } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { prepareCount, prepareMovement, type InventoryLot, type LotAllocation, type MovementType, type ReceivedLot } from "./inventory";
 import { DEMO_MODE, demoCreateMedicine, demoCreatePharmacist, demoRegisterCount, demoRegisterMovement, demoSetActive, demoUpdateMedicine, demoUpdatePharmacist } from "./demo";
@@ -24,8 +24,9 @@ function actorEmail(): string {
   return email;
 }
 
-async function addAudit(action: string, entityType: string, entityId: string, details: Record<string, unknown> = {}) {
-  await addDoc(collection(db, "auditLogs"), { action, entityType, entityId, details, actorEmail: actorEmail(), createdAt: new Date().toISOString() });
+/** Documento de bitácora administrativa; se persiste junto a la mutación que audita. */
+function auditRecord(action: string, entityType: string, entityId: string, details: Record<string, unknown> = {}) {
+  return { action, entityType, entityId, details, actorEmail: actorEmail(), createdAt: new Date().toISOString() };
 }
 
 /** Registra fallos inesperados para revisión administrativa durante el piloto. */
@@ -43,16 +44,24 @@ export async function recordOperationalEvent(type: string, details: Record<strin
   }
 }
 
-/** Actualiza los datos de un medicamento (sin tocar existencias). */
+/**
+ * Actualiza los datos de un medicamento (sin tocar existencias). La mutación y
+ * su registro de auditoría se persisten en un único lote atómico: o quedan
+ * ambos, o ninguno (nunca una auditoría incompleta).
+ */
 export async function updateMedicine(id: string, fields: MedicineFields): Promise<void> {
   if (DEMO_MODE) { demoUpdateMedicine(id, fields); return Promise.resolve(); }
-  await updateDoc(doc(db, "medicines", id), fields);
-  await addAudit("medicine.update", "medicine", id, { name: fields.name });
+  const batch = writeBatch(db);
+  batch.update(doc(db, "medicines", id), { ...fields });
+  batch.set(doc(collection(db, "auditLogs")), auditRecord("medicine.update", "medicine", id, { name: fields.name }));
+  await batch.commit();
 }
 
 /**
  * Crea un medicamento. Si la existencia inicial es > 0, registra además un
- * movimiento de ingreso trazable con el farmacéutico responsable.
+ * movimiento de ingreso trazable con el farmacéutico responsable. Documento del
+ * medicamento, movimiento inicial y auditoría se escriben en un único lote
+ * atómico, para no dejar registros huérfanos si la operación se interrumpe.
  */
 export async function createMedicine(
   fields: MedicineFields,
@@ -64,34 +73,44 @@ export async function createMedicine(
     demoCreateMedicine({ ...fields, active: true }, initialStock);
     return;
   }
-  const ref = await addDoc(collection(db, "medicines"), { ...fields, unit: "unidades", stock: initialStock, active: true, createdAt: now });
+  const ref = doc(collection(db, "medicines"));
+  const batch = writeBatch(db);
+  batch.set(ref, { ...fields, unit: "unidades", stock: initialStock, active: true, createdAt: now });
   if (initialStock > 0) {
     const { record } = prepareMovement(
       { name: fields.name, stock: 0 },
       { medicineId: ref.id, type: "IN", quantity: initialStock, prescriptionRef: "Existencia inicial", pharmacistEmail, createdAt: now }
     );
-    await addDoc(collection(db, "movements"), { ...record, actorEmail: actorEmail() });
+    batch.set(doc(collection(db, "movements")), { ...record, actorEmail: actorEmail() });
   }
-  await addAudit("medicine.create", "medicine", ref.id, { name: fields.name, initialStock });
+  batch.set(doc(collection(db, "auditLogs")), auditRecord("medicine.create", "medicine", ref.id, { name: fields.name, initialStock }));
+  await batch.commit();
 }
 
 export async function createPharmacist(fields: PharmacistFields, now: string): Promise<void> {
   if (DEMO_MODE) { demoCreatePharmacist({ ...fields, active: true }); return Promise.resolve(); }
-  const ref = await addDoc(collection(db, "pharmacists"), { ...fields, active: true, createdAt: now });
-  await addAudit("pharmacist.create", "pharmacist", ref.id, { email: fields.email });
+  const ref = doc(collection(db, "pharmacists"));
+  const batch = writeBatch(db);
+  batch.set(ref, { ...fields, active: true, createdAt: now });
+  batch.set(doc(collection(db, "auditLogs")), auditRecord("pharmacist.create", "pharmacist", ref.id, { email: fields.email }));
+  await batch.commit();
 }
 
 export async function updatePharmacist(id: string, fields: PharmacistFields): Promise<void> {
   if (DEMO_MODE) { demoUpdatePharmacist(id, fields); return Promise.resolve(); }
-  await updateDoc(doc(db, "pharmacists", id), fields);
-  await addAudit("pharmacist.update", "pharmacist", id, { email: fields.email });
+  const batch = writeBatch(db);
+  batch.update(doc(db, "pharmacists", id), { ...fields });
+  batch.set(doc(collection(db, "auditLogs")), auditRecord("pharmacist.update", "pharmacist", id, { email: fields.email }));
+  await batch.commit();
 }
 
-/** Activa o da de baja un registro de medicamentos o farmacéuticos. */
+/** Activa o da de baja un registro de medicamentos o farmacéuticos (con auditoría atómica). */
 export async function setActive(col: "medicines" | "pharmacists", id: string, active: boolean): Promise<void> {
   if (DEMO_MODE) { demoSetActive(col, id, active); return Promise.resolve(); }
-  await updateDoc(doc(db, col, id), { active });
-  await addAudit(`${col === "medicines" ? "medicine" : "pharmacist"}.${active ? "activate" : "deactivate"}`, col.slice(0, -1), id);
+  const batch = writeBatch(db);
+  batch.update(doc(db, col, id), { active });
+  batch.set(doc(collection(db, "auditLogs")), auditRecord(`${col === "medicines" ? "medicine" : "pharmacist"}.${active ? "activate" : "deactivate"}`, col.slice(0, -1), id));
+  await batch.commit();
 }
 
 export type MovementRequest = {

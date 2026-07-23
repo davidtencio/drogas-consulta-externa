@@ -34,7 +34,13 @@ Detenga el piloto si hay stock negativo, pérdida de trazabilidad, acceso de una
 
 ## Riesgos residuales antes de producción
 
-- Las mutaciones administrativas y su auditoría son escrituras consecutivas desde el cliente; una interrupción entre ambas puede dejar la auditoría incompleta. Antes de producción deben migrarse a una función backend que escriba datos y auditoría atómicamente.
+- **Resuelto (auditoría atómica):** las mutaciones administrativas (crear/editar medicamento y farmacéutico, alta/baja) y su registro de auditoría —más el movimiento de existencia inicial— ahora se persisten en un único `writeBatch` de Firestore, atómico y compatible con el modo sin conexión. Ya no puede quedar una auditoría incompleta si la operación se interrumpe (`app/lib/db.ts`).
+- **Pendiente (enforcement server-side):** el batch garantiza atomicidad, pero la escritura sigue originándose en el cliente. Para impedir que un cliente comprometido omita o falsifique la auditoría, la siguiente mejora es mover estas mutaciones a un backend con `firebase-admin` (route handler de la app en App Hosting o Cloud Function) que verifique el rol y escriba con privilegios de administrador, y endurecer las reglas para denegar la escritura directa del cliente en `medicines`/`pharmacists`/`auditLogs`. Requiere credenciales del proyecto en vivo para validar antes de forzarlo.
 - La lista de roles está versionada en código y reglas; no existe todavía administración centralizada de roles ni aprobación de altas/bajas.
 - El monitoreo requiere revisión manual de Firestore; faltan alertas automáticas, retención formal y exportación a un repositorio de auditoría independiente.
-- Las reglas deben validarse también con el emulador de Firestore antes de ampliar el piloto.
+- Las reglas deben validarse también con el emulador de Firestore antes de ampliar el despliegue.
+
+## Endurecimiento aplicado para producción
+
+- **Cabeceras de seguridad HTTP** en todas las rutas (`next.config.ts`): `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` + CSP `frame-ancestors 'none'` (anti-clickjacking), `Referrer-Policy` y `Permissions-Policy`. Queda pendiente una CSP de recursos (`script-src`/`connect-src`) que debe ajustarse a los orígenes de Firebase Auth/Firestore y validarse en vivo antes de forzarla.
+- **Producción plena:** `NEXT_PUBLIC_PILOT_MODE=0` (sin banner de piloto) y `NEXT_PUBLIC_DEMO_MODE=0`. `apphosting.yaml` no define estas variables, por lo que el valor por defecto (`0`) aplica en el despliegue.

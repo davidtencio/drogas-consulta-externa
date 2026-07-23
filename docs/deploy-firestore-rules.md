@@ -6,22 +6,33 @@ en el proyecto `drogas-consulta-externa` cada vez que el archivo cambia en `main
 Antes de publicar, valida las invariantes de las reglas con la prueba
 `app/firestoreRules.test.ts`.
 
-## Configuración inicial (una sola vez)
+## Autenticación: Workload Identity Federation (sin claves)
 
-### 1. Crear una cuenta de servicio para el despliegue
+**Ya está configurado (2026-07-23). No hay secretos que crear ni rotar.** Esta
+sección documenta lo que existe, por si hay que rehacerlo o auditarlo.
 
-En la [consola de Google Cloud](https://console.cloud.google.com/iam-admin/serviceaccounts?project=drogas-consulta-externa):
+La organización prohíbe crear claves de cuenta de servicio (política
+`iam.disableServiceAccountKeyCreation`), así que el workflow **no** usa un JSON
+guardado en un secreto. En su lugar, GitHub emite un token OIDC efímero por cada
+ejecución y Google lo canjea por credenciales de corta duración de
+`github-rules-deployer`. Nada persistente que se pueda filtrar.
 
-1. **Crear cuenta de servicio**, por ejemplo `github-rules-deployer`.
-2. Asignarle el rol **Firebase Rules Admin** (`roles/firebaserules.admin`). Es lo
-   mínimo para publicar reglas; no necesita más.
-3. En la cuenta creada → **Claves → Agregar clave → Crear clave nueva → JSON**.
+Piezas creadas en el proyecto `drogas-consulta-externa` (número `903564757399`):
 
-> Estado 2026-07-23: los pasos 1 y 2 **ya están hechos**. Existe
-> `github-rules-deployer@drogas-consulta-externa.iam.gserviceaccount.com` con
-> `roles/firebaserules.admin` y ningún otro rol. Falta solo generar su clave JSON
-> (paso 3) y guardarla como secreto (sección siguiente).
-   Se descarga un archivo JSON. Trátelo como secreto: no lo suba al repo.
+1. **Cuenta de servicio** `github-rules-deployer@drogas-consulta-externa.iam.gserviceaccount.com`
+   con un solo rol, **Firebase Rules Admin** (`roles/firebaserules.admin`). No tiene
+   acceso a los datos de Firestore, solo a publicar reglas.
+2. **Workload identity pool** `github-actions` (location `global`).
+3. **Proveedor OIDC** `github` en ese pool, emisor
+   `https://token.actions.githubusercontent.com`, con la condición
+   `assertion.repository=='davidtencio/drogas-consulta-externa'`. **Esa condición es
+   la pieza de seguridad crítica**: sin ella, workflows de otros repos de GitHub
+   podrían pedir credenciales de este proyecto.
+4. **Binding** `roles/iam.workloadIdentityUser` sobre la cuenta de servicio para el
+   `principalSet` de ese repositorio, que es lo que le permite suplantarla.
+
+En el workflow esto se traduce en `permissions: id-token: write` y el paso
+`google-github-actions/auth@v2` con el proveedor y la cuenta de servicio.
 
 > Esta cuenta es solo para desplegar reglas. Es distinta de la cuenta de servicio
 > del *runtime* de App Hosting (`firebase-app-hosting-compute@…`), que es la que
@@ -29,13 +40,8 @@ En la [consola de Google Cloud](https://console.cloud.google.com/iam-admin/servi
 > permisos que necesita** a través de `roles/firebase.sdkAdminServiceAgent`; no hay
 > que añadirle `roles/datastore.user` (comprobado el 2026-07-23, ver `CLAUDE.md`).
 
-### 2. Guardar la clave como secreto de GitHub
-
-En el repositorio → **Settings → Secrets and variables → Actions → New repository
-secret**:
-
-- **Name:** `FIREBASE_SERVICE_ACCOUNT`
-- **Secret:** el contenido completo del archivo JSON descargado.
+> Si algún día hay que borrar y recrear el pool: al eliminarlo queda en estado
+> *soft-deleted* unos 30 días y **el nombre no se puede reutilizar** en ese plazo.
 
 ## Uso
 
@@ -51,9 +57,14 @@ el historial de publicación.
 
 ## Seguridad
 
-- La clave JSON nunca se imprime: se escribe a un archivo temporal del runner y se
-  borra al final (paso `Limpiar credencial`, `if: always()`).
-- El workflow usa `permissions: contents: read` (mínimo) y `concurrency` para no
-  solapar despliegues.
-- Si sospecha que la clave se filtró, elimínela en la consola de Cloud (Claves de
-  la cuenta de servicio) y genere una nueva; luego actualice el secreto.
+- **No existe ninguna credencial de larga duración.** Las que usa el job caducan
+  solas y valen únicamente para ese run; no hay clave que rotar ni que revocar.
+- El acceso está acotado por dos lados: el proveedor solo acepta tokens del
+  repositorio `davidtencio/drogas-consulta-externa`, y la cuenta de servicio solo
+  puede publicar reglas (`roles/firebaserules.admin`).
+- Permisos del workflow al mínimo: `contents: read` + `id-token: write` (este
+  último es imprescindible para que GitHub emita el token OIDC), y `concurrency`
+  para no solapar despliegues.
+- Para revocar el acceso de golpe: quitar el binding
+  `roles/iam.workloadIdentityUser` de la cuenta de servicio, o deshabilitar el
+  proveedor OIDC.

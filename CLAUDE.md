@@ -73,11 +73,13 @@ admin); la evidencia es de permisos y logs.
 
 ## PENDIENTES para retomar (configuración en Firebase/GCP, no código)
 
-1. **Secreto `FIREBASE_SERVICE_ACCOUNT`** en GitHub → el workflow de reglas falló
-   una vez por faltar (guard intencional, no rompió nada). Crear cuenta de servicio
-   con rol **Firebase Rules Admin**, guardar su clave JSON como secreto del repo, y
-   re-ejecutar el workflow desde Actions. Pasos en `docs/deploy-firestore-rules.md`.
-   Sigue pendiente: en los runs del 2026-07-23 solo corrió el workflow de CI.
+1. **RESUELTO de otra forma (2026-07-23): el secreto `FIREBASE_SERVICE_ACCOUNT` ya
+   no existe ni hace falta.** La organización prohíbe crear claves de cuenta de
+   servicio (`iam.disableServiceAccountKeyCreation`), así que el workflow de reglas
+   se migró a **Workload Identity Federation**: pool `github-actions`, proveedor
+   OIDC `github` limitado al repo `davidtencio/drogas-consulta-externa`, y
+   `github-rules-deployer` (solo `roles/firebaserules.admin`) suplantable desde ahí.
+   Sin claves ni secretos que rotar. Detalle en `docs/deploy-firestore-rules.md`.
 2. **Orden de despliegue de reglas** (cuando toque publicarlas): primero
    `firebase deploy --only firestore:rules` (o el workflow), luego la app.
 

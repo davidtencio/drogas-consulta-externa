@@ -2,8 +2,10 @@ name: Desplegar reglas de Firestore
 
 # Publica firestore.rules en el proyecto de Firebase cuando las reglas cambian en
 # main, y también de forma manual desde la pestaña Actions (workflow_dispatch).
-# Autenticación por cuenta de servicio (secreto FIREBASE_SERVICE_ACCOUNT) vía
-# Application Default Credentials; nunca se imprime la clave.
+# Autenticación por Workload Identity Federation: GitHub emite un token OIDC
+# efímero y Google lo cambia por credenciales de github-rules-deployer. No hay
+# clave JSON ni secretos que rotar (la organización prohíbe crear claves de
+# cuenta de servicio: política iam.disableServiceAccountKeyCreation).
 
 on:
   push:
@@ -22,6 +24,8 @@ concurrency:
 
 permissions:
   contents: read
+  # Necesario para que GitHub emita el token OIDC que consume Google.
+  id-token: write
 
 jobs:
   deploy:
@@ -45,25 +49,19 @@ jobs:
         # de publicarlas (mismo test que corre la CI principal).
         run: npx vitest run app/firestoreRules.test.ts
 
-      - name: Escribir credencial de la cuenta de servicio
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "::error::Falta el secreto FIREBASE_SERVICE_ACCOUNT (clave JSON de la cuenta de servicio)."
-            exit 1
-          fi
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "${{ runner.temp }}/service-account.json"
+      - name: Autenticar en Google Cloud (Workload Identity Federation)
+        # Escribe un archivo de credenciales efímeras y exporta
+        # GOOGLE_APPLICATION_CREDENTIALS; el runner lo descarta al terminar el job.
+        # El proveedor solo acepta tokens de este repositorio (attribute-condition).
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: drogas-consulta-externa
+          workload_identity_provider: projects/903564757399/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: github-rules-deployer@drogas-consulta-externa.iam.gserviceaccount.com
 
       - name: Desplegar solo las reglas de Firestore
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/service-account.json
         run: >-
           npx --yes firebase-tools@13 deploy
           --only firestore:rules
           --project drogas-consulta-externa
           --non-interactive
-
-      - name: Limpiar credencial
-        if: always()
-        run: rm -f "${{ runner.temp }}/service-account.json"

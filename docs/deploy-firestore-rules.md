@@ -16,11 +16,18 @@ En la [consola de Google Cloud](https://console.cloud.google.com/iam-admin/servi
 2. Asignarle el rol **Firebase Rules Admin** (`roles/firebaserules.admin`). Es lo
    mínimo para publicar reglas; no necesita más.
 3. En la cuenta creada → **Claves → Agregar clave → Crear clave nueva → JSON**.
+
+> Estado 2026-07-23: los pasos 1 y 2 **ya están hechos**. Existe
+> `github-rules-deployer@drogas-consulta-externa.iam.gserviceaccount.com` con
+> `roles/firebaserules.admin` y ningún otro rol. Falta solo generar su clave JSON
+> (paso 3) y guardarla como secreto (sección siguiente).
    Se descarga un archivo JSON. Trátelo como secreto: no lo suba al repo.
 
 > Esta cuenta es solo para desplegar reglas. Es distinta de la cuenta de servicio
-> del *runtime* de App Hosting, que necesita `roles/datastore.user` para que el
-> backend `/api/admin/mutations` escriba en Firestore (ver `pilot-runbook.md`).
+> del *runtime* de App Hosting (`firebase-app-hosting-compute@…`), que es la que
+> escribe en Firestore desde `/api/admin/mutations`. Esa otra cuenta **ya tiene los
+> permisos que necesita** a través de `roles/firebase.sdkAdminServiceAgent`; no hay
+> que añadirle `roles/datastore.user` (comprobado el 2026-07-23, ver `CLAUDE.md`).
 
 ### 2. Guardar la clave como secreto de GitHub
 

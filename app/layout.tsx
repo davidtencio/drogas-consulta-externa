@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Google_Sans } from "next/font/google";
 import "./globals.css";
 import "./card-navigation.css";
@@ -28,10 +29,13 @@ export const viewport: Viewport = {
 // Aplica el tema guardado antes de pintar para evitar el parpadeo (FOUC).
 const themeInit = "(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();";
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // Nonce por petición generado en middleware.ts; autoriza el script de tema
+  // bajo la CSP forzada (script-src 'nonce-…' 'strict-dynamic').
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="es">
-      <head><script dangerouslySetInnerHTML={{ __html: themeInit }} /></head>
+      <head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInit }} /></head>
       <body className={appFont.variable}><AppErrorBoundary>{children}</AppErrorBoundary><ServiceWorkerRegister /></body>
     </html>
   );

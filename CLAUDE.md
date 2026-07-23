@@ -31,8 +31,27 @@ Contra `https://drogas-consulta-externa--drogas-consulta-externa.us-east5.hosted
 HTTP 200; cabecera `Content-Security-Policy` forzada con `script-src 'self'
 'nonce-…' 'strict-dynamic'` y sin `'unsafe-inline'`; nonce distinto en cada
 petición; `Strict-Transport-Security` y `X-Frame-Options: DENY` presentes. CI en
-verde. Esto confirma que el `proxy.ts` se ejecuta en el despliegue, **no** que el
-navegador no bloquee nada al usar la app (ver pendiente 2).
+verde. Esto confirma que el `proxy.ts` se ejecuta en el despliegue.
+
+### Prueba de humo de la CSP: SUPERADA (2026-07-23, revisión `build-2026-07-23-007`)
+
+Ejercicio manual en navegador contra producción: inicio de sesión con Google,
+carga del inventario y un movimiento. **Consola sin una sola violación de
+`Content-Security-Policy`.** React hidrata con normalidad, así que
+`'strict-dynamic'` no rompe la cadena de chunks de Next.
+
+Detalle a no confundir con un fallo: con sesión iniciada hay 19 scripts en la
+página y solo 18 llevan nonce. El que no lo lleva es
+`https://apis.google.com/js/api.js`, cargado por el SDK de Firebase Auth. Es el
+comportamiento correcto de `'strict-dynamic'`: la confianza se propaga desde el
+script con nonce que lo inyecta. Que se ejecute sin bloqueo es precisamente la
+prueba de que la cadena funciona en el flujo de auth real.
+
+Sondas dirigidas complementarias (sin sesión, desde la consola de la página):
+`fetch` a `firestore.googleapis.com` → HTTP 400 y a `identitytoolkit.googleapis.com`
+→ HTTP 403 (respuestas del servidor, no bloqueos de CSP), e iframe de
+`drogas-consulta-externa.firebaseapp.com/__/auth/iframe` cargado sin problema.
+Es decir, `connect-src` y `frame-src` cubren los orígenes que la app necesita.
 
 ### IAM del runtime: NO hace falta tocar nada (comprobado 2026-07-23)
 
@@ -59,14 +78,7 @@ admin); la evidencia es de permisos y logs.
    con rol **Firebase Rules Admin**, guardar su clave JSON como secreto del repo, y
    re-ejecutar el workflow desde Actions. Pasos en `docs/deploy-firestore-rules.md`.
    Sigue pendiente: en los runs del 2026-07-23 solo corrió el workflow de CI.
-2. **Prueba de humo de la CSP forzada** — **sigue pendiente**. La parte automática
-   ya está hecha (ver "Verificado en producción" arriba: la cabecera se emite bien
-   y el nonce rota). Falta la parte de navegador: iniciar sesión con Google + una
-   lectura/escritura de Firestore con la consola abierta. Si aparece una violación
-   `Content-Security-Policy`, ajustar el origen/directiva en `proxy.ts`
-   (`contentSecurityPolicy`) o revertir ese commit. Requiere sesión autenticada,
-   por eso no se puede validar sin intervención manual.
-3. **Orden de despliegue de reglas** (cuando toque publicarlas): primero
+2. **Orden de despliegue de reglas** (cuando toque publicarlas): primero
    `firebase deploy --only firestore:rules` (o el workflow), luego la app.
 
 ## Verificación local

@@ -34,13 +34,20 @@ Detenga el piloto si hay stock negativo, pérdida de trazabilidad, acceso de una
 
 ## Riesgos residuales antes de producción
 
-- **Resuelto (auditoría atómica):** las mutaciones administrativas (crear/editar medicamento y farmacéutico, alta/baja) y su registro de auditoría —más el movimiento de existencia inicial— ahora se persisten en un único `writeBatch` de Firestore, atómico y compatible con el modo sin conexión. Ya no puede quedar una auditoría incompleta si la operación se interrumpe (`app/lib/db.ts`).
-- **Pendiente (enforcement server-side):** el batch garantiza atomicidad, pero la escritura sigue originándose en el cliente. Para impedir que un cliente comprometido omita o falsifique la auditoría, la siguiente mejora es mover estas mutaciones a un backend con `firebase-admin` (route handler de la app en App Hosting o Cloud Function) que verifique el rol y escriba con privilegios de administrador, y endurecer las reglas para denegar la escritura directa del cliente en `medicines`/`pharmacists`/`auditLogs`. Requiere credenciales del proyecto en vivo para validar antes de forzarlo.
+- **Resuelto (auditoría atómica y con enforcement server-side):** las mutaciones administrativas (crear/editar medicamento y farmacéutico, alta/baja) ya no las escribe el cliente. Se envían al backend `POST /api/admin/mutations` (route handler de Next en App Hosting, `app/api/admin/mutations/route.ts`), que verifica el ID token de Firebase y el rol de administrador del lado servidor y persiste el dato, su auditoría y el movimiento de existencia inicial en un **único lote atómico** con el Admin SDK. Las reglas de Firestore **niegan** la escritura directa del cliente en `medicines` (crear/eliminar), `pharmacists` (toda escritura) y `auditLogs`, por lo que la auditoría no puede omitirse ni falsificarse. La lógica de composición es pura y está probada (`app/lib/adminMutations.ts`), igual que el gating del endpoint (`route.test.ts`).
 - La lista de roles está versionada en código y reglas; no existe todavía administración centralizada de roles ni aprobación de altas/bajas.
 - El monitoreo requiere revisión manual de Firestore; faltan alertas automáticas, retención formal y exportación a un repositorio de auditoría independiente.
-- Las reglas deben validarse también con el emulador de Firestore antes de ampliar el despliegue.
+- Las reglas y el endpoint deben validarse también con el emulador de Firestore / un despliegue de prueba antes de ampliar el despliegue.
 
 ## Endurecimiento aplicado para producción
 
+- **Backend con privilegios para el catálogo:** ver el punto de auditoría atómica arriba. El endpoint corre en el runtime de Node (no Edge) y usa **Application Default Credentials**: en App Hosting / Cloud Run las credenciales de la cuenta de servicio del runtime están disponibles automáticamente. Esa cuenta de servicio necesita permiso de lectura/escritura en Firestore (rol `roles/datastore.user` o equivalente); confírmelo en IAM antes del despliegue.
 - **Cabeceras de seguridad HTTP** en todas las rutas (`next.config.ts`): `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` + CSP `frame-ancestors 'none'` (anti-clickjacking), `Referrer-Policy` y `Permissions-Policy`. Queda pendiente una CSP de recursos (`script-src`/`connect-src`) que debe ajustarse a los orígenes de Firebase Auth/Firestore y validarse en vivo antes de forzarla.
 - **Producción plena:** `NEXT_PUBLIC_PILOT_MODE=0` (sin banner de piloto) y `NEXT_PUBLIC_DEMO_MODE=0`. `apphosting.yaml` no define estas variables, por lo que el valor por defecto (`0`) aplica en el despliegue.
+
+## Orden de despliegue
+
+1. Confirme el permiso de Firestore de la cuenta de servicio del runtime (IAM).
+2. Despliegue primero las reglas de Firestore (`firebase deploy --only firestore:rules`) — endurecidas para negar la escritura del catálogo desde el cliente.
+3. Despliegue la aplicación (incluye el nuevo endpoint) en la misma ventana controlada.
+4. Prueba de humo: como administrador, cree y edite un medicamento y un farmacéutico, y verifique que el documento **y** su entrada en `auditLogs` aparecen juntos. Un intento de escritura directa del cliente al catálogo debe ser rechazado por las reglas.

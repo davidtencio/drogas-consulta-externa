@@ -20,16 +20,20 @@ service cloud.firestore {
 
     match /medicines/{id} {
       allow read: if isOperator();
-      allow create, delete: if isAdmin();
-      allow update: if isAdmin()
-        || (isOperator()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'lots', 'lot', 'expiresAt'])
-          && request.resource.data.stock is number
-          && request.resource.data.stock >= 0);
+      // El catálogo (crear/editar/eliminar) lo escribe solo el backend con el
+      // Admin SDK, junto a su auditoría, de forma atómica. El cliente no puede.
+      allow create, delete: if false;
+      // Única excepción: el operador ajusta existencias y trazabilidad de lotes
+      // desde la app (transacción de movimiento), nunca el resto de campos.
+      allow update: if isOperator()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'lots', 'lot', 'expiresAt'])
+        && request.resource.data.stock is number
+        && request.resource.data.stock >= 0;
     }
     match /pharmacists/{id} {
       allow read: if isOperator();
-      allow create, update, delete: if isAdmin();
+      // Altas/bajas/ediciones solo por el backend con el Admin SDK.
+      allow create, update, delete: if false;
     }
     match /movements/{id} {
       allow read: if isOperator();
@@ -41,9 +45,9 @@ service cloud.firestore {
 
     match /auditLogs/{id} {
       allow read: if isAdmin();
-      allow create: if isOperator()
-        && request.resource.data.actorEmail == request.auth.token.email;
-      allow update, delete: if false;
+      // La bitácora la escribe solo el backend, en el mismo lote atómico que la
+      // mutación que audita; así no puede omitirse ni falsificarse desde el cliente.
+      allow create, update, delete: if false;
     }
 
     match /operationalEvents/{id} {

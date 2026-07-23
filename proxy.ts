@@ -32,7 +32,7 @@ export function contentSecurityPolicy(nonce: string): string {
  * scripts inline y para que el layout lo ponga en el script de tema. Usar nonces
  * implica render dinámico de las páginas HTML.
  */
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const nonce = btoa(crypto.randomUUID());
   const csp = contentSecurityPolicy(nonce);
 
@@ -46,7 +46,7 @@ export function middleware(request: NextRequest): NextResponse {
   return response;
 }
 
-// Ejecuta el middleware en las rutas de documento HTML; excluye la API (JSON),
+// Ejecuta el proxy en las rutas de documento HTML; excluye la API (JSON),
 // los estáticos de Next y los archivos públicos, donde una CSP con nonce no aporta.
 export const config = {
   matcher: [

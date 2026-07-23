@@ -1,15 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { NextRequest } from "next/server";
-import { middleware, contentSecurityPolicy } from "../middleware";
+import { proxy, contentSecurityPolicy } from "../proxy";
 
-const run = (path = "/") => middleware(new NextRequest(`https://app.example${path}`));
+const run = (path = "/") => proxy(new NextRequest(`https://app.example${path}`));
 
 /** Extrae el segmento `script-src …` de una cadena de CSP. */
 function scriptSrc(csp: string): string {
   return csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("script-src")) ?? "";
 }
 
-describe("middleware — CSP con nonce", () => {
+describe("proxy — CSP con nonce", () => {
   it("aplica la CSP forzada (Content-Security-Policy) en la respuesta", () => {
     const csp = run().headers.get("content-security-policy");
     expect(csp).toBeTruthy();

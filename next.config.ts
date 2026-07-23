@@ -5,7 +5,7 @@ import type { NextConfig } from "next";
 const swVersion = process.env.NEXT_PUBLIC_SW_VERSION ?? String(Date.now());
 
 // Cabeceras de seguridad estáticas aplicadas a todas las rutas. La CSP NO va
-// aquí: se genera por petición en `middleware.ts` con un nonce único para los
+// aquí: se genera por petición en `proxy.ts` con un nonce único para los
 // scripts (enforcing). Estas complementan a la CSP.
 const securityHeaders = [
   // Fuerza HTTPS durante 2 años, incluidos subdominios. Requiere que el sitio

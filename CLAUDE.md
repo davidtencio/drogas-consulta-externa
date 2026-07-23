@@ -17,7 +17,7 @@ La app se endureció para producción plena. Todo lo siguiente ya está en `main
   ni `auditLogs`; el operador solo ajusta `stock`/`lots`/`lot`/`expiresAt`.
 - **Despliegue automático de reglas:** `.github/workflows/deploy-firestore-rules.yml`
   (ver `docs/deploy-firestore-rules.md`).
-- **CSP forzada con nonce por petición:** `middleware.ts` + nonce en `app/layout.tsx`.
+- **CSP forzada con nonce por petición:** `proxy.ts` + nonce en `app/layout.tsx`.
   `script-src 'nonce-…' 'strict-dynamic'` (sin `'unsafe-inline'`); `style-src`
   conserva `'unsafe-inline'` a propósito. Usar nonces hace las páginas dinámicas.
 - Cabeceras de seguridad estáticas en `next.config.ts`. Flags demo/piloto en `0`.
@@ -35,7 +35,7 @@ La app se endureció para producción plena. Todo lo siguiente ya está en `main
 3. **Prueba de humo de la CSP forzada** (tras el despliegue del PR #42): iniciar
    sesión con Google + una lectura/escritura de Firestore, con la consola del
    navegador abierta. Si aparece una violación `Content-Security-Policy`, ajustar
-   el origen/directiva en `middleware.ts` (`contentSecurityPolicy`) o revertir ese
+   el origen/directiva en `proxy.ts` (`contentSecurityPolicy`) o revertir ese
    commit. Es lo único que no se pudo validar automáticamente.
 4. **Orden de despliegue de reglas** (cuando toque publicarlas): primero
    `firebase deploy --only firestore:rules` (o el workflow), luego la app.

@@ -1,22 +1,13 @@
 // Capa de acceso a datos: encapsula las escrituras a Firestore para que la UI
 // no dependa directamente del SDK. La lógica de dominio vive en inventory.ts.
 
-import { addDoc, collection, doc, runTransaction, updateDoc, writeBatch } from "firebase/firestore";
+import { addDoc, collection, doc, runTransaction, writeBatch } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { prepareCount, prepareMovement, type InventoryLot, type LotAllocation, type MovementType, type ReceivedLot } from "./inventory";
 import { DEMO_MODE, demoCreateMedicine, demoCreatePharmacist, demoRegisterCount, demoRegisterMovement, demoSetActive, demoUpdateMedicine, demoUpdatePharmacist } from "./demo";
+import type { AdminOp, MedicineFields, PharmacistFields } from "./adminMutations";
 
-export type MedicineFields = {
-  name: string;
-  strength: string;
-  form: string;
-  minimumStock: number;
-  lot: string;
-  expiresAt: string;
-  code: string;
-};
-
-export type PharmacistFields = { name: string; email: string; license: string };
+export type { MedicineFields, PharmacistFields } from "./adminMutations";
 
 function actorEmail(): string {
   const email = auth.currentUser?.email?.trim().toLowerCase();
@@ -24,8 +15,29 @@ function actorEmail(): string {
   return email;
 }
 
-async function addAudit(action: string, entityType: string, entityId: string, details: Record<string, unknown> = {}) {
-  await addDoc(collection(db, "auditLogs"), { action, entityType, entityId, details, actorEmail: actorEmail(), createdAt: new Date().toISOString() });
+/**
+ * Envía una mutación administrativa al backend, que verifica el rol y escribe el
+ * dato y su auditoría de forma atómica con el Admin SDK. El cliente ya no escribe
+ * el catálogo directamente (las reglas de Firestore lo niegan).
+ */
+async function postAdminMutation(op: AdminOp): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Sesión no disponible para registrar la trazabilidad.");
+  const idToken = await user.getIdToken();
+  let res: Response;
+  try {
+    res = await fetch("/api/admin/mutations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify(op),
+    });
+  } catch {
+    throw new Error("Sin conexión con el servidor. Intente de nuevo.");
+  }
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error || "No se pudo completar la operación.");
+  }
 }
 
 /** Registra fallos inesperados para revisión administrativa durante el piloto. */
@@ -43,55 +55,40 @@ export async function recordOperationalEvent(type: string, details: Record<strin
   }
 }
 
-/** Actualiza los datos de un medicamento (sin tocar existencias). */
+/** Actualiza los datos de un medicamento (sin tocar existencias) vía backend. */
 export async function updateMedicine(id: string, fields: MedicineFields): Promise<void> {
   if (DEMO_MODE) { demoUpdateMedicine(id, fields); return Promise.resolve(); }
-  await updateDoc(doc(db, "medicines", id), fields);
-  await addAudit("medicine.update", "medicine", id, { name: fields.name });
+  await postAdminMutation({ op: "medicine.update", id, fields });
 }
 
 /**
- * Crea un medicamento. Si la existencia inicial es > 0, registra además un
- * movimiento de ingreso trazable con el farmacéutico responsable.
+ * Crea un medicamento. Si la existencia inicial es > 0, el backend registra
+ * además, en el mismo lote atómico, un movimiento de ingreso trazable con el
+ * farmacéutico responsable.
  */
 export async function createMedicine(
   fields: MedicineFields,
   initialStock: number,
-  pharmacistEmail: string,
-  now: string
+  pharmacistEmail: string
 ): Promise<void> {
-  if (DEMO_MODE) {
-    demoCreateMedicine({ ...fields, active: true }, initialStock);
-    return;
-  }
-  const ref = await addDoc(collection(db, "medicines"), { ...fields, unit: "unidades", stock: initialStock, active: true, createdAt: now });
-  if (initialStock > 0) {
-    const { record } = prepareMovement(
-      { name: fields.name, stock: 0 },
-      { medicineId: ref.id, type: "IN", quantity: initialStock, prescriptionRef: "Existencia inicial", pharmacistEmail, createdAt: now }
-    );
-    await addDoc(collection(db, "movements"), { ...record, actorEmail: actorEmail() });
-  }
-  await addAudit("medicine.create", "medicine", ref.id, { name: fields.name, initialStock });
+  if (DEMO_MODE) { demoCreateMedicine({ ...fields, active: true }, initialStock); return; }
+  await postAdminMutation({ op: "medicine.create", fields, initialStock, pharmacistEmail });
 }
 
-export async function createPharmacist(fields: PharmacistFields, now: string): Promise<void> {
+export async function createPharmacist(fields: PharmacistFields): Promise<void> {
   if (DEMO_MODE) { demoCreatePharmacist({ ...fields, active: true }); return Promise.resolve(); }
-  const ref = await addDoc(collection(db, "pharmacists"), { ...fields, active: true, createdAt: now });
-  await addAudit("pharmacist.create", "pharmacist", ref.id, { email: fields.email });
+  await postAdminMutation({ op: "pharmacist.create", fields });
 }
 
 export async function updatePharmacist(id: string, fields: PharmacistFields): Promise<void> {
   if (DEMO_MODE) { demoUpdatePharmacist(id, fields); return Promise.resolve(); }
-  await updateDoc(doc(db, "pharmacists", id), fields);
-  await addAudit("pharmacist.update", "pharmacist", id, { email: fields.email });
+  await postAdminMutation({ op: "pharmacist.update", id, fields });
 }
 
-/** Activa o da de baja un registro de medicamentos o farmacéuticos. */
+/** Activa o da de baja un registro de medicamentos o farmacéuticos (con auditoría atómica). */
 export async function setActive(col: "medicines" | "pharmacists", id: string, active: boolean): Promise<void> {
   if (DEMO_MODE) { demoSetActive(col, id, active); return Promise.resolve(); }
-  await updateDoc(doc(db, col, id), { active });
-  await addAudit(`${col === "medicines" ? "medicine" : "pharmacist"}.${active ? "activate" : "deactivate"}`, col.slice(0, -1), id);
+  await postAdminMutation({ op: "setActive", col, id, active });
 }
 
 export type MovementRequest = {

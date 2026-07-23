@@ -34,7 +34,21 @@ Detenga el piloto si hay stock negativo, pérdida de trazabilidad, acceso de una
 
 ## Riesgos residuales antes de producción
 
-- Las mutaciones administrativas y su auditoría son escrituras consecutivas desde el cliente; una interrupción entre ambas puede dejar la auditoría incompleta. Antes de producción deben migrarse a una función backend que escriba datos y auditoría atómicamente.
+- **Resuelto (auditoría atómica y con enforcement server-side):** las mutaciones administrativas (crear/editar medicamento y farmacéutico, alta/baja) ya no las escribe el cliente. Se envían al backend `POST /api/admin/mutations` (route handler de Next en App Hosting, `app/api/admin/mutations/route.ts`), que verifica el ID token de Firebase y el rol de administrador del lado servidor y persiste el dato, su auditoría y el movimiento de existencia inicial en un **único lote atómico** con el Admin SDK. Las reglas de Firestore **niegan** la escritura directa del cliente en `medicines` (crear/eliminar), `pharmacists` (toda escritura) y `auditLogs`, por lo que la auditoría no puede omitirse ni falsificarse. La lógica de composición es pura y está probada (`app/lib/adminMutations.ts`), igual que el gating del endpoint (`route.test.ts`).
 - La lista de roles está versionada en código y reglas; no existe todavía administración centralizada de roles ni aprobación de altas/bajas.
 - El monitoreo requiere revisión manual de Firestore; faltan alertas automáticas, retención formal y exportación a un repositorio de auditoría independiente.
-- Las reglas deben validarse también con el emulador de Firestore antes de ampliar el piloto.
+- Las reglas y el endpoint deben validarse también con el emulador de Firestore / un despliegue de prueba antes de ampliar el despliegue.
+
+## Endurecimiento aplicado para producción
+
+- **Backend con privilegios para el catálogo:** ver el punto de auditoría atómica arriba. El endpoint corre en el runtime de Node (no Edge) y usa **Application Default Credentials**: en App Hosting / Cloud Run las credenciales de la cuenta de servicio del runtime están disponibles automáticamente. Esa cuenta de servicio necesita permiso de lectura/escritura en Firestore (rol `roles/datastore.user` o equivalente); confírmelo en IAM antes del despliegue.
+- **Cabeceras de seguridad HTTP** en todas las rutas (`next.config.ts`): `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` + CSP `frame-ancestors 'none'` (anti-clickjacking, forzado), `Referrer-Policy` y `Permissions-Policy`.
+- **CSP de recursos en observación:** se envía una CSP completa (`default-src`/`script-src`/`connect-src`/`frame-src`…) afinada a los orígenes de Firebase Auth y Firestore mediante la cabecera `Content-Security-Policy-Report-Only`. En este modo **no bloquea**, solo reporta violaciones, para validarla contra los flujos reales (inicio de sesión con Google, lecturas/escrituras de Firestore) sin riesgo. Para **promoverla a enforcing**: revise que no haya violaciones legítimas en producción (consola del navegador o un `report-to`), y mueva el valor `resourceCsp` de `Content-Security-Policy-Report-Only` a `Content-Security-Policy`; idealmente reemplace antes `'unsafe-inline'` de `script-src` por nonces o hashes.
+- **Producción plena:** `NEXT_PUBLIC_PILOT_MODE=0` (sin banner de piloto) y `NEXT_PUBLIC_DEMO_MODE=0`. `apphosting.yaml` no define estas variables, por lo que el valor por defecto (`0`) aplica en el despliegue.
+
+## Orden de despliegue
+
+1. Confirme el permiso de Firestore de la cuenta de servicio del runtime (IAM).
+2. Despliegue primero las reglas de Firestore (`firebase deploy --only firestore:rules`) — endurecidas para negar la escritura del catálogo desde el cliente.
+3. Despliegue la aplicación (incluye el nuevo endpoint) en la misma ventana controlada.
+4. Prueba de humo: como administrador, cree y edite un medicamento y un farmacéutico, y verifique que el documento **y** su entrada en `auditLogs` aparecen juntos. Un intento de escritura directa del cliente al catálogo debe ser rechazado por las reglas.

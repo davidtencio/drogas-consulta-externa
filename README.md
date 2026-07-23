@@ -6,12 +6,15 @@ personal farmacéutico autorizado, con trazabilidad completa.
 
 ## Stack
 
-- **Next.js 16** (App Router) — la interfaz es un cliente que habla directo con
-  Firestore.
+- **Next.js 16** (App Router) — la interfaz lee y consulta Firestore desde el
+  cliente; las **mutaciones administrativas** del catálogo (medicamentos y
+  farmacéuticos) pasan por un backend propio (route handler) que las escribe con
+  privilegios de administrador.
 - **Firebase**
-  - **Firestore** como base de datos (SDK web en el cliente).
+  - **Firestore** como base de datos (SDK web en el cliente para lectura y para
+    los movimientos del operador; **Admin SDK** en el servidor para el catálogo).
   - **Firebase Auth** con inicio de sesión de **Google**; el login protege toda
-    la app.
+    la app. El backend verifica el ID token y el rol antes de escribir.
 - **Tailwind CSS 4**.
 - **Firebase App Hosting** para el despliegue (SSR sobre Cloud Run), conectado
   al repositorio de GitHub.
@@ -88,9 +91,15 @@ la interfaz.
 
 ## Seguridad
 
-Las reglas (`firestore.rules`) exigen usuario autenticado. Con Google como
-proveedor, **cualquier cuenta de Google autenticada** pasa la regla básica; para
-restringir a personal autorizado, use una lista blanca de correos en las reglas.
+Las reglas (`firestore.rules`) exigen usuario autenticado y aplican los roles
+(admin/operador) por correo. El **catálogo** (medicamentos y farmacéuticos) y la
+**bitácora de auditoría** no se escriben desde el cliente: las reglas lo niegan y
+esas mutaciones pasan por el backend `POST /api/admin/mutations`
+(`app/api/admin/mutations/route.ts`), que verifica el ID token y el rol de
+administrador y escribe el dato junto con su auditoría en un lote atómico con el
+Admin SDK. El backend usa Application Default Credentials; en App Hosting / Cloud
+Run la cuenta de servicio del runtime debe tener acceso de escritura a Firestore
+(`roles/datastore.user`).
 
 Desplegar reglas:
 

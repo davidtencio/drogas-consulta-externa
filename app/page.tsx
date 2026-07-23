@@ -36,7 +36,7 @@ type FormIssue = { message: string; field?: string };
 const trimmed=(form:FormData,k:string)=>String(form.get(k)||"").trim();
 
 /** Crea o actualiza un medicamento; en creación con existencia inicial, exige farmacéutico. */
-async function saveMedicine(form:FormData, now:string, editing:Medicine|null){
+async function saveMedicine(form:FormData, editing:Medicine|null){
   const name=trimmed(form,"name"), strength=trimmed(form,"strength");
   if(!name||!strength) throw new Error("Nombre y concentración son obligatorios.");
   const code=trimmed(form,"code");
@@ -49,15 +49,15 @@ async function saveMedicine(form:FormData, now:string, editing:Medicine|null){
     if(!Number.isInteger(initial)) throw new Error("La existencia inicial debe ser un número entero.");
     if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable del ingreso inicial.");
   }
-  await dataApi.createMedicine(fields,initial,pharmacistEmail,now);
+  await dataApi.createMedicine(fields,initial,pharmacistEmail);
 }
 
 /** Crea o actualiza un farmacéutico autorizado. */
-async function savePharmacist(form:FormData, now:string, editing:Pharmacist|null){
+async function savePharmacist(form:FormData, editing:Pharmacist|null){
   const name=trimmed(form,"name"), email=trimmed(form,"email").toLowerCase(), license=trimmed(form,"license");
   if(!name||!email||!license) throw new Error("Complete todos los datos del farmacéutico.");
   if(editing) await dataApi.updatePharmacist(editing.id,{name,email,license});
-  else await dataApi.createPharmacist({name,email,license},now);
+  else await dataApi.createPharmacist({name,email,license});
 }
 
 /** Registra un movimiento (ingreso/egreso) con el farmacéutico responsable. */
@@ -178,8 +178,8 @@ export default function Home() {
     const form=new FormData(e.currentTarget);
     const now=new Date().toISOString();
     try{
-      if(action==="medicine") await saveMedicine(form,now,modal?.kind==="medicine"?modal.editing:null);
-      else if(action==="pharmacist") await savePharmacist(form,now,modal?.kind==="pharmacist"?modal.editing:null);
+      if(action==="medicine") await saveMedicine(form,modal?.kind==="medicine"?modal.editing:null);
+      else if(action==="pharmacist") await savePharmacist(form,modal?.kind==="pharmacist"?modal.editing:null);
       else if(action==="movement") await saveMovement(form,now);
       else if(action==="count") await saveCount(form,now,modal?.kind==="count"?medicines.find(m=>m.id===modal.medicineId):undefined);
       flash(action==="count"?"Saldo confirmado correctamente":"Registro guardado correctamente");closeModal();

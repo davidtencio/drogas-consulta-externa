@@ -1,0 +1,69 @@
+name: Desplegar reglas de Firestore
+
+# Publica firestore.rules en el proyecto de Firebase cuando las reglas cambian en
+# main, y también de forma manual desde la pestaña Actions (workflow_dispatch).
+# Autenticación por cuenta de servicio (secreto FIREBASE_SERVICE_ACCOUNT) vía
+# Application Default Credentials; nunca se imprime la clave.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - firebase.json
+      - .firebaserc
+      - .github/workflows/deploy-firestore-rules.yml
+  workflow_dispatch:
+
+# Evita despliegues de reglas solapados.
+concurrency:
+  group: deploy-firestore-rules
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Publicar reglas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Validar invariantes de las reglas
+        # Falla el despliegue si las reglas pierden alguna garantía clave antes
+        # de publicarlas (mismo test que corre la CI principal).
+        run: npx vitest run app/firestoreRules.test.ts
+
+      - name: Escribir credencial de la cuenta de servicio
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Falta el secreto FIREBASE_SERVICE_ACCOUNT (clave JSON de la cuenta de servicio)."
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "${{ runner.temp }}/service-account.json"
+
+      - name: Desplegar solo las reglas de Firestore
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/service-account.json
+        run: >-
+          npx --yes firebase-tools@13 deploy
+          --only firestore:rules
+          --project drogas-consulta-externa
+          --non-interactive
+
+      - name: Limpiar credencial
+        if: always()
+        run: rm -f "${{ runner.temp }}/service-account.json"

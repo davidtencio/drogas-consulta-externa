@@ -71,16 +71,44 @@ ese caso, añadir el binding explícito:
 No se validó ejecutando una mutación real en producción (requiere un ID token de
 admin); la evidencia es de permisos y logs.
 
-## PENDIENTES para retomar (configuración en Firebase/GCP, no código)
+### Despliegue de reglas por Workload Identity Federation (2026-07-23)
 
-1. **RESUELTO de otra forma (2026-07-23): el secreto `FIREBASE_SERVICE_ACCOUNT` ya
-   no existe ni hace falta.** La organización prohíbe crear claves de cuenta de
-   servicio (`iam.disableServiceAccountKeyCreation`), así que el workflow de reglas
-   se migró a **Workload Identity Federation**: pool `github-actions`, proveedor
-   OIDC `github` limitado al repo `davidtencio/drogas-consulta-externa`, y
-   `github-rules-deployer` (solo `roles/firebaserules.admin`) suplantable desde ahí.
-   Sin claves ni secretos que rotar. Detalle en `docs/deploy-firestore-rules.md`.
-2. **Orden de despliegue de reglas** (cuando toque publicarlas): primero
+El secreto `FIREBASE_SERVICE_ACCOUNT` que este archivo pedía **ya no existe ni hace
+falta**: la organización prohíbe crear claves de cuenta de servicio
+(`iam.disableServiceAccountKeyCreation`), así que el workflow se migró a WIF —
+pool `github-actions`, proveedor OIDC `github` limitado al repo
+`davidtencio/drogas-consulta-externa`, y `github-rules-deployer` (solo
+`roles/firebaserules.admin`) suplantable desde ahí. Sin claves ni secretos que
+rotar. Detalle en `docs/deploy-firestore-rules.md`.
+
+### Reglas endurecidas: PUBLICADAS por fin (2026-07-23)
+
+**Hallazgo importante:** las reglas endurecidas se fusionaron a `main` el 2026-07-23
+pero **nunca se habían publicado**, porque el workflow jamás pudo correr por falta
+de credencial. Producción estuvo una semana con el ruleset del 2026-07-16, en el que
+el cliente aún podía crear/borrar catálogo y farmacéuticos y **escribir en
+`auditLogs`**. Al arreglar la autenticación, el primer run publicó las reglas del
+repo: ruleset `ceb60e51-1836-4199-b463-cb6aca305e25`, verificado byte a byte contra
+`firestore.rules`.
+
+Lección para la próxima: que las reglas estén en `main` no significa que estén
+publicadas. Comprobar el ruleset activo, no el archivo del repo.
+
+Respaldo del ruleset anterior (`0058a2d0-662c-434f-9975-7ee29d33d8ab`, sigue vivo en
+Firebase) en `C:\Users\david\Documents\firestore-rules-backup-2026-07-16.rules`,
+fuera del repo a propósito.
+
+## PENDIENTES para retomar
+
+1. **Probar en caliente una mutación de admin** (crear o editar un medicamento en
+   producción). Es el camino que las reglas nuevas cambian y que aún no se ha
+   ejercitado: ahora `medicines`/`pharmacists` solo se escriben desde
+   `/api/admin/mutations`. Si aparece "No se pudo guardar el cambio", revisar el IAM
+   del runtime (ver sección de IAM arriba) antes que las reglas.
+2. **Acciones con Node 20 deprecado**: `actions/checkout@v4`, `actions/setup-node@v4`
+   y `google-github-actions/auth@v2` se fuerzan a Node 24 en el runner. No rompe hoy;
+   actualizar cuando haya versiones nuevas.
+3. **Orden de despliegue de reglas** (cuando toque publicarlas): primero
    `firebase deploy --only firestore:rules` (o el workflow), luego la app.
 
 ## Verificación local

@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const css = readFileSync("app/globals.css", "utf8");
+const css = readFileSync("app/styles/tokens.css", "utf8");
 
 function themeTokens(selector: string) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const blocks = [...css.matchAll(new RegExp(`${escaped}\\{([^}]+)\\}`, "g"))];
+  const blocks = [...css.matchAll(new RegExp(`${escaped}\\s*\\{([^}]+)\\}`, "g"))];
   return blocks.reduce<Record<string, string>>((tokens, match) => {
     for (const item of match[1].matchAll(/--([\w-]+):\s*(#[0-9a-f]{6})/gi)) tokens[item[1]] = item[2];
     return tokens;
@@ -34,11 +34,18 @@ function expectAa(tokens: Record<string, string>, pairs: [string, string][]) {
 describe("contraste de temas", () => {
   it("mantiene texto y estados AA en tema claro", () => {
     const tokens = themeTokens(":root[data-theme=light]");
-    expectAa(tokens, [["text", "surface"], ["muted", "surface"], ["faint", "surface"], ["primary-ink", "primary-tint"], ["in", "in-tint"], ["out", "out-tint"], ["count", "count-tint"], ["crit", "crit-tint"]]);
+    expectAa(tokens, [["text", "surface"], ["text", "bg"], ["muted", "surface"], ["muted", "surface-2"], ["label", "surface"], ["faint", "surface"], ["primary-ink", "primary-tint"], ["primary-ink", "surface"], ["in", "in-tint"], ["out", "out-tint"], ["count", "count-tint"], ["crit", "crit-tint"], ["warn-ink", "warn-tint"], ["on-primary", "primary"], ["on-danger", "crit-solid"]]);
   });
 
-  it("mantiene texto y estados AA en el tema oscuro clínico", () => {
-    const tokens = themeTokens(":root:not([data-theme=light])");
-    expectAa(tokens, [["text", "surface"], ["muted", "bg"], ["faint", "bg"], ["primary-ink", "primary-tint"], ["in", "in-tint"], ["out", "out-tint"], ["count", "count-tint"], ["crit", "crit-tint"]]);
+  it("mantiene texto y estados AA en el tema oscuro", () => {
+    const tokens = themeTokens(":root[data-theme=dark]");
+    expectAa(tokens, [["text", "surface"], ["text", "bg"], ["muted", "surface"], ["muted", "surface-2"], ["label", "surface"], ["faint", "bg"], ["primary-ink", "primary-tint"], ["primary-ink", "surface"], ["in", "in-tint"], ["out", "out-tint"], ["count", "count-tint"], ["crit", "crit-tint"], ["warn-ink", "warn-tint"], ["on-primary", "primary"], ["on-danger", "crit-solid"]]);
+  });
+
+  it.each([":root[data-theme=light]", ":root[data-theme=dark]"])("distingue controles y foco en %s", (selector) => {
+    const tokens = themeTokens(selector);
+    for (const foreground of ["input-line", "focus"]) for (const background of ["surface", "surface-2", "bg"]) {
+      expect(ratio(tokens[foreground], tokens[background]), `${foreground}/${background}`).toBeGreaterThanOrEqual(3);
+    }
   });
 });

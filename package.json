@@ -9,10 +9,17 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:release": "node scripts/build-release.mjs",
+    "build:demo": "node scripts/demo-preview.mjs build",
+    "start:demo": "node scripts/demo-preview.mjs start",
+    "check:release": "node scripts/build-release.mjs --check",
+    "smoke:release": "node scripts/smoke-release.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:a11y": "vitest run app/components/accessibility.test.tsx app/components/AccessibleDialog.test.tsx app/themeContrast.test.ts",
+    "test:a11y": "vitest run app/components/accessibility.test.tsx app/components/AccessibleDialog.test.tsx app/components/InventoryPanel.test.tsx app/components/workflowsAccessibility.test.tsx app/components/Login.test.tsx app/components/MovementsTab.test.tsx app/components/ArqueoScreen.test.tsx app/themeContrast.test.ts",
+    "test:release": "node --test scripts/release.test.mjs",
+    "test:rules": "firebase emulators:exec --config firebase.validation.json --only firestore --project demo-consulta-externa-design \"node --test scripts/firestore.validation.test.mjs\"",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },

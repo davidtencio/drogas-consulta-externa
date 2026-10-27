@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import { getDocs } from "firebase/firestore";
 import userEvent from "@testing-library/user-event";
+import { axe } from "jest-axe";
 
 // La exportación usa Firestore; lo mockeamos para que el render no toque la red.
 vi.mock("firebase/firestore", () => ({
@@ -10,6 +12,7 @@ vi.mock("firebase/firestore", () => ({
   query: vi.fn(),
 }));
 vi.mock("../firebase", () => ({ db: {} }));
+vi.mock("../lib/demo", async (original) => ({ ...await original<typeof import("../lib/demo")>(), DEMO_MODE: false }));
 
 import { MovementsTab } from "./MovementsTab";
 import type { Medicine, Movement } from "../lib/inventory";
@@ -35,6 +38,11 @@ const sample: Movement[] = [
 
 describe("MovementsTab", () => {
   const noop = () => {};
+
+  it("mantiene accesibles los filtros y la consulta del historial", async () => {
+    const { container } = render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} />);
+    expect((await axe(container)).violations).toHaveLength(0);
+  });
 
   it("muestra el nombre del responsable, no el correo", () => {
     render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} />);
@@ -107,5 +115,13 @@ describe("MovementsTab", () => {
     expect(within(body).queryByText("Ibuprofeno")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Ver todos los movimientos" }));
     expect(within(body).getByText("Ibuprofeno")).toBeInTheDocument();
+  });
+
+  it("expone el fallo de exportación y vuelve a habilitar la acción", async () => {
+    vi.mocked(getDocs).mockRejectedValueOnce(new Error("offline"));
+    render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} />);
+    await userEvent.click(screen.getByRole("button", { name: "Exportar CSV" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo exportar los movimientos");
+    expect(screen.getByRole("button", { name: "Exportar CSV" })).toBeEnabled();
   });
 });

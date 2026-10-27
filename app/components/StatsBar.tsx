@@ -1,46 +1,41 @@
-import { Icon, type IconName } from "./Icon";
+import type { InventoryFilter, InventorySummary } from "../lib/inventoryView";
 
 /** Métrica sobre la que se puede filtrar el inventario o navegar. */
-export type StatKey = "all" | "low" | "expiring" | "recent";
+export type StatKey = "all" | "low" | "expired" | "soon";
 
 type Props = {
-  total: number;
-  low: number;
-  expiring: number;
-  recent: number;
-  onSelect?: (key: StatKey) => void;
-  active?: StatKey;
+  summary: InventorySummary;
+  onSelect: (key: StatKey) => void;
+  active: InventoryFilter;
+  disabled?: boolean;
 };
 
-type Item = { key: StatKey; icon: IconName; tone: string; label: string; value: number; sub: string };
+type Item = { key: StatKey; label: string; value: number; sub: string };
 
-/** Franja de estadísticas del dashboard. Cuando recibe `onSelect`, cada tarjeta
- * es un botón que filtra el inventario (o navega, en el caso de movimientos). */
-export function StatsBar({ total, low, expiring, recent, onSelect, active }: Props) {
+/** Conteos por medicamento, sin sumar unidades distintas. Las categorías pueden solaparse. */
+export function StatsBar({ summary, onSelect, active, disabled = false }: Props) {
   const items: Item[] = [
-    { key: "all", icon: "box", tone: "blue", label: "Existencias totales", value: total, sub: "unidades disponibles" },
-    { key: "low", icon: "alert", tone: "amber", label: "Stock bajo", value: low, sub: "requieren atención" },
-    { key: "expiring", icon: "clock", tone: "red", label: "Próximos a vencer", value: expiring, sub: "vencidos o ≤30 días" },
-    { key: "recent", icon: "movements", tone: "green", label: "Movimientos recientes", value: recent, sub: "últimos registros" },
+    { key: "all", label: "Medicamentos en catálogo", value: summary.total, sub: "Presentaciones activas" },
+    { key: "low", label: "Con stock bajo", value: summary.low, sub: "Al mínimo o por debajo" },
+    { key: "expired", label: "Con lotes vencidos", value: summary.expired, sub: "Lotes con saldo" },
+    { key: "soon", label: "Con lotes por vencer", value: summary.soon, sub: "Desde hoy hasta 30 días" },
   ];
 
   return (
-    <div className="stats">
-      {items.map(({ key, icon, tone, label, value, sub }) => {
+    <div className="inventory-summary" aria-label="Resumen del inventario">
+      {items.map(({ key, label, value, sub }) => {
         const inner = <>
-          <span className={`stat-icon ${tone}`}><Icon name={icon} /></span>
-          <div><small>{label}</small><strong>{value.toLocaleString("es-CR")}</strong><em>{sub}</em></div>
+          <span>{label}</span><strong>{disabled ? "—" : value.toLocaleString("es-CR")}</strong><small>{sub}</small>
         </>;
-        if (!onSelect) return <article key={key}>{inner}</article>;
-        const isFilter = key === "low" || key === "expiring";
         return (
           <button
             key={key}
             type="button"
-            className={`stat-btn${active === key ? " stat-active" : ""}`}
+            className={`inventory-metric${active === key ? " selected" : ""}`}
+            disabled={disabled}
             onClick={() => onSelect(key)}
-            aria-pressed={isFilter ? active === key : undefined}
-            aria-label={key === "recent" ? "Ver historial de movimientos" : `Filtrar: ${label}`}
+            aria-pressed={active === key}
+            aria-label={`Filtrar: ${label}`}
           >
             {inner}
           </button>

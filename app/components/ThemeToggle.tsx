@@ -5,12 +5,6 @@ import { Icon } from "./Icon";
 
 type Theme = "light" | "dark";
 
-function prefersDark(): boolean {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function"
-    ? window.matchMedia("(prefers-color-scheme: dark)").matches
-    : false;
-}
-
 /** Botón para alternar entre tema claro y oscuro; persiste la elección en localStorage. */
 export function ThemeToggle() {
   // Inicia en null para que el primer render coincida con el del servidor (sin desajuste de hidratación).
@@ -28,7 +22,7 @@ export function ThemeToggle() {
     // Sincronización única al montar: arrancamos en null para que el primer render
     // coincida con el del servidor y no rompa la hidratación.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTheme(stored ?? current ?? (prefersDark() ? "dark" : "light"));
+    setTheme(stored ?? (current === "dark" ? "dark" : "light"));
   }, []);
 
   function toggle() {

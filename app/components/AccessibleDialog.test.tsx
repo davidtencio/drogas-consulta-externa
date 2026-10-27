@@ -23,4 +23,26 @@ describe("AccessibleDialog", () => {
     await userEvent.tab({ shift: true });
     expect(screen.getByRole("button", { name: "Último" })).toHaveFocus();
   });
+
+  it("conserva el foco al actualizar el diálogo y restaura el fondo al cerrarlo", async () => {
+    const trigger = document.createElement("button");
+    trigger.textContent = "Abrir";
+    document.body.append(trigger);
+    trigger.focus();
+    const originalOverflow = document.body.style.overflow;
+    const latestClose = vi.fn();
+    const { rerender, unmount } = render(<AccessibleDialog title="Prueba" onClose={vi.fn()}><input aria-label="Dato" /><button>Aceptar</button></AccessibleDialog>);
+    const input = screen.getByLabelText("Dato");
+    input.focus();
+    rerender(<AccessibleDialog title="Prueba actualizada" onClose={latestClose}><input aria-label="Dato" /><button>Aceptar</button></AccessibleDialog>);
+    expect(input).toHaveFocus();
+    expect(trigger.inert).toBe(true);
+    await userEvent.keyboard("{Escape}");
+    expect(latestClose).toHaveBeenCalledOnce();
+    unmount();
+    expect(trigger.inert).not.toBe(true);
+    expect(trigger).toHaveFocus();
+    expect(document.body.style.overflow).toBe(originalOverflow);
+    trigger.remove();
+  });
 });

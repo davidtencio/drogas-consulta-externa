@@ -136,7 +136,7 @@ function applyLots(lots: InventoryLot[], req: MovementRequest): { lots: Inventor
  */
 export function registerMovement(req: MovementRequest): Promise<void> {
   if (DEMO_MODE) {
-    demoRegisterMovement({ medicineId: req.medicineId, type: req.type, quantity: req.quantity, prescriptionRef: req.prescriptionRef, note: req.note, pharmacistEmail: req.pharmacistEmail, createdAt: req.now });
+    demoRegisterMovement({ medicineId: req.medicineId, type: req.type, quantity: req.quantity, prescriptionRef: req.prescriptionRef, note: req.note, pharmacistEmail: req.pharmacistEmail, createdAt: req.now }, req.receivedLots);
     return Promise.resolve();
   }
   return runTransaction(db, async (tx) => {

@@ -23,6 +23,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // La revisión DEMO conserva su propio artefacto; no reemplaza la entrega autenticada.
+  distDir: process.env.CODEX_DEMO_PREVIEW === "1" ? ".next-demo" : ".next",
   // Fija la raíz del proyecto para evitar que Next infiera un workspace
   // equivocado cuando existen otros lockfiles fuera del repo.
   turbopack: { root: import.meta.dirname },

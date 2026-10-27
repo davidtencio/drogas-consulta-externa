@@ -1,19 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { Google_Sans } from "next/font/google";
 import "./globals.css";
 import "./card-navigation.css";
-import "./observations.css";
-import "./lots.css";
 import { ServiceWorkerRegister } from "./components/ServiceWorkerRegister";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-
-const appFont = Google_Sans({
-  variable: "--font-app-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  adjustFontFallback: false,
-});
 
 export const metadata: Metadata = {
   title: "Control de Drogas Consulta Externa",
@@ -23,20 +13,22 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0e7c6f",
+  themeColor: "#12695b",
 };
 
 // Aplica el tema guardado antes de pintar para evitar el parpadeo (FOUC).
-const themeInit = "(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();";
+const themeInit = "(function(){var t='light';try{var s=localStorage.getItem('theme');if(s==='dark'||s==='light')t=s;}catch(e){}document.documentElement.setAttribute('data-theme',t);})();";
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // Nonce por petición generado en proxy.ts; autoriza el script de tema
   // bajo la CSP forzada (script-src 'nonce-…' 'strict-dynamic').
+  // Solo html (tema previo al pintado) y script (nonce ocultado por el navegador)
+  // admiten diferencias de atributos durante la hidratación.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <html lang="es">
-      <head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInit }} /></head>
-      <body className={appFont.variable}><AppErrorBoundary>{children}</AppErrorBoundary><ServiceWorkerRegister /></body>
+    <html lang="es" data-theme="light" suppressHydrationWarning>
+      <head><script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: themeInit }} /></head>
+      <body><AppErrorBoundary>{children}</AppErrorBoundary><ServiceWorkerRegister /></body>
     </html>
   );
 }

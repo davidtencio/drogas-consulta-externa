@@ -21,7 +21,7 @@ export function MedicineCard({ medicine: m, certification, onMovement, onCount, 
   const exp = expiryStatus(m.expiresAt);
   const certifiedAt = certification ? new Date(certification.createdAt) : null;
   const certificationDate = certifiedAt?.toLocaleDateString("es-CR", { day: "2-digit", month: "2-digit", year: "numeric" });
-  const certificationTime = certifiedAt?.toLocaleTimeString("es-CR", { hour: "numeric", minute: "2-digit" });
+  const certificationTime = certifiedAt?.toLocaleTimeString("es-CR", { hour: "numeric", minute: "2-digit" }).replace(/\s+/g, " ");
   const tooltip = certification ? `Fecha: ${certificationDate}\nHora: ${certificationTime}\nFarmacéutico: ${certification.pharmacistName}` : "";
   const availableLots = (m.lots || []).filter((lot) => lot.quantity > 0);
   return (

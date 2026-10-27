@@ -73,4 +73,23 @@ describe("SettingsTab", () => {
     expect(screen.getByText("Registre el primer medicamento del catálogo.")).toBeInTheDocument();
     expect(screen.getByText("Registre al primer farmacéutico autorizado.")).toBeInTheDocument();
   });
+
+  it("localiza un registro inactivo y conserva la reactivación", async () => {
+    const inactive = { ...medicine, id: "old", name: "Ácido fólico", active: false };
+    const { onSetActive } = setup({ medicines: [medicine, inactive] });
+    await userEvent.selectOptions(screen.getByLabelText("Estado del registro"), "inactive");
+    await userEvent.type(screen.getByLabelText("Buscar en configuración"), "acido");
+    expect(screen.queryByText("Metformina")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reactivar" }));
+    expect(onSetActive).toHaveBeenCalledWith("medicines", "old", true, "Ácido fólico");
+  });
+
+  it("distingue error de catálogo vacío y permite reintentar", async () => {
+    const retry = vi.fn();
+    setup({ medicines: [], error: "Catálogo no disponible", onRetry: retry });
+    expect(screen.getByRole("alert")).toHaveTextContent("Catálogo no disponible");
+    expect(screen.queryByText("Registre el primer medicamento del catálogo.")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
 });

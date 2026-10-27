@@ -1,0 +1,27 @@
+*, *::before, *::after { box-sizing: border-box; }
+body, h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.5 var(--font-app); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; touch-action: manipulation; }
+button:disabled { cursor: default; opacity: .6; }
+input, select, textarea { accent-color: var(--primary); }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
+:where(button, a[href], input, select, textarea, [tabindex]):focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.icon { flex: none; }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
+.skip-link { position: fixed; top: 10px; left: 10px; z-index: 100; transform: translateY(-160%); background: var(--surface); color: var(--primary-ink); border: 2px solid var(--focus); border-radius: var(--radius-sm); padding: 10px 16px; text-decoration: none; }
+.skip-link:focus { transform: none; }
+#contenido-principal:focus { outline: none; }
+.eyebrow { color: var(--primary-ink); font-size: 11px; font-weight: 600; letter-spacing: 1.2px; }
+.primary, .secondary, .alert-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 1px solid transparent; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; line-height: 1.5; text-decoration: none; transition: background-color .15s, border-color .15s; }
+.primary, .alert-action { background: var(--primary); color: var(--on-primary); box-shadow: none; }
+.primary:hover:not(:disabled), .alert-action:hover { background: var(--primary-hover); }
+.secondary { background: var(--surface); color: var(--text); border-color: var(--input-line); }
+.secondary:hover:not(:disabled) { background: var(--surface-2); }
+.alert-close { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); }
+.alert-close:hover { background: var(--surface); }
+.toast-critical { color: var(--on-danger); }
+@media (max-width: 760px) {
+  input, select, textarea, .modal input, .modal select, .modal textarea { font-size: 16px; }
+  .primary, .secondary, .alert-action { min-width: 44px; }
+}

@@ -2,6 +2,7 @@
 // en el navegador vive en app/page.tsx; aquí solo se arma el texto.
 
 import type { Medicine, Movement } from "./inventory";
+import { inventoryLotView } from "./inventoryView";
 
 /** Escapa un valor para CSV: entre comillas si contiene coma, comilla o salto. */
 export function escapeCsvValue(value: unknown): string {
@@ -48,6 +49,17 @@ export function medicinesToCsv(medicines: readonly Medicine[]): string {
     ]);
   }
   return toCsv(rows);
+}
+
+/** CSV de la vista activa: conserva unidades y usa el mismo vencimiento que la tabla. */
+export function inventoryViewToCsv(medicines: readonly Medicine[]): string {
+  return toCsv([
+    ["Código", "Nombre", "Concentración", "Forma", "Existencia registrada", "Unidad", "Stock mínimo", "Vencimiento más cercano", "Lotes con saldo", "Origen del desglose", "Información por revisar"],
+    ...medicines.map((medicine) => {
+      const view = inventoryLotView(medicine);
+      return [medicine.code || "", medicine.name, medicine.strength, medicine.form, medicine.stock, medicine.unit, medicine.minimumStock, view.nearest, view.positive.map((lot) => lot.lot || "Sin identificador").join("; "), view.legacy ? "Registro general sin desglose almacenado" : view.lots.length ? "Lotes almacenados" : "Sin lotes registrados", view.unknown || view.mismatch ? "Sí" : "No"];
+    }),
+  ]);
 }
 
 const MOVEMENT_HEADERS = [

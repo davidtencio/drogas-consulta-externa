@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { axe } from "jest-axe";
 import type { Medicine, Pharmacist } from "../lib/inventory";
 
 const registerCounts = vi.fn(async () => undefined);
@@ -25,6 +26,10 @@ import { ArqueoScreen } from "./ArqueoScreen";
 beforeEach(() => registerCounts.mockClear());
 
 describe("ArqueoScreen", () => {
+  it("mantiene accesibles la preparación y la lista de conteo", async () => {
+    const { container } = render(<ArqueoScreen email="op@h.cr" />);
+    await act(async () => { expect((await axe(container)).violations).toHaveLength(0); });
+  });
   it("lista los medicamentos activos con su stock de sistema", () => {
     render(<ArqueoScreen email="op@h.cr" />);
     expect(screen.getByText("Metformina")).toBeInTheDocument();
@@ -56,5 +61,18 @@ describe("ArqueoScreen", () => {
     render(<ArqueoScreen email="op@h.cr" />);
     await userEvent.click(screen.getByLabelText("Confirmar saldo de Metformina"));
     expect(screen.getByRole("button", { name: /Registrar toma/ })).toBeDisabled();
+  });
+
+  it("limpia la observación visible tras registrar y mantiene el stock de sistema", async () => {
+    render(<ArqueoScreen email="op@h.cr" />);
+    await userEvent.click(screen.getByRole("button", { name: "Agregar observación" }));
+    await userEvent.type(screen.getByLabelText("Observación de la toma de inventario"), "Verificación DEMO");
+    await userEvent.click(screen.getByLabelText("Confirmar saldo de Metformina"));
+    await userEvent.selectOptions(screen.getByLabelText("Farmacéutico responsable"), "ana@h.cr");
+    await userEvent.click(screen.getByRole("button", { name: /Registrar toma/ }));
+    expect(registerCounts.mock.calls[0][1]).toBe("Verificación DEMO");
+    expect(screen.queryByDisplayValue("Verificación DEMO")).not.toBeInTheDocument();
+    expect(screen.getByText("0 confirmados de 2")).toBeInTheDocument();
+    expect(data.medicines[0].stock).toBe(100);
   });
 });

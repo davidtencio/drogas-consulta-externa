@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="description" content="Propuesta de diseño del inventario de Consulta Externa. Prototipo local con datos ficticios.">
+  <title>Inventario · Consulta Externa — Prototipo DEMO</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./prototype.js" defer></script>
+</head>
+<body>
+  <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-move" viewBox="0 0 24 24"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/></symbol>
+    <symbol id="i-count" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="m9 13 2 2 4-5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.4 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 4.4a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.7 13A9 9 0 0 1 11 3.3 9 9 0 1 0 20.7 13Z"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-pill" viewBox="0 0 24 24"><path d="M9 4a6 6 0 0 1 8.5 8.5L12.5 18A6 6 0 0 1 4 9.5Z"/><path d="m8 6 10 10"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+  </defs></svg>
+  <a class="skip-link" href="#main">Saltar al inventario</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Área de trabajo">
+      <a class="brand" href="./index.html" aria-label="Consulta Externa, inicio del prototipo"><span class="brand-mark" aria-hidden="true">R<span>x</span></span><span><strong>Control de Drogas</strong><small>CONSULTA EXTERNA</small></span></a>
+      <div class="workspace-label">ÁREA DE TRABAJO</div>
+      <nav class="navigation" aria-label="Navegación principal">
+        <button type="button" class="nav-item active" data-section="inventory" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg><span>Inventario</span></button>
+        <button type="button" class="nav-item" data-section="movements"><svg class="icon" aria-hidden="true"><use href="#i-move"/></svg><span>Movimientos</span></button>
+        <button type="button" class="nav-item" data-section="count"><svg class="icon" aria-hidden="true"><use href="#i-count"/></svg><span>Toma de inventario</span></button>
+        <button type="button" class="nav-item" data-section="settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg><span>Configuración</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="prototype-note"><span class="prototype-dot" aria-hidden="true"></span><strong>Propuesta de diseño</strong><p>Un espacio para revisar<br>la nueva experiencia.</p></div>
+        <button id="theme-toggle" type="button" class="theme-toggle" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg><span>Modo oscuro</span></button>
+        <div class="profile"><span class="avatar" aria-hidden="true">DE</span><div><strong>Sesión de demostración</strong><small>Vista de administrador</small></div></div>
+      </div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar"><div class="breadcrumb">Farmacia <span aria-hidden="true">/</span> <strong>Consulta externa</strong></div><span class="demo-label">DEMO · DATOS FICTICIOS</span></header>
+      <main id="main" class="main">
+        <section class="page-heading" aria-labelledby="page-title"><div><p class="eyebrow">CONTROL DE MEDICAMENTOS</p><h1 id="page-title">Inventario</h1><p class="page-description">Una visión clara de las existencias y sus lotes.</p></div><button type="button" id="new-movement" class="button primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Registrar movimiento</button></section>
+        <details class="review-tools"><summary>Revisar estados del diseño <span>FASE 2 · DEMO</span></summary><div class="review-controls"><label for="scenario">Escenario de revisión</label><select id="scenario"><option value="normal">Inventario habitual</option><option value="mixed">Lotes con vencimientos distintos</option><option value="incomplete">Datos incompletos y casos límite</option><option value="empty">Catálogo vacío</option><option value="loading">Carga del inventario</option><option value="error">Error de consulta</option></select><p id="scenario-description">Explore las situaciones de uso con datos ficticios.</p></div></details>
+        <div class="summary" aria-label="Resumen del catálogo de demostración">
+          <button type="button" class="metric selected" data-filter="all" aria-pressed="true"><span class="metric-label">Medicamentos en catálogo</span><strong id="metric-all">6</strong><span class="metric-context">Presentaciones activas</span></button>
+          <button type="button" class="metric" data-filter="low" aria-pressed="false"><span class="metric-label">Con stock bajo</span><strong id="metric-low">1</strong><span class="metric-context"><span class="status-dot warning" aria-hidden="true"></span>Por debajo del mínimo</span></button>
+          <button type="button" class="metric" data-filter="expired" aria-pressed="false"><span class="metric-label">Con lotes vencidos</span><strong id="metric-expired">1</strong><span class="metric-context"><span class="status-dot danger" aria-hidden="true"></span>Requieren revisión</span></button>
+          <button type="button" class="metric" data-filter="soon" aria-pressed="false"><span class="metric-label">Con lotes por vencer</span><strong id="metric-soon">1</strong><span class="metric-context">En los próximos 30 días</span></button>
+        </div>
+        <div class="attention" id="expiry-attention"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><div><strong id="expiry-message">Hay 1 medicamento con un lote vencido.</strong><span> Revise su detalle en el inventario.</span></div><button type="button" class="text-button" id="review-expired">Revisar lotes<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+        <div class="data-quality" id="data-quality" hidden><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><p id="data-quality-message"></p></div>
+        <section class="inventory-panel" aria-labelledby="list-title">
+          <div class="panel-heading"><div><h2 id="list-title">Medicamentos</h2><p>Consulte existencias, vencimientos y trazabilidad.</p></div><span class="reference-date">Referencia DEMO: 17 oct 2026</span></div>
+          <div class="toolbar"><label class="search-field"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input id="search" type="search" placeholder="Buscar medicamento, código o lote…" aria-label="Buscar medicamento, concentración, código o lote" autocomplete="off"><kbd aria-hidden="true">/</kbd></label><label class="filter-field"><span class="sr-only">Filtrar inventario</span><select id="status-filter"><option value="all">Todos los estados</option><option value="low">Stock bajo</option><option value="expired">Con lotes vencidos</option><option value="soon">Con lotes por vencer</option><option value="normal">Sin alertas de stock o fecha</option></select></label><label class="sort-field"><span class="sr-only">Ordenar medicamentos</span><select id="sort"><option value="name">Nombre A–Z</option><option value="stock">Menor existencia</option><option value="expiry">Vencimiento cercano</option></select></label></div>
+          <div class="table-wrap"><table><caption class="sr-only">Inventario de demostración. Todas las cantidades y lotes son ficticios.</caption><thead><tr><th scope="col">Medicamento</th><th scope="col" class="numeric">Existencia registrada</th><th scope="col">Nivel de stock</th><th scope="col">Vencimiento más cercano</th><th scope="col"><span class="sr-only">Detalle</span></th></tr></thead><tbody id="medicine-rows"></tbody></table></div>
+          <div id="medicine-cards" class="medicine-cards"></div>
+          <div id="loading-state" class="loading-state" hidden><p role="status">Cargando inventario… <span>Vista previa de carga.</span></p><div class="skeleton-rows" aria-hidden="true"><div></div><div></div><div></div><div></div></div></div>
+          <div id="error-state" class="empty-state" hidden><span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg></span><h3>No se pudo consultar el inventario</h3><p role="alert">No hay datos confirmados para mostrar. Este error es una simulación.</p><button type="button" id="retry" class="button secondary">Reintentar demostración</button></div>
+          <div id="catalog-empty-state" class="empty-state" hidden><span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-pill"/></svg></span><h3>El catálogo está vacío</h3><p>Los medicamentos aparecerán aquí cuando se agreguen al catálogo.</p><button type="button" id="restore-demo" class="button secondary">Mostrar catálogo de demostración</button></div>
+          <div id="empty-state" class="empty-state" hidden><span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg></span><h3>No encontramos medicamentos</h3><p>Pruebe con otro nombre o quite los filtros.</p><button type="button" id="clear-filters" class="button secondary">Limpiar búsqueda y filtros</button></div>
+          <footer class="panel-footer"><span id="result-count" role="status" aria-live="polite" aria-atomic="true">6 de 6 medicamentos</span><span class="detail-hint">Seleccione «Ver detalle» para consultar los lotes.</span></footer>
+        </section>
+        <footer class="page-footer"><span>Consulta Externa <span aria-hidden="true">·</span> Propuesta visual / Fases 1 y 2</span><span>Datos ilustrativos. Sin conexión a producción.</span></footer>
+      </main>
+    </div>
+  </div>
+  <dialog id="detail-dialog" class="dialog detail-dialog" aria-labelledby="detail-title" aria-describedby="detail-description"><div class="dialog-header"><div><p class="eyebrow">DETALLE DEL MEDICAMENTO · DEMO</p><h2 id="detail-title"></h2><p id="detail-description"></p></div><button type="button" class="icon-button close-dialog" aria-label="Cerrar detalle" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><div id="detail-body"></div><div class="dialog-footer"><span>Información ficticia para revisión visual.</span><button type="button" class="button secondary close-dialog">Cerrar</button></div></dialog>
+  <dialog id="movement-dialog" class="dialog" aria-labelledby="movement-title" aria-describedby="movement-description"><div class="dialog-header"><div><p class="eyebrow">VISTA PREVIA · DEMO</p><h2 id="movement-title">Registrar movimiento</h2></div><button type="button" class="icon-button close-dialog" aria-label="Cerrar vista previa" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><p id="movement-description" class="dialog-intro">Así se organizará el formulario. Esta vista no registra movimientos ni modifica existencias.</p><div class="preview-form"><label>Medicamento<select id="movement-medicine"></select></label><div class="form-pair"><label>Tipo de movimiento<select><option>Egreso</option><option>Ingreso</option></select></label><label>Cantidad<input type="number" min="1" step="1" placeholder="Ej. 10"></label></div><label>Referencia de prescripción<input type="text" placeholder="Referencia ficticia para la vista previa"></label><label>Farmacéutico responsable<select><option>Profesional DEMO · CF-DEMO</option></select></label><p class="form-note">El formulario operativo, sus lotes y validaciones se desarrollarán en la fase 5.</p></div><div class="dialog-footer"><span>Vista de diseño</span><button type="button" class="button secondary close-dialog">Cerrar vista previa</button></div></dialog>
+  <dialog id="scope-dialog" class="dialog" aria-labelledby="scope-title" aria-describedby="scope-description"><div class="dialog-header"><div><p class="eyebrow">CONTINUIDAD DEL REDISEÑO</p><h2 id="scope-title"></h2></div><button type="button" class="icon-button close-dialog" aria-label="Cerrar información" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><p id="scope-description" class="dialog-intro"></p><p class="form-note scope-note">Este primer prototipo desarrolla el inventario. Las demás pantallas se trabajarán en la fase 5.</p><div class="dialog-footer"><span>Propuesta de navegación</span><button type="button" class="button secondary close-dialog">Volver al inventario</button></div></dialog>
+</body>
+</html>

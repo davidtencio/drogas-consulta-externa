@@ -5,16 +5,16 @@ import { ExpiryAlert, expiryAlertMessage } from "./ExpiryAlert";
 
 describe("expiryAlertMessage", () => {
   it("combina vencidos y por vencer", () => {
-    expect(expiryAlertMessage({ expired: 2, soon: 3 })).toBe("2 vencidos y 3 por vencer");
+    expect(expiryAlertMessage({ expired: 2, soon: 3 })).toBe("2 con lotes vencidos y 3 con lotes por vencer");
   });
   it("solo vencidos, en singular", () => {
-    expect(expiryAlertMessage({ expired: 1, soon: 0 })).toBe("1 medicamento vencido");
+    expect(expiryAlertMessage({ expired: 1, soon: 0 })).toBe("1 medicamento con lotes vencidos");
   });
   it("solo vencidos, en plural", () => {
-    expect(expiryAlertMessage({ expired: 4, soon: 0 })).toBe("4 medicamentos vencidos");
+    expect(expiryAlertMessage({ expired: 4, soon: 0 })).toBe("4 medicamentos con lotes vencidos");
   });
   it("solo por vencer", () => {
-    expect(expiryAlertMessage({ expired: 0, soon: 1 })).toBe("1 medicamento por vencer");
+    expect(expiryAlertMessage({ expired: 0, soon: 1 })).toBe("1 medicamento con lotes por vencer");
   });
 });
 
@@ -32,7 +32,7 @@ describe("ExpiryAlert", () => {
     const { container } = render(
       <ExpiryAlert summary={{ expired: 2, soon: 1 }} showViewButton={false} onView={noop} onDismiss={noop} />
     );
-    expect(screen.getByText("2 vencidos y 1 por vencer")).toBeInTheDocument();
+    expect(screen.getByText("2 con lotes vencidos y 1 con lotes por vencer")).toBeInTheDocument();
     expect(container.querySelector(".expiry-alert.danger")).not.toBeNull();
   });
 

@@ -1,0 +1,24 @@
+.conn-banner { display: flex; align-items: flex-start; gap: 10px; padding: 13px 16px; margin-bottom: 18px; border: 1px solid var(--primary-line); border-radius: var(--radius-sm); background: var(--primary-tint); color: var(--primary-ink); }
+.conn-banner .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; background: currentColor; }
+.conn-banner strong { display: block; font-size: 13px; font-weight: 600; }
+.conn-banner small { display: block; font-size: 12px; margin-top: 3px; line-height: 1.5; }
+.conn-banner.offline { background: var(--crit-tint); border-color: var(--crit-line); color: var(--crit-ink); }
+.expiry-alert { display: flex; align-items: center; gap: 11px; margin-bottom: 24px; padding: 9px 14px; border: 1px solid var(--warn-line); border-radius: var(--radius-sm); background: var(--warn-tint); color: var(--warn-ink); }
+.expiry-alert.danger { border-color: var(--crit-line); background: var(--crit-tint); color: var(--crit-ink); }
+.expiry-alert .ico { display: inline-flex; flex: none; }
+.expiry-alert .msg { flex: 1; min-width: 0; }
+.expiry-alert .msg strong { display: block; font-size: 13px; font-weight: 600; }
+.expiry-alert .msg small { display: block; font-size: 12px; margin-top: 2px; color: inherit; }
+.expiry-alert .alert-close { color: inherit; }
+.expiry-alert .alert-action { background: transparent; color: inherit; padding-inline: 8px; }
+.expiry-alert .alert-action:hover { text-decoration: underline; background: transparent; }
+.demo-banner, .pilot-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 12px; margin-bottom: 20px; padding: 10px 14px; border: 1px solid var(--primary-line); border-radius: var(--radius-sm); background: var(--primary-tint); color: var(--primary-ink); font-size: 12px; }
+.demo-banner strong, .pilot-banner strong { font-weight: 600; }
+.pilot-banner { border-color: var(--warn-line); background: var(--warn-tint); color: var(--warn-ink); }
+@media (max-width: 600px) {
+  .expiry-alert { display: grid; grid-template-columns: 20px minmax(0,1fr) 44px; gap: 8px; align-items: start; padding: 12px; }
+  .expiry-alert .ico { padding-top: 3px; }
+  .expiry-alert .msg { grid-column: 2; }
+  .expiry-alert .alert-close { grid-column: 3; grid-row: 1; margin-top: -6px; }
+  .expiry-alert .alert-action { grid-column: 2 / 4; justify-self: start; }
+}

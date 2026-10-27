@@ -15,7 +15,7 @@ personal farmacéutico autorizado, con trazabilidad completa.
     los movimientos del operador; **Admin SDK** en el servidor para el catálogo).
   - **Firebase Auth** con inicio de sesión de **Google**; el login protege toda
     la app. El backend verifica el ID token y el rol antes de escribir.
-- **Tailwind CSS 4**.
+- **CSS organizado por tokens, controles, estructura y componentes**, con temas claro y oscuro.
 - **Firebase App Hosting** para el despliegue (SSR sobre Cloud Run), conectado
   al repositorio de GitHub.
 
@@ -51,6 +51,39 @@ npm run dev
 
 No configure `NEXT_PUBLIC_DEMO_MODE=1` en producción. El valor predeterminado
 es `0`, documentado en `.env.example`.
+
+### Propuesta de rediseño visual
+
+El [diagnóstico y prototipo de las fases 1 y 2](docs/design/README.md) incluye
+una propuesta independiente del inventario para escritorio y móvil, con temas
+claro y oscuro. Utiliza exclusivamente datos ficticios y no conecta con Firebase.
+La [fase 2](docs/design/phase-2.md) incorpora escenarios de carga, error, catálogo
+vacío y datos incompletos para revisar el diseño.
+La [fase 3](docs/design/phase-3.md) integra la base visual en la aplicación:
+tipografía, temas, controles, navegación y encabezados compartidos. El inventario
+de la [fase 4](docs/design/phase-4.md) utiliza tabla en escritorio y tarjetas
+compactas en móvil, con filtros, detalle de lotes y exportación de la vista.
+La [fase 5](docs/design/phase-5.md) extiende el diseño a Movimientos,
+Configuración, Toma de inventario, formularios y acceso con Google. Las fases
+3–5 están integradas localmente. La [fase 6](docs/design/phase-6.md) completa la
+validación técnica local y la preparación de entrega. El usuario autorizó publicar
+el 27 de octubre de 2026; véase la [guía de entrega](docs/design/release-checklist.md).
+La [aceptación en PC](docs/design/acceptance-pc.md) sigue sin resultados humanos registrados.
+
+Para mantener la revisión ficticia separada de la entrega autenticada:
+
+```powershell
+npm run build:demo
+npm run start:demo  # 127.0.0.1:3000, artefacto .next-demo
+```
+
+La entrega usa `npm run build:release` y el artefacto `.next`, con protección
+contra DEMO. Comandos de comprobación y límites en la
+[guía de publicación](docs/design/release-checklist.md).
+
+```powershell
+node docs/design/serve.mjs  # http://127.0.0.1:4317
+```
 
 ### Piloto controlado
 

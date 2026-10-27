@@ -3,8 +3,9 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
-import { activeMedicines, expiringCount, expirySummary, expiryStatus, filterMedicines, isLowStock, isValidMedicineCode, lowStockCount, pharmacistNameByEmail, totalStock, type Medicine, type MovementType, type Pharmacist } from "./lib/inventory";
-import { medicinesToCsv } from "./lib/csv";
+import { activeMedicines, isValidMedicineCode, pharmacistNameByEmail, type Medicine, type MovementType, type Pharmacist } from "./lib/inventory";
+import { summarizeInventory } from "./lib/inventoryView";
+import { inventoryViewToCsv } from "./lib/csv";
 import { lastCountMovementByMedicine } from "./lib/movements";
 import { dateStamp, downloadTextFile } from "./lib/download";
 import * as dataApi from "./lib/db";
@@ -13,17 +14,17 @@ import { useOnline } from "./hooks/useOnline";
 import { useAuthUser } from "./hooks/useAuthUser";
 import { Login } from "./components/Login";
 import { Sidebar } from "./components/Sidebar";
+import { PageHeader } from "./components/PageHeader";
+import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { ConnectionBanner } from "./components/ConnectionBanner";
 import { ExpiryAlert } from "./components/ExpiryAlert";
-import { StatsBar, type StatKey } from "./components/StatsBar";
+import { InventoryPanel } from "./components/InventoryPanel";
 import { Icon } from "./components/Icon";
 import { MovementsTab } from "./components/MovementsTab";
-import { MedicineCard } from "./components/MedicineCard";
 import { SettingsTab } from "./components/SettingsTab";
 import { Modals, type ModalState } from "./components/Modals";
 import { CountModal } from "./components/CountModal";
 import { ConfirmDialog } from "./components/ConfirmDialog";
-import { StatsSkeleton, MedicineGridSkeleton } from "./components/Skeletons";
 import { DEMO_MODE } from "./lib/demo";
 import { canManageCatalog, canOperateInventory, roleForEmail } from "./lib/authz";
 import { PILOT_MODE } from "./lib/pilot";
@@ -85,8 +86,6 @@ export default function Home() {
   const {user,authReady}=useAuthUser();
   const role=DEMO_MODE?"admin" as const:roleForEmail(user?.email);
   const [tab,setTab]=useState<"dashboard"|"movements"|"settings">("dashboard");
-  const [query,setQuery]=useState("");
-  const [statFilter,setStatFilter]=useState<StatKey>("all");
   const searchRef=useRef<HTMLInputElement>(null);
   const [movementMedicineId,setMovementMedicineId]=useState("");
   const [modal,setModal]=useState<AppModal|null>(null);
@@ -96,29 +95,16 @@ export default function Home() {
   const [busy,setBusy]=useState(false);
   const [alertDismissed,setAlertDismissed]=useState(false);
 
-  const {medicines,pharmacists,movements,auditLogs,pendingWrites,loading}=useInventoryData(!!user,role==="admin"&&!DEMO_MODE);
+  const {medicines,pharmacists,movements,auditLogs,pendingWrites,loading,inventoryError,movementsLoading,movementsError,settingsLoading,settingsError,personnelMessage,retryInventory}=useInventoryData(!!user,role==="admin"&&!DEMO_MODE);
   const online=useOnline();
 
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
   const activeMeds=useMemo(()=>activeMedicines(medicines),[medicines]);
   const activePharmacists=useMemo(()=>pharmacists.filter(p=>p.active!==false),[pharmacists]);
   const pharmacistNames=useMemo(()=>pharmacistNameByEmail(pharmacists),[pharmacists]);
-  const filtered=useMemo(()=>filterMedicines(activeMeds,query),[activeMeds,query]);
-  // Filtro por métrica seleccionada en las tarjetas de estadística (KPI accionable).
-  const shownMeds=useMemo(()=>{
-    if(statFilter==="low") return filtered.filter(isLowStock);
-    if(statFilter==="expiring") return filtered.filter(m=>{const e=expiryStatus(m.expiresAt);return e==="vencido"||e==="por-vencer"});
-    return filtered;
-  },[filtered,statFilter]);
-  const onSelectStat=useCallback((key:StatKey)=>{
-    if(key==="recent"){setTab("movements");return}
-    setStatFilter(prev=>prev===key?"all":key);
-    setTab("dashboard");
-  },[]);
-  const total=totalStock(activeMeds), low=lowStockCount(activeMeds);
-  const expiring=useMemo(()=>expiringCount(activeMeds),[activeMeds]);
-  const expAlert=useMemo(()=>expirySummary(medicines),[medicines]);
+  const expAlert=useMemo(()=>summarizeInventory(activeMeds),[activeMeds]);
   const lastCounts=useMemo(()=>lastCountMovementByMedicine(movements),[movements]);
+  const certifications=useMemo(()=>new Map([...lastCounts].map(([id,record])=>[id,{createdAt:record.createdAt,pharmacistName:pharmacistNames.get(record.pharmacistEmail.trim().toLowerCase())||record.pharmacistEmail}])),[lastCounts,pharmacistNames]);
 
   const closeModal=useCallback(()=>{setModal(null);setModalError(null)},[]);
   const openCreate=useCallback((kind:"medicine"|"pharmacist"|"movement")=>{
@@ -154,11 +140,11 @@ export default function Home() {
     return ()=>window.removeEventListener("keydown",onKey);
   },[user,role,modal,deactivation,activeMeds.length,openMovement]);
 
-  const exportMedicines=useCallback(()=>{
-    if(!medicines.length){flash("No hay medicamentos para exportar");return}
-    downloadTextFile(`inventario_${dateStamp()}.csv`,medicinesToCsv(medicines));
-    flash("Inventario exportado");
-  },[medicines,flash]);
+  const exportMedicines=useCallback((items:Medicine[])=>{
+    if(!items.length){flash("No hay medicamentos para exportar");return}
+    downloadTextFile(`inventario_vista_${dateStamp()}.csv`,inventoryViewToCsv(items));
+    flash(`Vista exportada: ${items.length} medicamentos`);
+  },[flash]);
 
   const setActive=useCallback(async(col:"medicines"|"pharmacists",id:string,active:boolean,label:string)=>{
     if(!active){setDeactivation({col,id,label});return}
@@ -186,7 +172,8 @@ export default function Home() {
     }catch(err){
       const message=err instanceof Error?err.message:"No se pudo guardar";
       const lower=message.toLowerCase();
-      const field=lower.includes("código")?"code":lower.includes("concentración")?"strength":lower.includes("nombre")?"name":lower.includes("existencia")?"stock":lower.includes("cantidad")?"quantity":lower.includes("medicamento")?"medicineId":lower.includes("farmacéutico")?"pharmacistEmail":undefined;
+      const field=action==="pharmacist"?(lower.includes("correo")?"email":lower.includes("código")?"license":lower.includes("nombre")?"name":undefined)
+        :lower.includes("código")?"code":lower.includes("concentración")?"strength":lower.includes("nombre")?"name":lower.includes("existencia")?(action==="movement"?"quantity":"stock"):lower.includes("cantidad")?"quantity":lower.includes("vencimiento")?"lotExpiresAt":lower.includes("lote")?"lotNumber":lower.includes("medicamento")?"medicineId":lower.includes("farmacéutico")?"pharmacistEmail":undefined;
       setModalError({message,field});
     }
     finally{setBusy(false)}
@@ -199,33 +186,27 @@ export default function Home() {
   return <main className="app-shell">
     <a className="skip-link" href="#contenido-principal">Saltar al contenido principal</a>
     <Sidebar email={user.email||""} tab={tab} onTab={changeTab} onSignOut={()=>void signOut(auth)} demo={DEMO_MODE} role={role}/>
+    <div className="workspace">
+    <WorkspaceHeader demo={DEMO_MODE} pilot={PILOT_MODE}/>
     <section className="content" id="contenido-principal" tabIndex={-1}>
       {DEMO_MODE&&<div className="demo-banner" role="status"><strong>Modo demostración</strong><span>Datos ficticios · los cambios solo permanecen durante esta sesión</span></div>}
       {!DEMO_MODE&&PILOT_MODE&&<div className="pilot-banner" role="status"><strong>Piloto controlado</strong><span>Uso limitado a personal autorizado · reporte cualquier incidente antes de continuar</span></div>}
       <ConnectionBanner online={online} pendingWrites={pendingWrites}/>
       {!alertDismissed&&<ExpiryAlert summary={expAlert} showViewButton={tab!=="dashboard"} onView={()=>{setTab("dashboard");setAlertDismissed(true)}} onDismiss={()=>setAlertDismissed(true)}/>}
-      <header><div><p className="eyebrow">{today}</p><h1>{tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"}</h1><p>{tab==="dashboard"?"Existencias disponibles y alertas de control":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."}</p></div>{tab!=="settings"&&<button className="primary" onClick={()=>openMovement()} disabled={!activeMeds.length}><Icon name="plus" size={16} /> Registrar movimiento</button>}</header>
+      <PageHeader eyebrow={today} title={tab==="dashboard"?"Inventario de medicamentos":tab==="movements"?"Historial de movimientos":"Configuración"} description={tab==="dashboard"?"Existencias disponibles y alertas de control":tab==="movements"?"Trazabilidad de ingresos y egresos por prescripción.":"Administre el catálogo y el personal autorizado."} action={tab!=="settings"?<button className="primary" onClick={()=>openMovement()} disabled={!activeMeds.length}><Icon name="plus" size={16} /> Registrar movimiento</button>:undefined}/>
 
-      {tab==="dashboard"&&<>
-        {loading?<StatsSkeleton/>:<StatsBar total={total} low={low} expiring={expiring} recent={Math.min(movements.length,8)} onSelect={onSelectStat} active={statFilter}/>}
-        <div className="toolbar"><label><span><Icon name="search" size={17} /></span><input ref={searchRef} aria-label="Buscar medicamentos" placeholder="Buscar medicamento, concentración, código o lote… ( / )" value={query} onChange={e=>setQuery(e.target.value)}/></label><div className="toolbar-end"><span>{shownMeds.length} medicamentos</span><button className="secondary" onClick={exportMedicines} disabled={!medicines.length}><Icon name="download" size={16} /> Exportar CSV</button></div></div>
-        {loading?<div role="status" aria-label="Cargando inventario"><MedicineGridSkeleton/></div>
-          :activeMeds.length
-            ?(shownMeds.length
-              ?<div className="medicine-grid">{shownMeds.map(m=>{const certification=lastCounts.get(m.id);return <MedicineCard key={m.id} medicine={m} certification={certification?{createdAt:certification.createdAt,pharmacistName:pharmacistNames.get(certification.pharmacistEmail.toLowerCase())||certification.pharmacistEmail}:undefined} onMovement={type=>openMovement(m.id,type)} onCount={()=>openCount(m.id)} onViewMovements={()=>viewMedicineMovements(m.id)}/>})}</div>
-              :<div className="panel"><div className="empty-block">{statFilter!=="all"?`Ningún medicamento en «${statFilter==="low"?"Stock bajo":"Próximos a vencer"}»${query?` coincide con «${query}»`:""}.`:`Ningún medicamento coincide con «${query}».`}<br/><button className="secondary" style={{margin:"12px auto 0"}} onClick={()=>{setQuery("");setStatFilter("all")}}>Limpiar filtros</button></div></div>)
-            :<div className="panel"><div className="empty-block">Aún no hay medicamentos activos. Agréguelos en Configuración.</div></div>}
-      </>}
+      {tab==="dashboard"&&<InventoryPanel medicines={activeMeds} certifications={certifications} searchRef={searchRef} loading={loading} error={inventoryError} onRetry={retryInventory} onMovement={openMovement} onCount={openCount} onViewMovements={viewMedicineMovements} onExport={exportMedicines}/>}
 
-      {tab==="movements"&&<MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} loading={loading} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId}/>}
+      {tab==="movements"&&<MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId}/>}
 
-      {tab==="settings"&&canManageCatalog(role)&&<SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount}/>}
+      {tab==="settings"&&canManageCatalog(role)&&<SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} loading={settingsLoading} error={settingsError} onRetry={retryInventory} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount}/>}
     </section>
+    </div>
 
     {notice&&<div className={`toast${notice.critical?" toast-critical":""}`} role={notice.critical?"alert":"status"}>{notice.message}{notice.critical&&<button type="button" onClick={()=>setNotice(null)} aria-label="Descartar mensaje"><Icon name="close" size={18} /></button>}</div>}
     {modal&&(modal.kind==="count"
-      ? <CountModal medicine={medicines.find(m=>m.id===modal.medicineId)} activePharmacists={activePharmacists} busy={busy} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit}/>
-      : <Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} busy={busy} online={online} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit}/>)}
+      ? <CountModal medicine={medicines.find(m=>m.id===modal.medicineId)} activePharmacists={activePharmacists} personnelMessage={personnelMessage} busy={busy} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit}/>
+      : <Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} personnelMessage={personnelMessage} busy={busy} online={online} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit}/>)}
     {deactivation&&<ConfirmDialog label={deactivation.label} busy={busy} onCancel={()=>setDeactivation(null)} onConfirm={()=>void confirmDeactivation()}/>}
   </main>;
 }

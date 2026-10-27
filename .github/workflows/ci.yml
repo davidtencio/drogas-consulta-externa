@@ -50,8 +50,30 @@ jobs:
       - name: Pruebas
         run: npm test
 
-      - name: Puerta WCAG (axe, foco y contraste)
+      - name: Accesibilidad automática (axe, foco y contraste)
         run: npm run test:a11y
 
       - name: Build
-        run: npm run build
+        run: npm run build:release
+
+      - name: Verificar la protección de entrega
+        run: npm run test:release
+
+  verify-rules:
+    name: Permisos en Firestore Emulator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - name: Instalar CLI de validación
+        run: npm install --global firebase-tools@15.22.3
+      - name: Validar reglas vigentes en proyecto ficticio local
+        run: npm run test:rules

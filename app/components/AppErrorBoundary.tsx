@@ -27,8 +27,8 @@ export class AppErrorBoundary extends React.Component<React.PropsWithChildren, S
         <div className="fatal-error-card">
           <span className="fatal-error-icon" aria-hidden="true">!</span>
           <h1>No pudimos mostrar esta pantalla</h1>
-          <p>El incidente quedó registrado. Recargue la aplicación para continuar.</p>
-          <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
+          <p>Recargue la aplicación para continuar. Si el problema persiste, contacte a la persona administradora.</p>
+          <button type="button" className="primary" onClick={() => window.location.reload()}>
             Recargar aplicación
           </button>
         </div>

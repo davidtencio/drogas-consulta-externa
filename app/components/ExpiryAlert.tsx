@@ -4,9 +4,9 @@ import type { ExpirySummary } from "../lib/inventory";
 /** Mensaje del aviso según cuántos hay vencidos y por vencer. */
 export function expiryAlertMessage({ expired, soon }: ExpirySummary): string {
   const p = (n: number) => (n > 1 ? "s" : "");
-  if (expired > 0 && soon > 0) return `${expired} vencido${p(expired)} y ${soon} por vencer`;
-  if (expired > 0) return `${expired} medicamento${p(expired)} vencido${p(expired)}`;
-  return `${soon} medicamento${p(soon)} por vencer`;
+  if (expired > 0 && soon > 0) return `${expired} con lotes vencidos y ${soon} con lotes por vencer`;
+  if (expired > 0) return `${expired} medicamento${p(expired)} con lotes vencidos`;
+  return `${soon} medicamento${p(soon)} con lotes por vencer`;
 }
 
 type Props = {

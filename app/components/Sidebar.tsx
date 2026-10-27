@@ -17,26 +17,30 @@ type Props = {
 /** Barra lateral: navegación entre pestañas y perfil de la sesión. */
 export function Sidebar({ email, tab, onTab, onSignOut, demo = false, role }: Props) {
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" aria-label="Área de trabajo">
       <div className="brand">
-        <span className="brand-mark">Rx</span>
+        <span className="brand-mark" aria-hidden="true">R<sub>x</sub></span>
         <div><strong>Control de Drogas</strong><small>Consulta externa</small></div>
       </div>
+      <p className="workspace-label">ÁREA DE TRABAJO</p>
       <nav aria-label="Navegación principal">
         <button className={tab === "dashboard" ? "active" : ""} aria-current={tab === "dashboard" ? "page" : undefined} onClick={() => onTab("dashboard")}><span aria-hidden="true"><Icon name="grid" /></span> Inventario</button>
         <button className={tab === "movements" ? "active" : ""} aria-current={tab === "movements" ? "page" : undefined} onClick={() => onTab("movements")}><span aria-hidden="true"><Icon name="movements" /></span> Movimientos</button>
+        <Link href="/arqueo"><span aria-hidden="true"><Icon name="arqueo" /></span><span>Toma de inventario</span></Link>
         {role === "admin" && <button className={tab === "settings" ? "active" : ""} aria-current={tab === "settings" ? "page" : undefined} onClick={() => onTab("settings")}><span aria-hidden="true"><Icon name="settings" /></span> Configuración</button>}
-        <Link href="/arqueo"><span aria-hidden="true"><Icon name="arqueo" /></span> Toma Inventario</Link>
       </nav>
-      <div className="secure">
-        <span><Icon name="shield" size={18} /></span>
-        <div><strong>Conexión protegida</strong><small>Datos cifrados en tránsito y reposo</small></div>
-      </div>
-      <ThemeToggle />
-      <div className="profile">
-        <div className="avatar">{(email || "?").slice(0, 2).toUpperCase()}</div>
-        <div><strong>{email}</strong><small>{demo ? "Administrador demo" : role === "admin" ? "Administrador" : "Operador"}</small></div>
-        {!demo&&<button className="logout" onClick={onSignOut} aria-label="Cerrar sesión" title="Cerrar sesión"><Icon name="logout" size={18} /></button>}
+      <div className="sidebar-bottom">
+        {!demo && <div className="secure">
+          <span><Icon name="shield" size={18} /></span>
+          <div><strong>Conexión protegida</strong><small>Datos cifrados en tránsito y reposo</small></div>
+        </div>}
+        <ThemeToggle />
+        {!demo && <button type="button" className="logout mobile-signout" onClick={onSignOut} aria-label="Cerrar sesión" title="Cerrar sesión"><Icon name="logout" size={18} /></button>}
+        <div className="profile">
+          <div className="avatar">{(email || "?").slice(0, 2).toUpperCase()}</div>
+          <div className="profile-copy"><strong>{demo ? "Sesión de demostración" : email}</strong><small>{demo ? "Administrador demo" : role === "admin" ? "Administrador" : "Operador"}</small></div>
+          {!demo&&<button className="logout" onClick={onSignOut} aria-label="Cerrar sesión" title="Cerrar sesión"><Icon name="logout" size={18} /></button>}
+        </div>
       </div>
     </aside>
   );

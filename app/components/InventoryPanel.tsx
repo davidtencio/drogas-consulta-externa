@@ -27,8 +27,14 @@ function MedicineQuantity({ medicine }: { medicine: Medicine }) {
   return <><strong className="inventory-quantity">{medicine.stock.toLocaleString("es-CR")}</strong><span className="inventory-unit">{medicine.unit}</span></>;
 }
 
-function DetailButton({ medicine, onOpen }: { medicine: Medicine; onOpen: (id: string) => void }) {
-  return <button type="button" className="inventory-text-button" aria-label={`Ver detalle de ${medicine.name} ${medicine.strength}`} onClick={() => onOpen(medicine.id)}>Ver detalle<Icon name="chevron-right" size={14}/></button>;
+function RowActions({ medicine, onMovement, onOpen }: { medicine: Medicine; onMovement: (id: string, type: MovementType) => void; onOpen: (id: string) => void }) {
+  return (
+    <div className="inventory-row-actions">
+      <button type="button" className="inventory-text-button" aria-label={`Ingreso rápido de ${medicine.name} ${medicine.strength}`} onClick={() => onMovement(medicine.id, "IN")}>+ Ingreso</button>
+      <button type="button" className="inventory-text-button" aria-label={`Egreso rápido de ${medicine.name} ${medicine.strength}`} onClick={() => onMovement(medicine.id, "OUT")}>− Egreso</button>
+      <button type="button" className="inventory-text-button" aria-label={`Ver detalle de ${medicine.name} ${medicine.strength}`} onClick={() => onOpen(medicine.id)}>Ver detalle<Icon name="chevron-right" size={14}/></button>
+    </div>
+  );
 }
 
 export function InventoryPanel({ medicines, certifications, searchRef, loading, error, onRetry, onMovement, onCount, onViewMovements, onExport }: Props) {
@@ -61,11 +67,11 @@ export function InventoryPanel({ medicines, certifications, searchRef, loading, 
         : <>
           <div className="inventory-table-container">
             <table className="inventory-table"><caption className="sr-only">Inventario de medicamentos. Cada cantidad conserva su unidad. Consulte el detalle para ver los lotes.</caption>
-              <thead><tr><th scope="col">Medicamento</th><th scope="col" className="inventory-numeric">Existencia registrada</th><th scope="col">Nivel de stock</th><th scope="col">Vencimiento más cercano</th><th scope="col"><span className="sr-only">Detalle</span></th></tr></thead>
-              <tbody>{shown.map((medicine) => <tr key={medicine.id}><td><MedicineIdentity medicine={medicine}/></td><td className="inventory-numeric"><MedicineQuantity medicine={medicine}/></td><td><StockLabel medicine={medicine}/></td><td><MedicineExpiryLabel medicine={medicine}/></td><td><DetailButton medicine={medicine} onOpen={setSelectedId}/></td></tr>)}</tbody>
+              <thead><tr><th scope="col">Medicamento</th><th scope="col" className="inventory-numeric">Existencia registrada</th><th scope="col">Nivel de stock</th><th scope="col">Vencimiento más cercano</th><th scope="col"><span className="sr-only">Acciones y detalle</span></th></tr></thead>
+              <tbody>{shown.map((medicine) => <tr key={medicine.id}><td><MedicineIdentity medicine={medicine}/></td><td className="inventory-numeric"><MedicineQuantity medicine={medicine}/></td><td><StockLabel medicine={medicine}/></td><td><MedicineExpiryLabel medicine={medicine}/></td><td><RowActions medicine={medicine} onMovement={onMovement} onOpen={setSelectedId}/></td></tr>)}</tbody>
             </table>
           </div>
-          <div className="inventory-cards">{shown.map((medicine) => <article className="inventory-item" key={medicine.id} aria-label={`${medicine.name} ${medicine.strength}`}><div className="inventory-item-header"><div><MedicineIdentity medicine={medicine}/></div><div className="inventory-numeric"><span className="sr-only">Existencia registrada: </span><MedicineQuantity medicine={medicine}/></div></div><div className="inventory-item-meta"><StockLabel medicine={medicine}/><div><span className="sr-only">Vencimiento más cercano: </span><MedicineExpiryLabel medicine={medicine}/></div></div><div className="inventory-item-actions"><DetailButton medicine={medicine} onOpen={setSelectedId}/></div></article>)}</div>
+          <div className="inventory-cards">{shown.map((medicine) => <article className="inventory-item" key={medicine.id} aria-label={`${medicine.name} ${medicine.strength}`}><div className="inventory-item-header"><div><MedicineIdentity medicine={medicine}/></div><div className="inventory-numeric"><span className="sr-only">Existencia registrada: </span><MedicineQuantity medicine={medicine}/></div></div><div className="inventory-item-meta"><StockLabel medicine={medicine}/><div><span className="sr-only">Vencimiento más cercano: </span><MedicineExpiryLabel medicine={medicine}/></div></div><div className="inventory-item-actions"><RowActions medicine={medicine} onMovement={onMovement} onOpen={setSelectedId}/></div></article>)}</div>
         </>}
       <footer className="inventory-footer"><span role="status" aria-live="polite" aria-atomic="true">{unavailable ? "Sin datos confirmados para esta consulta" : `${shown.length} de ${medicines.length} medicamentos${query || filter !== "all" ? " · Vista filtrada" : ""}`}</span><span className="inventory-footer-hint">Las categorías de vencimiento pueden compartir medicamentos.</span></footer>
     </section>

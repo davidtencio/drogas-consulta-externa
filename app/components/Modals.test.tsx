@@ -7,6 +7,11 @@ import type { Medicine, Pharmacist } from "../lib/inventory";
 const med: Medicine = {
   id: "m1", name: "Metformina", strength: "500 mg", form: "Tableta", unit: "unidades",
   stock: 50, minimumStock: 10, lot: "L1", expiresAt: "2099-01-01", active: true,
+  lots: [
+    { id: "lot-venc", lot: "L-VENC", expiresAt: "2020-01-01", quantity: 10, receivedAt: "2019-01-01T00:00:00.000Z" },
+    { id: "lot-1", lot: "L1", expiresAt: "2099-01-01", quantity: 15, receivedAt: "2026-01-01T00:00:00.000Z" },
+    { id: "lot-2", lot: "L2", expiresAt: "2099-06-01", quantity: 25, receivedAt: "2026-02-01T00:00:00.000Z" },
+  ],
 };
 const pharm: Pharmacist = { id: "p1", name: "Ana Rojas", email: "ana@h.cr", license: "CF-1", active: true };
 
@@ -108,6 +113,14 @@ describe("Modals", () => {
     const form = submitted.mock.calls[0][0] as FormData;
     expect(form.getAll("lotNumber")).toEqual(["LOTE-B"]);
     expect(form.getAll("lotQuantity")).toEqual(["4"]);
+  });
+
+  it("previsualiza el descuento FEFO omitiendo lotes vencidos y permite elegir un lote específico", async () => {
+    render(<Modals {...base({ state: { kind: "movement", medicineId: "m1", type: "OUT" } })} />);
+    await userEvent.type(screen.getByLabelText("Cantidad"), "20");
+    expect(screen.getByText(/Descuento previsto \(FEFO\):/)).toHaveTextContent("L1: 15 unidades · L2: 5 unidades");
+    await userEvent.selectOptions(screen.getByLabelText("Lote a descontar"), "lot-2");
+    expect(screen.getByText(/Descuento previsto \(lote seleccionado\):/)).toHaveTextContent("L2: 20 unidades");
   });
 
   it("cancelar cierra sin enviar el formulario", async () => {

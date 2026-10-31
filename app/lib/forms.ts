@@ -51,6 +51,8 @@ export type ParsedMovementForm = {
   type: MovementType;
   quantity: number;
   receivedLots?: ReceivedLot[];
+  targetLotId?: string;
+  allowExpired?: boolean;
   prescriptionRef: string;
   note: string;
   pharmacistEmail: string;
@@ -71,6 +73,8 @@ export function parseMovementForm(form: FormData): ParsedMovementForm {
   if (type === "IN" && receivedLots!.some((lot) => !lot.lot || !lot.expiresAt || !Number.isInteger(lot.quantity) || lot.quantity <= 0)) {
     throw new Error("Complete correctamente todos los lotes recibidos.");
   }
+  const targetLotId = type === "OUT" ? trimmed(form, "targetLotId") || undefined : undefined;
+  const allowExpired = type === "OUT" && (form.get("allowExpired") === "true" || form.get("allowExpired") === "on") ? true : undefined;
   const pharmacistEmail = trimmed(form, "pharmacistEmail");
   if (!medicineId) throw new Error("Cantidad inválida.");
   if (!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable.");
@@ -79,6 +83,8 @@ export function parseMovementForm(form: FormData): ParsedMovementForm {
     type,
     quantity,
     receivedLots,
+    ...(targetLotId ? { targetLotId } : {}),
+    ...(allowExpired ? { allowExpired } : {}),
     prescriptionRef: trimmed(form, "prescriptionRef"),
     note: trimmed(form, "note"),
     pharmacistEmail,
@@ -89,10 +95,15 @@ export function parseCountForm(form: FormData, medicine: Medicine | undefined) {
   if (!medicine) throw new Error("Medicamento no disponible.");
   const pharmacistEmail = trimmed(form, "pharmacistEmail");
   if (!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable.");
+  const rawCount = trimmed(form, "countedQuantity");
+  const countedQuantity = rawCount === "" ? medicine.stock : Number(rawCount);
+  if (!Number.isInteger(countedQuantity) || countedQuantity < 0) {
+    throw new Error("La cantidad contada debe ser un número entero (0 o más).");
+  }
   return {
     medicine: { name: medicine.name, stock: medicine.stock },
     medicineId: medicine.id,
-    countedQuantity: medicine.stock,
+    countedQuantity,
     note: trimmed(form, "note"),
     pharmacistEmail,
   };
@@ -107,11 +118,17 @@ export function fieldForFormError(action: string, message: string): string | und
     if (lower.includes("nombre")) return "name";
     return undefined;
   }
+  if (action === "count") {
+    if (lower.includes("cantidad")) return "countedQuantity";
+    if (lower.includes("farmacéutico")) return "pharmacistEmail";
+    return undefined;
+  }
   if (lower.includes("código")) return "code";
   if (lower.includes("concentración")) return "strength";
   if (lower.includes("nombre")) return "name";
   if (lower.includes("existencia")) return action === "movement" ? "quantity" : "stock";
   if (lower.includes("cantidad")) return "quantity";
+  if (lower.includes("lote seleccionado")) return "targetLotId";
   if (lower.includes("vencimiento")) return action === "medicine" ? "expiresAt" : "lotExpiresAt";
   if (lower.includes("lote")) return action === "medicine" ? "lot" : "lotNumber";
   if (lower.includes("medicamento")) return "medicineId";

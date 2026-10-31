@@ -16,6 +16,9 @@ type Props = {
 export function CountModal({ medicine, activePharmacists, busy, error, errorField, personnelMessage, onClose, onSubmit, onAdjust }: Props) {
   const [confirmed, setConfirmed] = useState(false);
   const system = Number(medicine?.stock) || 0;
+  const [countedQuantity, setCountedQuantity] = useState(String(system));
+  const parsedCount = countedQuantity.trim() === "" ? system : Number(countedQuantity);
+  const diff = Number.isInteger(parsedCount) && parsedCount >= 0 ? parsedCount - system : 0;
   useFocusErrorField(errorField, error);
 
   return (
@@ -25,7 +28,25 @@ export function CountModal({ medicine, activePharmacists, busy, error, errorFiel
           <label>Medicamento<input value={medicine ? `${medicine.name} ${medicine.strength}` : ""} readOnly /></label>
           <label>En sistema<input value={`${system.toLocaleString("es-CR")} ${medicine?.unit ?? ""}`} readOnly /></label>
         </div>
-        <label className="confirm-check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} data-autofocus /> Confirmo que el saldo físico coincide con el sistema ({system.toLocaleString("es-CR")}).</label>
+        <label>
+          Cantidad física contada
+          <input
+            name="countedQuantity"
+            type="number"
+            min="0"
+            step="1"
+            value={countedQuantity}
+            onChange={(e) => setCountedQuantity(e.target.value)}
+            aria-invalid={errorField === "countedQuantity" || undefined}
+            aria-describedby={errorField === "countedQuantity" ? "count-error" : undefined}
+          />
+        </label>
+        {diff !== 0 && (
+          <p className="form-context">
+            Diferencia frente al sistema: <strong>{diff > 0 ? `+${diff}` : diff} {medicine?.unit ?? ""}</strong> (el conteo deja constancia en bitácora sin alterar el stock).
+          </p>
+        )}
+        <label className="confirm-check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} data-autofocus /> Confirmo el conteo físico verificado ({(Number.isInteger(parsedCount) && parsedCount >= 0 ? parsedCount : system).toLocaleString("es-CR")}).</label>
         {medicine && onAdjust && (
           <div className="form-row">
             <button type="button" className="secondary" onClick={() => onAdjust(medicine.id, "OUT")}>Registrar faltante (egreso)</button>

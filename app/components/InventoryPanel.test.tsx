@@ -33,6 +33,15 @@ describe("inventario conectado", () => {
     expect(callbacks.onMovement).toHaveBeenCalledWith("a", "OUT");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+  it("ofrece acciones rápidas de ingreso y egreso directamente desde la fila", async () => {
+    const callbacks = props();
+    render(<InventoryPanel {...callbacks}/>);
+    const table = within(screen.getByRole("table"));
+    await userEvent.click(table.getByRole("button", { name: "Ingreso rápido de Clonazepam 2 mg" }));
+    expect(callbacks.onMovement).toHaveBeenCalledWith("a", "IN");
+    await userEvent.click(table.getByRole("button", { name: "Egreso rápido de Clonazepam 2 mg" }));
+    expect(callbacks.onMovement).toHaveBeenCalledWith("a", "OUT");
+  });
   it("exporta exclusivamente la vista filtrada", async () => {
     const callbacks = props();
     render(<InventoryPanel {...callbacks} medicines={[medicine, { ...medicine, id: "b", name: "Morfina" }]}/>);

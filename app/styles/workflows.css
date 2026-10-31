@@ -128,7 +128,7 @@
 .arqueo { max-width: 980px; padding: 32px 24px 60px; margin: 0 auto; }
 .arqueo .page-header { align-items: flex-start; }
 .count-session { margin-bottom: 24px; }
-.arqueo-controls { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: end; gap: 16px; padding: 20px 24px 0; }
+.arqueo-controls { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); align-items: end; gap: 16px; padding: 20px 24px 0; }
 .arqueo-controls .search { position: relative; }
 .arqueo-controls .search > span { position: absolute; left: 12px; top: 13px; color: var(--muted); }
 .arqueo-controls .search input { padding-left: 38px; }
@@ -137,7 +137,7 @@
 .arqueo-check, .arqueo-all input { width: 22px; height: 22px; accent-color: var(--primary); flex-shrink: 0; }
 .count-scope { font-size: 12px; color: var(--muted); line-height: 1.7; margin: 0 0 16px; }
 .arqueo-list { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.arqueo-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 16px; padding: 18px 24px; background: var(--surface); border-bottom: 1px solid var(--line); cursor: pointer; }
+.arqueo-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; align-items: center; gap: 16px; padding: 18px 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .arqueo-row:last-child { border-bottom: 0; }
 .arqueo-row.counted { background: var(--primary-tint); }
 .arqueo-med strong { display: block; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
@@ -146,6 +146,10 @@
 .arqueo-sys { text-align: right; }
 .arqueo-sys small { display: block; font-size: 11px; color: var(--muted); }
 .arqueo-sys span { display: block; margin: 3px 0; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.arqueo-counted { display: grid; gap: 4px; text-align: right; min-width: 110px; }
+.arqueo-counted small { font-size: 11px; color: var(--muted); }
+.arqueo-counted input { width: 110px; min-height: 40px; border: 1px solid var(--input-line); border-radius: 7px; padding: 6px 10px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; justify-self: end; }
+.arqueo-counted .arqueo-diff { color: var(--crit); font-weight: 600; }
 .arqueo-footer { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-top: 24px; padding: 20px 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 -4px 16px color-mix(in srgb,var(--text) 4%,transparent); }
 .arqueo-progress strong { display: block; font-size: 14px; font-weight: 600; }
 .arqueo-progress small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }

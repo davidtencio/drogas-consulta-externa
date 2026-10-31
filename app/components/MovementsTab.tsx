@@ -28,6 +28,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
   const [type, setType] = useState<MovementTypeFilter>("ALL");
   const [text, setText] = useState("");
   const [medicineId, setMedicineId] = useState(initialMedicineId);
+  const [pharmacistEmail, setPharmacistEmail] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [sort, setSort] = useState<MovementSort>("date-desc");
@@ -39,16 +40,26 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
 
   const medicineOptions = useMemo(() => sortByName(medicines), [medicines]);
   const medicineUnits = useMemo(() => new Map(medicines.map((medicine) => [medicine.id, medicine.unit])), [medicines]);
-  const filter = useMemo(() => ({ type, text, medicineId, from, to }), [type, text, medicineId, from, to]);
+  const resolveName = useCallback((email: string) => displayPharmacist(email, pharmacistNames), [pharmacistNames]);
+  const pharmacistOptions = useMemo(() => {
+    const emails = new Set<string>();
+    for (const email of pharmacistNames.keys()) emails.add(email.trim().toLowerCase());
+    for (const m of movements) {
+      const email = m.pharmacistEmail?.trim().toLowerCase();
+      if (email) emails.add(email);
+    }
+    return [...emails].map((email) => ({ email, name: resolveName(email) })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [pharmacistNames, movements, resolveName]);
+  const filter = useMemo(() => ({ type, text, medicineId, pharmacistEmail, from, to }), [type, text, medicineId, pharmacistEmail, from, to]);
   const visible = useMemo(() => filterAndSortMovements(movements, filter, sort), [movements, filter, sort]);
   const summary = useMemo(() => summarizeMovements(visible), [visible]);
-  const filtered = type !== "ALL" || !!text || !!medicineId || !!from || !!to;
+  const filtered = type !== "ALL" || !!text || !!medicineId || !!pharmacistEmail || !!from || !!to;
   const selectedMedicine = useMemo(() => medicines.find((m) => m.id === medicineId), [medicines, medicineId]);
   const changeMedicine = useCallback((id: string) => { setMedicineId(id); onMedicineFilterChange?.(id); }, [onMedicineFilterChange]);
-  const clearFilters = useCallback(() => { setType("ALL"); setText(""); changeMedicine(""); setFrom(""); setTo(""); }, [changeMedicine]);
+  const clearFilters = useCallback(() => { setType("ALL"); setText(""); changeMedicine(""); setPharmacistEmail(""); setFrom(""); setTo(""); }, [changeMedicine]);
 
   // Al cambiar filtros, orden o tamaño de página, vuelve a la primera página.
-  const sig = `${type}|${text}|${medicineId}|${from}|${to}|${sort}|${pageSize}`;
+  const sig = `${type}|${text}|${medicineId}|${pharmacistEmail}|${from}|${to}|${sort}|${pageSize}`;
   const [prevSig, setPrevSig] = useState(sig);
   if (sig !== prevSig) { setPrevSig(sig); setPage(1); }
 
@@ -56,7 +67,6 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
   const totalPages = pageCount(visible.length, pageSize);
   const pageItems = useMemo(() => paginate(visible, pageNum, pageSize), [visible, pageNum, pageSize]);
   const shown = pageRange(visible.length, pageNum, pageSize);
-  const resolveName = useCallback((email: string) => displayPharmacist(email, pharmacistNames), [pharmacistNames]);
 
   const onExport = useCallback(async () => {
     setExporting(true); setExportError("");
@@ -81,9 +91,10 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
       </div>
       {exportError && <div className="form-error panel-feedback" role="alert">{exportError}</div>}
       <div className="mov-filters">
-        <label className="search"><span><Icon name="search" size={16} /></span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento o prescripción..." value={text} onChange={(e) => setText(e.target.value)} /></label>
+        <label className="search"><span><Icon name="search" size={16} /></span><input aria-label="Buscar movimientos" placeholder="Buscar por medicamento, lote o prescripción..." value={text} onChange={(e) => setText(e.target.value)} /></label>
         <label>Medicamento<select aria-label="Filtrar por medicamento" value={medicineId} onChange={(e) => changeMedicine(e.target.value)}><option value="">Todos</option>{medicineOptions.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength}</option>)}</select></label>
         <label>Tipo<select aria-label="Filtrar por tipo" value={type} onChange={(e) => setType(e.target.value as MovementTypeFilter)}><option value="ALL">Todos</option><option value="IN">Ingresos</option><option value="OUT">Egresos</option><option value="COUNT">Conteos</option></select></label>
+        <label>Responsable<select aria-label="Filtrar por responsable" value={pharmacistEmail} onChange={(e) => setPharmacistEmail(e.target.value)}><option value="">Todos</option>{pharmacistOptions.map((p) => <option key={p.email} value={p.email}>Por: {p.name}</option>)}</select></label>
         <label>Desde<input type="date" lang="es-CR" aria-label="Desde" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label>
         <label>Hasta<input type="date" lang="es-CR" aria-label="Hasta" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>
         <label>Orden<select aria-label="Ordenar" value={sort} onChange={(e) => setSort(e.target.value as MovementSort)}><option value="date-desc">Fecha (reciente)</option><option value="date-asc">Fecha (antiguo)</option><option value="qty-desc">Cantidad (mayor)</option><option value="qty-asc">Cantidad (menor)</option></select></label>

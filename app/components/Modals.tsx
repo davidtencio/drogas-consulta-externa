@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { formatMedicineCode, type Medicine, type MovementType, type Pharmacist } from "../lib/inventory";
+import { isLotExpired, normalizeMedicineLots, previewLotOut } from "../lib/lots";
 import { AccessibleDialog } from "./AccessibleDialog";
 import { useFocusErrorField } from "../hooks/useFocusErrorField";
 import { ObservationField } from "./ObservationField";
@@ -27,7 +28,23 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
   const [movementType, setMovementType] = useState<MovementType>(state.kind === "movement" ? state.type ?? "OUT" : "OUT");
   const [lotRows, setLotRows] = useState([{ key: 1 }]);
   const [medicineId, setMedicineId] = useState(state.kind === "movement" ? state.medicineId ?? "" : "");
+  const [outQuantity, setOutQuantity] = useState("");
+  const [targetLotId, setTargetLotId] = useState("");
+  const [allowExpired, setAllowExpired] = useState(false);
   const selectedMedicine = activeMeds.find((medicine) => medicine.id === medicineId);
+  const todayIso = new Date().toISOString();
+  const normalizedLots = selectedMedicine
+    ? normalizeMedicineLots(selectedMedicine, selectedMedicine.id, todayIso).filter((lot) => lot.quantity > 0)
+    : [];
+  const hasExpiredLots = normalizedLots.some((lot) => isLotExpired(lot, todayIso));
+  const outPreview = selectedMedicine && movementType === "OUT" && Number(outQuantity) > 0
+    ? previewLotOut(normalizedLots, {
+        quantity: Number(outQuantity),
+        now: todayIso,
+        targetLotId: targetLotId || undefined,
+        allowExpired,
+      })
+    : null;
   const pharmacistOptions = activePharmacists.map((p) => <option key={p.id} value={p.email}>{p.name} — {p.license}</option>);
   const title = state.kind === "movement"
     ? state.type ? movementType === "IN" ? "Registrar ingreso" : "Registrar egreso" : "Registrar movimiento"
@@ -46,12 +63,46 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
       {state.kind === "movement" && (
         <form onSubmit={(e) => onSubmit(e, "movement")} aria-busy={busy} aria-describedby={error ? "modal-error" : undefined}>
           <fieldset className="form-section"><legend>1. Medicamento y operación</legend>
-          <label>Medicamento<select name="medicineId" required value={medicineId} onChange={(e) => setMedicineId(e.target.value)} data-autofocus {...invalid("medicineId")}><option value="" disabled>Seleccione…</option>{activeMeds.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength} — {m.stock} {m.unit}</option>)}</select></label>
+          <label>Medicamento<select name="medicineId" required value={medicineId} onChange={(e) => { setMedicineId(e.target.value); setTargetLotId(""); setAllowExpired(false); }} data-autofocus {...invalid("medicineId")}><option value="" disabled>Seleccione…</option>{activeMeds.map((m) => <option key={m.id} value={m.id}>{m.name} {m.strength} — {m.stock} {m.unit}</option>)}</select></label>
           {selectedMedicine && <p className="form-context">Existencia registrada: <strong>{selectedMedicine.stock.toLocaleString("es-CR")} {selectedMedicine.unit}</strong> · {selectedMedicine.form}</p>}
           <div className="form-row">
             <label>Tipo<select name="type" value={movementType} onChange={(e) => setMovementType(e.target.value as MovementType)}><option value="OUT">Egreso</option><option value="IN">Ingreso</option></select></label>
-            {movementType === "OUT" && <label>Cantidad<input name="quantity" type="number" min="1" step="1" required {...invalid("quantity")} /></label>}
+            {movementType === "OUT" && <label>Cantidad<input name="quantity" type="number" min="1" step="1" required value={outQuantity} onChange={(e) => setOutQuantity(e.target.value)} {...invalid("quantity")} /></label>}
           </div>
+          {movementType === "OUT" && selectedMedicine && normalizedLots.length > 0 && (
+            <>
+              <label>
+                Lote a descontar
+                <select name="targetLotId" value={targetLotId} onChange={(e) => setTargetLotId(e.target.value)} {...invalid("targetLotId")}>
+                  <option value="">Automático (FEFO — primero en vencer vigente)</option>
+                  {normalizedLots.map((lot) => {
+                    const expired = isLotExpired(lot, todayIso);
+                    return (
+                      <option key={lot.id} value={lot.id}>
+                        {lot.lot} ({lot.quantity} {selectedMedicine.unit}) — {lot.expiresAt ? `Vence ${lot.expiresAt}` : "Sin fecha"}{expired ? " · VENCIDO" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+              {hasExpiredLots && (
+                <label className="confirm-check">
+                  <input type="checkbox" name="allowExpired" value="true" checked={allowExpired} onChange={(e) => setAllowExpired(e.target.checked)} />
+                  Permitir descargo de lote vencido (baja o retiro de inventario)
+                </label>
+              )}
+              {outPreview && (
+                outPreview.error ? (
+                  <p className="form-context">{outPreview.error}</p>
+                ) : outPreview.allocations.length > 0 ? (
+                  <p className="form-context">
+                    Descuento previsto ({targetLotId ? "lote seleccionado" : "FEFO"}):{" "}
+                    <strong>{outPreview.allocations.map((a) => `${a.lot}: ${a.quantity} ${selectedMedicine.unit}`).join(" · ")}</strong>
+                  </p>
+                ) : null
+              )}
+            </>
+          )}
           </fieldset>
           {movementType === "IN" && <fieldset className="form-section lot-entry">
             <legend>2. Lotes recibidos</legend>

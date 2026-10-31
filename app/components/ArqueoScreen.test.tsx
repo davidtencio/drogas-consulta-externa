@@ -51,6 +51,27 @@ describe("ArqueoScreen", () => {
     expect(pharmacistEmail).toBe("ana@h.cr");
   });
 
+  it("permite registrar una cantidad física distinta y filtrar medicamentos con diferencias", async () => {
+    render(<ArqueoScreen email="op@h.cr" />);
+    const input = screen.getByLabelText("Cantidad física de Metformina");
+    await userEvent.clear(input);
+    await userEvent.type(input, "97");
+    expect(screen.getByText("Dif: -3")).toBeInTheDocument();
+    expect(screen.getByText("1 confirmado de 2")).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Estado de revisión"), "with-diff");
+    expect(screen.getByText("Metformina")).toBeInTheDocument();
+    expect(screen.queryByText("Ibuprofeno")).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Farmacéutico responsable"), "ana@h.cr");
+    await userEvent.click(screen.getByRole("button", { name: /Registrar toma/ }));
+    expect(registerCounts).toHaveBeenCalledOnce();
+    expect(registerCounts.mock.calls[0][0][0]).toMatchObject({
+      countedQuantity: 97,
+      medicine: { id: "a", stock: 100 },
+    });
+  });
+
   it("'Confirmar todos' selecciona todo el inventario", async () => {
     render(<ArqueoScreen email="op@h.cr" />);
     await userEvent.click(screen.getByLabelText("Confirmar todos"));

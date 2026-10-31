@@ -84,6 +84,16 @@ describe("SettingsTab", () => {
     expect(onSetActive).toHaveBeenCalledWith("medicines", "old", true, "Ácido fólico");
   });
 
+  it("muestra nombres legibles de acciones y entidades en la bitácora administrativa", () => {
+    setup({
+      auditLogs: [
+        { id: "a1", action: "medicine.update", entityType: "medicine", entityId: "med1", actorEmail: "admin@h.cr", createdAt: "2026-07-16T10:00:00.000Z" },
+      ],
+    });
+    expect(screen.getByText("Edición de medicamento")).toBeInTheDocument();
+    expect(screen.getByText("Metformina 500 mg")).toBeInTheDocument();
+  });
+
   it("distingue error de catálogo vacío y permite reintentar", async () => {
     const retry = vi.fn();
     setup({ medicines: [], error: "Catálogo no disponible", onRetry: retry });

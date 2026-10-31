@@ -32,8 +32,8 @@ function mov(o: Partial<Movement> = {}): Movement {
 const names = new Map([["ana@h.cr", "Ana Rojas"], ["luis@h.cr", "Luis Mora"]]);
 
 const sample: Movement[] = [
-  mov({ id: "a", type: "IN", medicineName: "Amoxicilina", pharmacistEmail: "ana@h.cr", createdAt: "2026-07-10T08:00:00.000Z" }),
-  mov({ id: "b", type: "OUT", medicineName: "Ibuprofeno", pharmacistEmail: "luis@h.cr", createdAt: "2026-07-15T09:00:00.000Z" }),
+  mov({ id: "a", type: "IN", medicineName: "Amoxicilina", pharmacistEmail: "ana@h.cr", createdAt: "2026-07-10T08:00:00.000Z", lotAllocations: [{ lotId: "l1", lot: "L-AMOX-01", expiresAt: "2027-01-01", quantity: 5 }] }),
+  mov({ id: "b", type: "OUT", medicineName: "Ibuprofeno", pharmacistEmail: "luis@h.cr", createdAt: "2026-07-15T09:00:00.000Z", lotAllocations: [{ lotId: "l2", lot: "L-IBU-99", expiresAt: "2027-06-01", quantity: 5 }] }),
 ];
 
 describe("MovementsTab", () => {
@@ -60,12 +60,20 @@ describe("MovementsTab", () => {
     expect(within(body).getByText("Ibuprofeno")).toBeInTheDocument();
   });
 
-  it("filtra por texto de medicamento", async () => {
+  it("filtra por texto de medicamento y por código de lote", async () => {
     render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} />);
-    await userEvent.type(screen.getByLabelText("Buscar movimientos"), "ibupro");
+    await userEvent.type(screen.getByLabelText("Buscar movimientos"), "L-IBU-99");
     const body = screen.getByRole("table").querySelector("tbody")!;
     expect(within(body).queryByText("Amoxicilina")).not.toBeInTheDocument();
     expect(within(body).getByText("Ibuprofeno")).toBeInTheDocument();
+  });
+
+  it("filtra por responsable", async () => {
+    render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} />);
+    await userEvent.selectOptions(screen.getByLabelText("Filtrar por responsable"), "ana@h.cr");
+    const body = screen.getByRole("table").querySelector("tbody")!;
+    expect(within(body).getByText("Amoxicilina")).toBeInTheDocument();
+    expect(within(body).queryByText("Ibuprofeno")).not.toBeInTheDocument();
   });
 
   it("muestra mensaje cuando no hay coincidencias", async () => {

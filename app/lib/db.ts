@@ -99,6 +99,8 @@ export type MovementRequest = {
   prescriptionRef: string;
   note?: string;
   receivedLots?: ReceivedLot[];
+  targetLotId?: string;
+  allowExpired?: boolean;
   pharmacistEmail: string;
   now: string;
 };
@@ -110,7 +112,7 @@ export type MovementRequest = {
  */
 export function registerMovement(req: MovementRequest): Promise<void> {
   if (DEMO_MODE) {
-    demoRegisterMovement({ medicineId: req.medicineId, type: req.type, quantity: req.quantity, prescriptionRef: req.prescriptionRef, note: req.note, pharmacistEmail: req.pharmacistEmail, createdAt: req.now }, req.receivedLots);
+    demoRegisterMovement({ medicineId: req.medicineId, type: req.type, quantity: req.quantity, prescriptionRef: req.prescriptionRef, note: req.note, pharmacistEmail: req.pharmacistEmail, createdAt: req.now }, req.receivedLots, { targetLotId: req.targetLotId, allowExpired: req.allowExpired });
     return Promise.resolve();
   }
   return runTransaction(db, async (tx) => {
@@ -122,6 +124,8 @@ export function registerMovement(req: MovementRequest): Promise<void> {
       type: req.type,
       quantity: req.quantity,
       receivedLots: req.receivedLots,
+      targetLotId: req.targetLotId,
+      allowExpired: req.allowExpired,
       now: req.now,
     });
     const { nextStock, record } = prepareMovement(

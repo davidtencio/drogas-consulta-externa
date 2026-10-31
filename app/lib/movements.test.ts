@@ -44,6 +44,14 @@ describe("filterMovements", () => {
   it("filtra por referencia de prescripción", () => {
     expect(filterMovements(sample, { type: "ALL", text: "RX-300" }).map((m) => m.id)).toEqual(["c"]);
   });
+  it("filtra por código de lote en lotAllocations y por farmacéutico responsable", () => {
+    const list = [
+      mov({ id: "a", pharmacistEmail: "ana@h.cr", lotAllocations: [{ lotId: "1", lot: "LOTE-ALERTA-99", expiresAt: "2027-01-01", quantity: 2 }] }),
+      mov({ id: "b", pharmacistEmail: "luis@h.cr", lotAllocations: [{ lotId: "2", lot: "LOTE-NORMAL", expiresAt: "2027-01-01", quantity: 5 }] }),
+    ];
+    expect(filterMovements(list, { type: "ALL", text: "alerta-99" }).map((m) => m.id)).toEqual(["a"]);
+    expect(filterMovements(list, { type: "ALL", text: "", pharmacistEmail: "LUIS@H.CR" }).map((m) => m.id)).toEqual(["b"]);
+  });
   it("combina tipo y texto", () => {
     expect(filterMovements(sample, { type: "OUT", text: "ibupro" }).map((m) => m.id)).toEqual(["c"]);
   });

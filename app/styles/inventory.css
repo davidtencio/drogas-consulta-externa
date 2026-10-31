@@ -22,11 +22,12 @@
 .inventory-toolbar select { width: 100%; min-height: 44px; padding: 8px 27px 8px 10px; border: 1px solid var(--input-line); background: var(--surface); color: var(--text); border-radius: 7px; font-size: 12px; }
 .inventory-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .inventory-table th { background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 550; text-transform: none; letter-spacing: 0; text-align: left; padding: 13px 14px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.inventory-table th:first-child { width: 29%; padding-left: 24px; }
-.inventory-table th:nth-child(2) { width: 16%; }
-.inventory-table th:nth-child(3) { width: 18%; }
-.inventory-table th:nth-child(4) { width: 24%; }
-.inventory-table th:last-child { width: 13%; }
+.inventory-table th:first-child { width: 26%; padding-left: 24px; }
+.inventory-table th:nth-child(2) { width: 15%; }
+.inventory-table th:nth-child(3) { width: 17%; }
+.inventory-table th:nth-child(4) { width: 22%; }
+.inventory-table th:last-child { width: 20%; }
+.inventory-row-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
 .inventory-table td { padding: 19px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .inventory-table td:first-child { padding-left: 24px; }
 .inventory-table tbody tr:last-child td { border-bottom: 0; }

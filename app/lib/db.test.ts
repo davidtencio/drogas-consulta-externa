@@ -291,6 +291,106 @@ describe("registerMovement (transacción y descuento FEFO)", () => {
     ).rejects.toThrow("Existencias por lote insuficientes.");
     expect(txUpdate).not.toHaveBeenCalled();
   });
+
+  it("omite lotes vencidos en FEFO ordinario y bloquea si solo alcanzan sumando lotes vencidos", async () => {
+    const medWithExpired = () => ({
+      exists: () => true,
+      data: () => ({
+        name: "Clonazepam",
+        stock: 15,
+        lots: [
+          { id: "lot-vencido", lot: "L-VENCIDO", expiresAt: "2026-01-01", quantity: 5, receivedAt: "2025-01-01T00:00:00.000Z" },
+          { id: "lot-vigente", lot: "L-VIGENTE", expiresAt: "2027-06-01", quantity: 10, receivedAt: "2026-01-01T00:00:00.000Z" },
+        ],
+      }),
+    });
+
+    txGet.mockResolvedValueOnce(medWithExpired());
+    await dbApi.registerMovement({
+      medicineId: "m-cz",
+      type: "OUT",
+      quantity: 4,
+      prescriptionRef: "RX-VIG",
+      pharmacistEmail: "ana@h.cr",
+      now: "2026-07-16T10:00:00.000Z",
+    });
+
+    const movementDoc = txSet.mock.calls[0][1] as Record<string, unknown>;
+    expect(movementDoc.lotAllocations).toEqual([
+      { lotId: "lot-vigente", lot: "L-VIGENTE", expiresAt: "2027-06-01", quantity: 4 },
+    ]);
+
+    txGet.mockResolvedValueOnce(medWithExpired());
+    await expect(
+      dbApi.registerMovement({
+        medicineId: "m-cz",
+        type: "OUT",
+        quantity: 12,
+        prescriptionRef: "RX-EXCESO",
+        pharmacistEmail: "ana@h.cr",
+        now: "2026-07-16T10:00:00.000Z",
+      })
+    ).rejects.toThrow(/existencias vigentes insuficientes/i);
+  });
+
+  it("permite seleccionar un lote específico en egresos y descargar lotes vencidos cuando allowExpired está activo", async () => {
+    const medLots = () => ({
+      exists: () => true,
+      data: () => ({
+        name: "Clonazepam",
+        stock: 15,
+        lots: [
+          { id: "lot-vencido", lot: "L-VENCIDO", expiresAt: "2026-01-01", quantity: 5, receivedAt: "2025-01-01T00:00:00.000Z" },
+          { id: "lot-a", lot: "L-A", expiresAt: "2027-01-01", quantity: 4, receivedAt: "2026-01-01T00:00:00.000Z" },
+          { id: "lot-b", lot: "L-B", expiresAt: "2028-01-01", quantity: 6, receivedAt: "2026-02-01T00:00:00.000Z" },
+        ],
+      }),
+    });
+
+    txGet.mockResolvedValueOnce(medLots());
+    await dbApi.registerMovement({
+      medicineId: "m-cz",
+      type: "OUT",
+      quantity: 3,
+      targetLotId: "lot-b",
+      prescriptionRef: "RX-LOT-B",
+      pharmacistEmail: "ana@h.cr",
+      now: "2026-07-16T10:00:00.000Z",
+    });
+
+    expect((txSet.mock.calls[0][1] as Record<string, unknown>).lotAllocations).toEqual([
+      { lotId: "lot-b", lot: "L-B", expiresAt: "2028-01-01", quantity: 3 },
+    ]);
+
+    txGet.mockResolvedValueOnce(medLots());
+    await expect(
+      dbApi.registerMovement({
+        medicineId: "m-cz",
+        type: "OUT",
+        quantity: 2,
+        targetLotId: "lot-vencido",
+        prescriptionRef: "BAJA-1",
+        pharmacistEmail: "ana@h.cr",
+        now: "2026-07-16T10:00:00.000Z",
+      })
+    ).rejects.toThrow(/lote seleccionado está vencido/i);
+
+    txGet.mockResolvedValueOnce(medLots());
+    await dbApi.registerMovement({
+      medicineId: "m-cz",
+      type: "OUT",
+      quantity: 5,
+      targetLotId: "lot-vencido",
+      allowExpired: true,
+      prescriptionRef: "BAJA-1",
+      pharmacistEmail: "ana@h.cr",
+      now: "2026-07-16T10:00:00.000Z",
+    });
+
+    expect((txSet.mock.calls[1][1] as Record<string, unknown>).lotAllocations).toEqual([
+      { lotId: "lot-vencido", lot: "L-VENCIDO", expiresAt: "2026-01-01", quantity: 5 },
+    ]);
+  });
 });
 
 describe("registerCount", () => {

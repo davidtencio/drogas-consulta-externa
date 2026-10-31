@@ -8,10 +8,12 @@ export type MovementTypeFilter = "ALL" | "IN" | "OUT" | "COUNT";
 
 export type MovementFilter = {
   type: MovementTypeFilter;
-  /** Texto libre; coincide en medicamento o referencia de prescripción. */
+  /** Texto libre; coincide en medicamento, lote, referencia de prescripción o nota. */
   text: string;
   /** Filtra a un medicamento concreto por su id (vacío = todos). */
   medicineId?: string;
+  /** Filtra por correo del farmacéutico responsable (vacío = todos). */
+  pharmacistEmail?: string;
   /** Fecha inicial `YYYY-MM-DD` inclusiva (vacío = sin límite inferior). */
   from?: string;
   /** Fecha final `YYYY-MM-DD` inclusiva (vacío = sin límite superior). */
@@ -21,9 +23,10 @@ export type MovementFilter = {
 export type MovementSort = "date-desc" | "date-asc" | "qty-desc" | "qty-asc";
 
 /**
- * Filtra por tipo, medicamento, texto (sin distinguir mayúsculas) y rango de
- * fechas. El rango compara la fecha (UTC) del movimiento —los primeros 10
- * caracteres de `createdAt`, ISO `YYYY-MM-DD…`— con los límites, inclusivos.
+ * Filtra por tipo, medicamento, farmacéutico, texto (sin distinguir mayúsculas,
+ * incluyendo códigos de lote en `lotAllocations`) y rango de fechas. El rango
+ * compara la fecha (UTC) del movimiento —los primeros 10 caracteres de
+ * `createdAt`, ISO `YYYY-MM-DD…`— con los límites, inclusivos.
  */
 export function filterMovements(
   movements: readonly Movement[],
@@ -31,16 +34,19 @@ export function filterMovements(
 ): Movement[] {
   const q = filter.text.trim().toLowerCase();
   const medicineId = filter.medicineId?.trim() || "";
+  const pharmacistEmail = filter.pharmacistEmail?.trim().toLowerCase() || "";
   const from = filter.from?.trim() || "";
   const to = filter.to?.trim() || "";
   return movements.filter((m) => {
     if (filter.type !== "ALL" && m.type !== filter.type) return false;
     if (medicineId && m.medicineId !== medicineId) return false;
+    if (pharmacistEmail && m.pharmacistEmail.trim().toLowerCase() !== pharmacistEmail) return false;
     const day = m.createdAt.slice(0, 10);
     if (from && day < from) return false;
     if (to && day > to) return false;
     if (!q) return true;
-    return `${m.medicineName} ${m.prescriptionRef} ${m.note ?? ""}`.toLowerCase().includes(q);
+    const lotsText = m.lotAllocations?.map((lot) => lot.lot).join(" ") ?? "";
+    return `${m.medicineName} ${m.prescriptionRef} ${m.note ?? ""} ${lotsText}`.toLowerCase().includes(q);
   });
 }
 

@@ -64,4 +64,13 @@ describe("CountModal", () => {
     await userEvent.click(screen.getByRole("button", { name: "Registrar sobrante (ingreso)" }));
     expect(onAdjust).toHaveBeenCalledWith("m1", "IN");
   });
+
+  it("permite indicar una cantidad física distinta y muestra la diferencia frente al sistema", async () => {
+    render(<CountModal {...base()} />);
+    const input = screen.getByLabelText("Cantidad física contada");
+    expect(input).toHaveValue(100);
+    await userEvent.clear(input);
+    await userEvent.type(input, "96");
+    expect(screen.getByText(/Diferencia frente al sistema:/)).toHaveTextContent("-4 unidades");
+  });
 });

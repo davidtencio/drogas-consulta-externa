@@ -86,7 +86,11 @@ export function demoSetActive(collection: "medicines" | "pharmacists", itemId: s
   emit();
 }
 
-export function demoRegisterMovement(input: Omit<Movement, "id" | "medicineName">, receivedLots?: ReceivedLot[]) {
+export function demoRegisterMovement(
+  input: Omit<Movement, "id" | "medicineName">,
+  receivedLots?: ReceivedLot[],
+  outOptions?: { targetLotId?: string; allowExpired?: boolean }
+) {
   const medicine = state.medicines.find((m) => m.id === input.medicineId);
   if (!medicine) throw new Error("Medicamento no disponible.");
   if (input.type !== "IN" && input.type !== "OUT") throw new Error("Tipo de movimiento inválido.");
@@ -95,6 +99,8 @@ export function demoRegisterMovement(input: Omit<Movement, "id" | "medicineName"
     type: input.type,
     quantity: input.quantity,
     receivedLots,
+    targetLotId: outOptions?.targetLotId,
+    allowExpired: outOptions?.allowExpired,
     now: input.createdAt,
     makeLotId: () => id("demo-lot"),
   });

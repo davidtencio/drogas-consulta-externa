@@ -4,6 +4,29 @@ import { Icon } from "./Icon";
 import { inventoryLotView } from "../lib/inventoryView";
 import type { AuditLog } from "../lib/authz";
 
+const AUDIT_LABELS: Record<string, string> = {
+  "medicine.create": "Alta de medicamento",
+  "medicine.update": "Edición de medicamento",
+  "medicine.activate": "Reactivación de medicamento",
+  "medicine.deactivate": "Baja de medicamento",
+  "pharmacist.create": "Autorización de farmacéutico",
+  "pharmacist.update": "Edición de farmacéutico",
+  "pharmacist.activate": "Reactivación de farmacéutico",
+  "pharmacist.deactivate": "Baja de farmacéutico",
+};
+
+function describeAuditTarget(entry: AuditLog, medicines: readonly Medicine[], pharmacists: readonly Pharmacist[]): string {
+  const med = medicines.find((m) => m.id === entry.entityId);
+  if (med) return `${med.name} ${med.strength}`;
+  const pharm = pharmacists.find((p) => p.id === entry.entityId);
+  if (pharm) return `${pharm.name} (${pharm.email})`;
+  const detailName = typeof entry.details?.name === "string" ? entry.details.name : undefined;
+  const detailEmail = typeof entry.details?.email === "string" ? entry.details.email : undefined;
+  if (detailName) return detailName;
+  if (detailEmail) return detailEmail;
+  return `${entry.entityType} · ${entry.entityId}`;
+}
+
 type Props = {
   medicines: Medicine[];
   pharmacists: Pharmacist[];
@@ -83,7 +106,19 @@ export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetAct
       </div>
       <div className="panel audit-panel">
         <div className="panel-title"><div><h2>Bitácora administrativa</h2><p>Últimos cambios de catálogo y autorizaciones. Los registros no se pueden editar ni eliminar.</p></div></div>
-        {auditLogs.length ? auditLogs.map((entry) => <div className="list-row audit-row" key={entry.id}><span className="mini-icon"><Icon name="audit" size={16} /></span><div><strong>{entry.action}</strong><small>{entry.entityType} · {entry.entityId}</small></div><div className="audit-who"><strong>{entry.actorEmail}</strong><small>{new Date(entry.createdAt).toLocaleString("es-CR")}</small></div></div>) : <div className="empty-block">Aún no hay cambios administrativos registrados.</div>}
+        {auditLogs.length ? auditLogs.map((entry) => (
+          <div className="list-row audit-row" key={entry.id}>
+            <span className="mini-icon"><Icon name="audit" size={16} /></span>
+            <div>
+              <strong>{AUDIT_LABELS[entry.action] ?? entry.action}</strong>
+              <small>{describeAuditTarget(entry, medicines, pharmacists)}</small>
+            </div>
+            <div className="audit-who">
+              <strong>{entry.actorEmail}</strong>
+              <small>{new Date(entry.createdAt).toLocaleString("es-CR")}</small>
+            </div>
+          </div>
+        )) : <div className="empty-block">Aún no hay cambios administrativos registrados.</div>}
       </div>
     </div>
   );

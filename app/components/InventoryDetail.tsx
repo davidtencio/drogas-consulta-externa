@@ -1,6 +1,5 @@
 import type { Medicine, MovementType } from "../lib/inventory";
-import { inventoryLotView } from "../lib/inventoryView";
-import type { InventoryCertification } from "./MedicineCard";
+import { inventoryLotView, type InventoryCertification } from "../lib/inventoryView";
 import { AccessibleDialog } from "./AccessibleDialog";
 import { LotExpiryLabel } from "./InventoryLabels";
 import { Icon } from "./Icon";

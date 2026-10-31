@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState, type RefObject } from "react";
 import type { Medicine, MovementType } from "../lib/inventory";
-import { selectInventory, summarizeInventory, type InventoryFilter, type InventorySort } from "../lib/inventoryView";
-import type { InventoryCertification } from "./MedicineCard";
+import { selectInventory, summarizeInventory, type InventoryCertification, type InventoryFilter, type InventorySort } from "../lib/inventoryView";
 import { Icon } from "./Icon";
 import { StatsBar } from "./StatsBar";
 import { StockLabel, MedicineExpiryLabel } from "./InventoryLabels";

@@ -99,3 +99,4 @@ export function applyLotMovement(
   if (remaining) throw new Error("Existencias por lote insuficientes.");
   return { lots: next, allocations, ...primaryLotSummary(next) };
 }
+

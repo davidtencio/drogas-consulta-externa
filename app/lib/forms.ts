@@ -118,3 +118,4 @@ export function fieldForFormError(action: string, message: string): string | und
   if (lower.includes("farmacéutico")) return "pharmacistEmail";
   return undefined;
 }
+

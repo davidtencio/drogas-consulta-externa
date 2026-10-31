@@ -3,6 +3,7 @@ import { daysUntilExpiry, expiryStatus, isLowStock, type InventoryLot, type Medi
 export type InventoryFilter = "all" | "low" | "expired" | "soon" | "unknown" | "no-stock" | "normal";
 export type InventorySort = "name" | "stock" | "expiry";
 export type InventorySummary = { total: number; low: number; expired: number; soon: number; unknown: number };
+export type InventoryCertification = { createdAt: string; pharmacistName: string };
 
 /** Proyección de lectura. No completa ni escribe documentos heredados. */
 export function inventoryLotView(medicine: Medicine) {

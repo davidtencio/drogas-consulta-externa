@@ -18,8 +18,8 @@ describe("reglas de producción", () => {
     expect(pharmacists).toContain("allow create, update, delete: if false;");
   });
 
-  it("limita al operador a modificar stock y trazabilidad de lotes", () => {
-    expect(rules).toContain("affectedKeys().hasOnly(['stock', 'lots', 'lot', 'expiresAt'])");
+  it("limita al operador a modificar stock, lotes y marca de última toma", () => {
+    expect(rules).toContain("affectedKeys().hasOnly(['stock', 'lots', 'lot', 'expiresAt', 'lastCountAt', 'lastCountBy'])");
     expect(rules).toContain("request.resource.data.stock >= 0");
   });
 

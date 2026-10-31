@@ -162,9 +162,9 @@ export type CountRequest = {
 };
 
 /**
- * Registra un conteo físico (arqueo) como evidencia en la bitácora. No usa
- * transacción ni ajusta el stock, por lo que también funciona sin conexión
- * (se encola y sincroniza al reconectar).
+ * Registra un conteo físico (arqueo) como evidencia en la bitácora y actualiza
+ * la marca de última toma en el medicamento. No usa transacción ni ajusta el
+ * stock, por lo que también funciona sin conexión (se encola y sincroniza al reconectar).
  */
 export function registerCount(req: CountRequest): Promise<unknown> {
   const record = prepareCount(req.medicine, {
@@ -175,13 +175,20 @@ export function registerCount(req: CountRequest): Promise<unknown> {
     createdAt: req.now,
   });
   if (DEMO_MODE) { demoRegisterCount(record); return Promise.resolve(); }
-  return addDoc(collection(db, "movements"), { ...record, actorEmail: actorEmail() });
+  const batch = writeBatch(db);
+  batch.set(doc(collection(db, "movements")), { ...record, actorEmail: actorEmail() });
+  batch.update(doc(db, "medicines", req.medicineId), {
+    lastCountAt: req.now,
+    lastCountBy: req.pharmacistEmail,
+  });
+  return batch.commit();
 }
 
 export type CountEntry = { medicine: { id: string; name: string; stock: number }; countedQuantity: number };
 
 /**
- * Registra varios conteos (arqueo de sesión) en una sola escritura por lote.
+ * Registra varios conteos (arqueo de sesión) en una sola escritura por lote,
+ * actualizando también `lastCountAt` y `lastCountBy` en cada medicamento.
  * No usa transacción ni ajusta stock, así que también funciona sin conexión.
  */
 export function registerCounts(entries: readonly CountEntry[], note: string, pharmacistEmail: string, now: string): Promise<void> {
@@ -198,6 +205,10 @@ export function registerCounts(entries: readonly CountEntry[], note: string, pha
       { medicineId: e.medicine.id, countedQuantity: e.countedQuantity, note, pharmacistEmail, createdAt: now }
     );
     batch.set(doc(collection(db, "movements")), { ...record, actorEmail: actorEmail() });
+    batch.update(doc(db, "medicines", e.medicine.id), {
+      lastCountAt: now,
+      lastCountBy: pharmacistEmail,
+    });
   }
   return batch.commit();
 }

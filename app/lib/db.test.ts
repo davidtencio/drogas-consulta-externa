@@ -10,8 +10,9 @@ const runTransaction = vi.fn(async (_db: unknown, cb: (tx: { get: typeof txGet; 
 const doc = vi.fn((_db: unknown, col?: string, id?: string) => ({ col, id }));
 const collection = vi.fn((_db: unknown, name: string) => ({ name }));
 const batchSet = vi.fn();
+const batchUpdate = vi.fn();
 const batchCommit = vi.fn(async () => undefined);
-const writeBatch = vi.fn(() => ({ set: batchSet, commit: batchCommit }));
+const writeBatch = vi.fn(() => ({ set: batchSet, update: batchUpdate, commit: batchCommit }));
 
 vi.mock("../firebase", () => ({
   db: {},
@@ -40,6 +41,7 @@ beforeEach(() => {
   doc.mockClear();
   collection.mockClear();
   batchSet.mockClear();
+  batchUpdate.mockClear();
   batchCommit.mockClear();
   fetchMock.mockClear();
   fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
@@ -408,17 +410,20 @@ describe("registerMovement (transacción y descuento FEFO)", () => {
 });
 
 describe("registerCount", () => {
-  it("agrega un conteo sin transacción (funciona offline) con la evidencia", async () => {
+  it("agrega un conteo en lote sin transacción (funciona offline) y desnormaliza lastCountAt/lastCountBy", async () => {
     await dbApi.registerCount({ medicine: { name: "Metformina", stock: 100 }, medicineId: "m1", countedQuantity: 95, note: "faltante", pharmacistEmail: "ana@h.cr", now: "2026-07-16T10:00:00.000Z" });
     expect(runTransaction).not.toHaveBeenCalled();
-    expect(addDoc).toHaveBeenCalledTimes(1);
-    const rec = addDoc.mock.calls[0][1] as Record<string, unknown>;
+    expect(batchSet).toHaveBeenCalledTimes(1);
+    expect(batchUpdate).toHaveBeenCalledTimes(1);
+    expect(batchCommit).toHaveBeenCalledOnce();
+    const rec = batchSet.mock.calls[0][1] as Record<string, unknown>;
     expect(rec).toMatchObject({ type: "COUNT", quantity: 95, systemQuantity: 100, difference: -5, note: "faltante", medicineName: "Metformina", actorEmail: "admin@h.cr" });
+    expect(batchUpdate.mock.calls[0][1]).toEqual({ lastCountAt: "2026-07-16T10:00:00.000Z", lastCountBy: "ana@h.cr" });
   });
 });
 
 describe("registerCounts", () => {
-  it("registra varios conteos en un lote (sin transacción) y confirma", async () => {
+  it("registra varios conteos en un lote (sin transacción), actualiza lastCountAt/lastCountBy y confirma", async () => {
     await dbApi.registerCounts(
       [
         { medicine: { id: "a", name: "Metformina", stock: 100 }, countedQuantity: 98 },
@@ -430,10 +435,13 @@ describe("registerCounts", () => {
     );
     expect(runTransaction).not.toHaveBeenCalled();
     expect(batchSet).toHaveBeenCalledTimes(2);
+    expect(batchUpdate).toHaveBeenCalledTimes(2);
     expect(batchCommit).toHaveBeenCalledOnce();
     const first = batchSet.mock.calls[0][1] as Record<string, unknown>;
     expect(first).toMatchObject({ type: "COUNT", quantity: 98, systemQuantity: 100, difference: -2, note: "arqueo diario" });
     const second = batchSet.mock.calls[1][1] as Record<string, unknown>;
     expect(second).toMatchObject({ type: "COUNT", quantity: 45, difference: 5 });
+    expect(batchUpdate.mock.calls[0][1]).toEqual({ lastCountAt: "2026-07-16T10:00:00.000Z", lastCountBy: "ana@h.cr" });
+    expect(batchUpdate.mock.calls[1][1]).toEqual({ lastCountAt: "2026-07-16T10:00:00.000Z", lastCountBy: "ana@h.cr" });
   });
 });

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
-import { collection, getDocs, orderBy, query as fbQuery } from "firebase/firestore";
+import * as firestore from "firebase/firestore";
+import { collection, getDocs, orderBy, query as fbQuery, type QueryConstraint } from "firebase/firestore";
 import { db } from "../firebase";
 import { displayPharmacist, sortByName, type Medicine, type Movement } from "../lib/inventory";
 import { movementsToCsv } from "../lib/csv";
@@ -71,9 +72,21 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
   const onExport = useCallback(async () => {
     setExporting(true); setExportError("");
     try {
-      // La vista carga solo los más recientes; para exportar traemos el historial
-      // completo y aplicamos los mismos filtros y orden que ve el usuario.
-      const all = DEMO_MODE ? getDemoSnapshot().movements : (await getDocs(fbQuery(collection(db, "movements"), orderBy("createdAt", "desc")))).docs.map((d) => ({ id: d.id, ...d.data() } as Movement));
+      let all: Movement[];
+      if (DEMO_MODE) {
+        all = getDemoSnapshot().movements;
+      } else {
+        // Si el usuario acotó fechas (Desde / Hasta), aplicamos el rango en el
+        // servidor para no leer toda la colección histórica innecesariamente.
+        const constraints: QueryConstraint[] = [];
+        const fsWhere = (firestore as { where?: typeof firestore.where }).where;
+        if (typeof fsWhere === "function") {
+          if (from) constraints.push(fsWhere("createdAt", ">=", from));
+          if (to) constraints.push(fsWhere("createdAt", "<=", `${to}\uf8ff`));
+        }
+        constraints.push(orderBy("createdAt", "desc"));
+        all = (await getDocs(fbQuery(collection(db, "movements"), ...constraints))).docs.map((d) => ({ id: d.id, ...d.data() } as Movement));
+      }
       const rows = filterAndSortMovements(all, filter, sort);
       if (!rows.length) { onNotice("No hay movimientos que coincidan para exportar"); return; }
       const range = [from, to].filter(Boolean).join("_");
@@ -86,7 +99,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
   return <>
     <div className="panel movements-panel" aria-busy={loading}>
       <div className="panel-title">
-        <div><h2>{selectedMedicine ? `Movimientos de ${selectedMedicine.name} ${selectedMedicine.strength}` : "Actividad reciente"}</h2><p>Consulta de hasta 200 registros recientes. El CSV consulta todo el historial con los filtros elegidos.</p></div>
+        <div><h2>{selectedMedicine ? `Movimientos de ${selectedMedicine.name} ${selectedMedicine.strength}` : "Actividad reciente"}</h2><p>Consulta de registros recientes en incrementos de 50. El CSV consulta el período o historial elegido.</p></div>
         <button className="secondary" onClick={onExport} disabled={loading || exporting || !!error}><Icon name="download" size={16} /> {exporting ? "Preparando CSV…" : "Exportar CSV"}</button>
       </div>
       {exportError && <div className="form-error panel-feedback" role="alert">{exportError}</div>}

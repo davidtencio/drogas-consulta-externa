@@ -6,6 +6,7 @@ import { roleForEmail } from "../lib/authz";
 import { DEMO_EMAIL, DEMO_MODE } from "../lib/demo";
 
 type AuthUser = Pick<User, "email"> & {
+  getIdToken?: (forceRefresh?: boolean) => Promise<string>;
   getIdTokenResult?: () => Promise<{ claims?: Record<string, unknown> }>;
 };
 
@@ -38,6 +39,9 @@ export function useAuthUser() {
             const snap = await fsAny.getDoc(fsAny.doc(db, "authorizedOperators", normalized));
             if (snap?.exists?.() && (snap.data() as { active?: boolean } | undefined)?.active === true) {
               allowed = true;
+              // Refresca el ID token en segundo plano para que las reglas de Firestore
+              // evalúen directamente el custom claim `operator: true` sin lecturas extra.
+              void u.getIdToken?.(true).catch(() => undefined);
             }
           }
         } catch {

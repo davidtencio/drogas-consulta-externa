@@ -30,10 +30,10 @@ service cloud.firestore {
       // El catálogo (crear/editar/eliminar) lo escribe solo el backend con el
       // Admin SDK, junto a su auditoría, de forma atómica. El cliente no puede.
       allow create, delete: if false;
-      // Única excepción: el operador ajusta existencias y trazabilidad de lotes
-      // desde la app (transacción de movimiento), nunca el resto de campos.
+      // Única excepción: el operador ajusta existencias, lotes y marca de última toma
+      // desde la app, nunca el resto de campos del catálogo.
       allow update: if isOperator()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'lots', 'lot', 'expiresAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'lots', 'lot', 'expiresAt', 'lastCountAt', 'lastCountBy'])
         && request.resource.data.stock is number
         && request.resource.data.stock >= 0;
     }

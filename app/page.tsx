@@ -70,7 +70,11 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [alertDismissed, setAlertDismissed] = useState(false);
 
-  const { medicines, pharmacists, movements, countMovements, hasMoreMovements, loadMoreMovements, auditLogs, pendingWrites, loading, inventoryError, movementsLoading, movementsError, settingsLoading, settingsError, personnelMessage, retryInventory } = useInventoryData(!!user, baseRole === "admin" && !DEMO_MODE);
+  const { medicines, pharmacists, movements, countMovements, hasMoreMovements, loadMoreMovements, auditLogs, pendingWrites, loading, inventoryError, movementsLoading, movementsError, settingsLoading, settingsError, personnelMessage, retryInventory } = useInventoryData(
+    !!user,
+    baseRole === "admin" && !DEMO_MODE && tab === "settings",
+    tab === "movements"
+  );
   const role = DEMO_MODE ? "admin" as const : roleForEmail(user?.email, { dynamicOperator, pharmacists });
   const online = useOnline();
 
@@ -80,7 +84,27 @@ export default function Home() {
   const pharmacistNames = useMemo(() => pharmacistNameByEmail(pharmacists), [pharmacists]);
   const expAlert = useMemo(() => summarizeInventory(activeMeds), [activeMeds]);
   const lastCounts = useMemo(() => lastCountMovementByMedicine(countMovements ?? movements), [countMovements, movements]);
-  const certifications = useMemo(() => new Map([...lastCounts].map(([id, record]) => [id, { createdAt: record.createdAt, pharmacistName: pharmacistNames.get(record.pharmacistEmail.trim().toLowerCase()) || record.pharmacistEmail }])), [lastCounts, pharmacistNames]);
+  const certifications = useMemo(() => {
+    const map = new Map<string, { createdAt: string; pharmacistName: string }>();
+    for (const [id, record] of lastCounts) {
+      map.set(id, {
+        createdAt: record.createdAt,
+        pharmacistName: pharmacistNames.get(record.pharmacistEmail.trim().toLowerCase()) || record.pharmacistEmail,
+      });
+    }
+    for (const m of medicines) {
+      if (!m.lastCountAt) continue;
+      const existing = map.get(m.id);
+      if (!existing || m.lastCountAt >= existing.createdAt) {
+        const email = (m.lastCountBy ?? "").trim();
+        map.set(m.id, {
+          createdAt: m.lastCountAt,
+          pharmacistName: pharmacistNames.get(email.toLowerCase()) || email || "Registrado",
+        });
+      }
+    }
+    return map;
+  }, [lastCounts, medicines, pharmacistNames]);
 
   const closeModal = useCallback(() => { setModal(null); setModalError(null); }, []);
   const openCreate = useCallback((kind: "medicine" | "pharmacist" | "movement") => {

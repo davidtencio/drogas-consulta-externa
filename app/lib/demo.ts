@@ -18,7 +18,7 @@ const initialState: DemoState = {
   medicines: [
     { id: "demo-metformina", name: "Metformina", strength: "500 mg", form: "Tableta", unit: "unidades", stock: 320, minimumStock: 80, lot: "MF-26014", expiresAt: isoDate(240), code: "101-20-5001", active: true },
     { id: "demo-insulina", name: "Insulina glargina", strength: "100 UI/mL", form: "Solución inyectable", unit: "unidades", stock: 12, minimumStock: 20, lot: "IG-1182", expiresAt: isoDate(120), code: "102-14-0202", active: true },
-    { id: "demo-clonazepam", name: "Clonazepam", strength: "2 mg", form: "Tableta", unit: "unidades", stock: 96, minimumStock: 30, lot: "DEMO-CZ-VENCIDO", expiresAt: isoDate(-5), code: "103-02-0403", active: true, lots: [
+    { id: "demo-clonazepam", name: "Clonazepam", strength: "2 mg", form: "Tableta", unit: "unidades", stock: 96, minimumStock: 30, lot: "DEMO-CZ-VENCIDO", expiresAt: isoDate(-5), code: "103-02-0403", active: true, lastCountAt: isoTime(22), lastCountBy: "maria.gomez@demo.local", lots: [
       { id: "demo-cz-1", lot: "DEMO-CZ-VENCIDO", expiresAt: isoDate(-5), quantity: 6, receivedAt: isoTime(500) },
       { id: "demo-cz-2", lot: "DEMO-CZ-PROXIMO", expiresAt: isoDate(20), quantity: 30, receivedAt: isoTime(400) },
       { id: "demo-cz-3", lot: "DEMO-CZ-VIGENTE", expiresAt: isoDate(198), quantity: 60, receivedAt: isoTime(300) },
@@ -114,7 +114,16 @@ export function demoRegisterMovement(
 }
 
 export function demoRegisterCount(record: Omit<Movement, "id">) {
-  state = { ...state, movements: [{ ...record, id: id("demo-count") }, ...state.movements] }; emit();
+  state = {
+    ...state,
+    medicines: state.medicines.map((m) =>
+      m.id === record.medicineId
+        ? { ...m, lastCountAt: record.createdAt, lastCountBy: record.pharmacistEmail }
+        : m
+    ),
+    movements: [{ ...record, id: id("demo-count") }, ...state.movements],
+  };
+  emit();
 }
 
 export function demoClearDatabase() {

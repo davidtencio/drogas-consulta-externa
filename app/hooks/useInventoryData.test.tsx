@@ -1,12 +1,10 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { snapshot, unsubscribe, limitMock, getDocsMock, whereMock } = vi.hoisted(() => ({
+const { snapshot, unsubscribe, limitMock } = vi.hoisted(() => ({
   snapshot: vi.fn(),
   unsubscribe: vi.fn(),
   limitMock: vi.fn(),
-  getDocsMock: vi.fn(async () => ({ docs: [] as { id: string; data: () => object }[] })),
-  whereMock: vi.fn(),
 }));
 vi.mock("../firebase", () => ({ db: {} }));
 vi.mock("../lib/demo", async (original) => ({ ...await original<typeof import("../lib/demo")>(), DEMO_MODE: false }));
@@ -15,8 +13,6 @@ vi.mock("firebase/firestore", () => ({
   query: (ref: unknown) => ref,
   orderBy: vi.fn(),
   limit: limitMock,
-  where: whereMock,
-  getDocs: getDocsMock,
   onSnapshot: snapshot,
 }));
 import { useInventoryData } from "./useInventoryData";
@@ -30,9 +26,8 @@ beforeEach(() => {
   snapshot.mockReset();
   unsubscribe.mockClear();
   limitMock.mockClear();
-  getDocsMock.mockReset();
-  getDocsMock.mockResolvedValue({ docs: [] });
-  whereMock.mockClear();
+  for (const key of Object.keys(nextByCollection)) delete nextByCollection[key];
+  for (const key of Object.keys(errorByCollection)) delete errorByCollection[key];
   snapshot.mockImplementation((ref, _options, onNext, onError) => {
     nextByCollection[ref.name] = onNext;
     errorByCollection[ref.name] = onError;
@@ -85,24 +80,14 @@ describe("consulta del inventario", () => {
     expect(result.current.settingsError).toBeNull();
   });
 
-  it("conserva conteos históricos fuera del límite de 200 movimientos y permite ampliar el límite", async () => {
-    getDocsMock.mockResolvedValueOnce({
-      docs: [{ id: "count-antiguo", data: () => ({ medicineId: "med-1", type: "COUNT", quantity: 50, createdAt: "2026-01-01T10:00:00.000Z" }) }],
-    });
+  it("consulta movimientos en bloques de 50, permite ampliar el límite y omite la suscripción cuando includeMovements es false", () => {
+    const { result: lazyResult } = renderHook(() => useInventoryData(true, false, false));
+    expect(nextByCollection.movements).toBeUndefined();
+    expect(lazyResult.current.movementsLoading).toBe(false);
+
     const { result } = renderHook(() => useInventoryData(true));
-    act(() => {
-      nextByCollection.movements({
-        docs: [{ id: "mov-reciente", data: () => ({ medicineId: "med-1", type: "OUT", quantity: 2, createdAt: "2026-10-01T10:00:00.000Z" }) }],
-        metadata: { hasPendingWrites: false },
-      });
-    });
-
-    await waitFor(() => {
-      expect(result.current.countMovements.map((m) => m.id)).toEqual(["mov-reciente", "count-antiguo"]);
-    });
-
-    expect(limitMock).toHaveBeenCalledWith(200);
+    expect(limitMock).toHaveBeenCalledWith(50);
     act(() => result.current.loadMoreMovements());
-    expect(limitMock).toHaveBeenCalledWith(400);
+    expect(limitMock).toHaveBeenCalledWith(100);
   });
 });

@@ -19,9 +19,17 @@ import { DEMO_MODE } from "../lib/demo";
  * Registra los conteos como evidencia de un solo envío. No ajusta el stock.
  */
 export function ArqueoScreen({ email }: { email: string }) {
-  const { medicines, pharmacists, movements, countMovements, pendingWrites, settingsLoading: loading, settingsError: error, movementsLoading, movementsError, retryInventory } = useInventoryData(true);
+  const { medicines, pharmacists, movements, countMovements, pendingWrites, settingsLoading: loading, settingsError: error, movementsLoading, movementsError, retryInventory } = useInventoryData(true, false, false);
   const online = useOnline();
-  const lastCounts = useMemo(() => lastCountByMedicine(countMovements ?? movements), [countMovements, movements]);
+  const lastCounts = useMemo(() => {
+    const map = lastCountByMedicine(countMovements ?? movements);
+    for (const m of medicines) {
+      if (!m.lastCountAt) continue;
+      const prev = map.get(m.id);
+      if (!prev || m.lastCountAt > prev) map.set(m.id, m.lastCountAt);
+    }
+    return map;
+  }, [countMovements, movements, medicines]);
 
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
   const [countedQuantities, setCountedQuantities] = useState<Record<string, string>>({});

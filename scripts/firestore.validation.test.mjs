@@ -57,8 +57,8 @@ test("el cliente no crea, elimina ni edita identificación del catálogo, inclus
     }
   }
 });
-test("el operador puede actualizar saldo y lotes; se rechaza stock negativo y una cuenta sin rol", async () => {
-  await updateDoc(doc(operator, "medicines/seed"), { stock: 9, lots: [], lot: "DEMO", expiresAt: "2099-01-01" });
+test("el operador puede actualizar saldo, lotes y última toma; se rechaza stock negativo y una cuenta sin rol", async () => {
+  await updateDoc(doc(operator, "medicines/seed"), { stock: 9, lots: [], lot: "DEMO", expiresAt: "2099-01-01", lastCountAt: "2026-10-31T10:00:00.000Z", lastCountBy: "fhsvp2208@gmail.com" });
   assert.equal((await getDoc(doc(operator, "medicines/seed"))).data().stock, 9);
   await denied(() => updateDoc(doc(operator, "medicines/seed"), { stock: -1 }));
   await denied(() => updateDoc(doc(outsider, "medicines/seed"), { stock: 8 }));

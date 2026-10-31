@@ -17,6 +17,9 @@ export type Medicine = {
   lot: string;
   expiresAt: string;
   lots?: InventoryLot[];
+  /** Fecha ISO y correo del responsable de la última toma física (desnormalizado). */
+  lastCountAt?: string;
+  lastCountBy?: string;
   /** Código del medicamento en formato 000-00-0000 (opcional). */
   code?: string;
   active?: boolean;

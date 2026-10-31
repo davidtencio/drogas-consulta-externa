@@ -122,6 +122,27 @@ export default function Home() {
     flash(`Vista exportada: ${items.length} medicamentos`);
   }, [flash]);
 
+  const backupDatabase = useCallback(async () => {
+    try {
+      const backup = await dataApi.exportDatabaseBackup();
+      downloadTextFile(`respaldo_base_datos_${dateStamp()}.json`, JSON.stringify(backup, null, 2), "application/json;charset=utf-8;");
+      flash("Copia completa descargada en JSON");
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "No se pudo descargar el respaldo", true);
+    }
+  }, [flash]);
+
+  const resetDatabase = useCallback(async (confirm: string) => {
+    try {
+      await dataApi.resetDatabase(confirm);
+      retryInventory();
+      flash("Base de datos limpia y lista para iniciar registros");
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "No se pudo limpiar la base de datos", true);
+      throw err;
+    }
+  }, [flash, retryInventory]);
+
   const setActive = useCallback(async (col: "medicines" | "pharmacists", id: string, active: boolean, label: string) => {
     if (!active) { setDeactivation({ col, id, label }); return; }
     try { await dataApi.setActive(col, id, true); flash("Reactivado correctamente"); }
@@ -177,7 +198,7 @@ export default function Home() {
 
         {tab === "movements" && <MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId} hasMore={hasMoreMovements} onLoadMore={loadMoreMovements} />}
 
-        {tab === "settings" && canManageCatalog(role) && <SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} loading={settingsLoading} error={settingsError} onRetry={retryInventory} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount} />}
+        {tab === "settings" && canManageCatalog(role) && <SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} loading={settingsLoading} error={settingsError} onRetry={retryInventory} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount} onBackupDatabase={backupDatabase} onResetDatabase={resetDatabase} />}
       </section>
     </div>
 

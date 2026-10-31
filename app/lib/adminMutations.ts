@@ -21,13 +21,24 @@ export type MedicineFields = {
 
 export type PharmacistFields = { name: string; email: string; license: string };
 
+export const RESET_CONFIRMATION_WORD = "LIMPIAR";
+
+/** Valida la palabra de seguridad requerida para vaciar la base de datos. */
+export function validateResetConfirmation(confirm: unknown): void {
+  if (String(confirm ?? "").trim().toUpperCase() !== RESET_CONFIRMATION_WORD) {
+    throw new Error(`Escriba ${RESET_CONFIRMATION_WORD} para confirmar el reinicio total de la base de datos.`);
+  }
+}
+
 /** Operación administrativa solicitada por el cliente autenticado. */
 export type AdminOp =
   | { op: "medicine.create"; fields: MedicineFields; initialStock: number; pharmacistEmail: string }
   | { op: "medicine.update"; id: string; fields: MedicineFields }
   | { op: "pharmacist.create"; fields: PharmacistFields }
   | { op: "pharmacist.update"; id: string; fields: PharmacistFields }
-  | { op: "setActive"; col: "medicines" | "pharmacists"; id: string; active: boolean };
+  | { op: "setActive"; col: "medicines" | "pharmacists"; id: string; active: boolean }
+  | { op: "database.backup" }
+  | { op: "database.reset"; confirm: string };
 
 /** Una escritura elemental a persistir dentro del lote atómico. */
 export type WriteOp =

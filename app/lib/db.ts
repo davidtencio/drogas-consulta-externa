@@ -5,8 +5,8 @@ import { addDoc, collection, doc, runTransaction, writeBatch } from "firebase/fi
 import { auth, db } from "../firebase";
 import { prepareCount, prepareMovement, type MovementType, type ReceivedLot } from "./inventory";
 import { applyLotMovement, normalizeMedicineLots } from "./lots";
-import { DEMO_MODE, demoCreateMedicine, demoCreatePharmacist, demoRegisterCount, demoRegisterMovement, demoSetActive, demoUpdateMedicine, demoUpdatePharmacist } from "./demo";
-import type { AdminOp, MedicineFields, PharmacistFields } from "./adminMutations";
+import { DEMO_MODE, demoClearDatabase, demoCreateMedicine, demoCreatePharmacist, demoExportDatabase, demoRegisterCount, demoRegisterMovement, demoSetActive, demoUpdateMedicine, demoUpdatePharmacist } from "./demo";
+import { validateResetConfirmation, type AdminOp, type MedicineFields, type PharmacistFields } from "./adminMutations";
 
 export type { MedicineFields, PharmacistFields } from "./adminMutations";
 
@@ -21,7 +21,7 @@ function actorEmail(): string {
  * dato y su auditoría de forma atómica con el Admin SDK. El cliente ya no escribe
  * el catálogo directamente (las reglas de Firestore lo niegan).
  */
-async function postAdminMutation(op: AdminOp): Promise<void> {
+async function postAdminMutation<T = Record<string, unknown>>(op: AdminOp): Promise<T> {
   const user = auth.currentUser;
   if (!user) throw new Error("Sesión no disponible para registrar la trazabilidad.");
   const idToken = await user.getIdToken();
@@ -35,10 +35,11 @@ async function postAdminMutation(op: AdminOp): Promise<void> {
   } catch {
     throw new Error("Sin conexión con el servidor. Intente de nuevo.");
   }
+  const data = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
   if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error || "No se pudo completar la operación.");
   }
+  return (data ?? ({} as T)) as T;
 }
 
 /** Registra fallos inesperados para revisión administrativa durante el piloto. */
@@ -90,6 +91,20 @@ export async function updatePharmacist(id: string, fields: PharmacistFields): Pr
 export async function setActive(col: "medicines" | "pharmacists", id: string, active: boolean): Promise<void> {
   if (DEMO_MODE) { demoSetActive(col, id, active); return Promise.resolve(); }
   await postAdminMutation({ op: "setActive", col, id, active });
+}
+
+/** Obtiene una copia completa en JSON de todas las colecciones de la base de datos. */
+export async function exportDatabaseBackup(): Promise<Record<string, unknown>> {
+  if (DEMO_MODE) return Promise.resolve(demoExportDatabase());
+  const res = await postAdminMutation<{ backup?: Record<string, unknown> }>({ op: "database.backup" });
+  return res.backup ?? {};
+}
+
+/** Elimina todos los documentos de la base de datos para iniciar el registro desde cero. */
+export async function resetDatabase(confirm: string): Promise<void> {
+  validateResetConfirmation(confirm);
+  if (DEMO_MODE) { demoClearDatabase(); return Promise.resolve(); }
+  await postAdminMutation({ op: "database.reset", confirm });
 }
 
 export type MovementRequest = {

@@ -85,6 +85,20 @@ describe("mutaciones administrativas (vía backend)", () => {
     fetchMock.mockResolvedValueOnce({ ok: false, json: async () => ({ error: "No autorizado." }) });
     await expect(dbApi.setActive("pharmacists", "p1", false)).rejects.toThrow("No autorizado.");
   });
+
+  it("exportDatabaseBackup y resetDatabase invocan el backend administrativo y validan confirmación", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, backup: { version: 1, collections: { medicines: [] } } }),
+    });
+    const backup = await dbApi.exportDatabaseBackup();
+    expect(sentOp()).toEqual({ op: "database.backup" });
+    expect(backup).toMatchObject({ version: 1 });
+
+    await expect(dbApi.resetDatabase("NO")).rejects.toThrow(/LIMPIAR/);
+    await dbApi.resetDatabase("LIMPIAR");
+    expect(sentOp(1)).toEqual({ op: "database.reset", confirm: "LIMPIAR" });
+  });
 });
 
 describe("registerMovement (transacción y descuento FEFO)", () => {

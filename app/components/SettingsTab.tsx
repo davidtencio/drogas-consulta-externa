@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { type Medicine, type MovementType, type Pharmacist } from "../lib/inventory";
 import { Icon } from "./Icon";
+import { AccessibleDialog } from "./AccessibleDialog";
 import { inventoryLotView } from "../lib/inventoryView";
+import { RESET_CONFIRMATION_WORD } from "../lib/adminMutations";
 import type { AuditLog } from "../lib/authz";
 
 const AUDIT_LABELS: Record<string, string> = {
@@ -35,20 +37,49 @@ type Props = {
   onSetActive: (col: "medicines" | "pharmacists", id: string, active: boolean, label: string) => void;
   onMovement: (medicineId: string, type: MovementType) => void;
   onCount: (medicineId: string) => void;
+  onBackupDatabase?: () => Promise<void> | void;
+  onResetDatabase?: (confirm: string) => Promise<void> | void;
   auditLogs?: AuditLog[];
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
 };
 
-/** Pestaña de Configuración: catálogo de medicamentos y farmacéuticos autorizados. */
-export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetActive, onMovement, onCount, auditLogs = [], loading = false, error, onRetry }: Props) {
+/** Pestaña de Configuración: catálogo de medicamentos, farmacéuticos autorizados, bitácora y mantenimiento. */
+export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetActive, onMovement, onCount, onBackupDatabase, onResetDatabase, auditLogs = [], loading = false, error, onRetry }: Props) {
   const [text, setText] = useState("");
   const [status, setStatus] = useState("all");
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [confirmWord, setConfirmWord] = useState("");
+  const [resetBusy, setResetBusy] = useState(false);
   const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const matches = (active: boolean | undefined, value: string) => (status === "all" || (active !== false ? "active" : "inactive") === status) && normalized(value).includes(normalized(text.trim()));
   const shownMedicines = medicines.filter((m) => matches(m.active, `${m.name} ${m.strength} ${m.code ?? ""}`));
   const shownPharmacists = pharmacists.filter((p) => matches(p.active, `${p.name} ${p.email} ${p.license}`));
+
+  const handleBackup = async () => {
+    if (!onBackupDatabase || backupBusy) return;
+    setBackupBusy(true);
+    try {
+      await onBackupDatabase();
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleConfirmReset = async () => {
+    if (!onResetDatabase || resetBusy) return;
+    setResetBusy(true);
+    try {
+      await onResetDatabase(confirmWord);
+      setResetOpen(false);
+      setConfirmWord("");
+    } finally {
+      setResetBusy(false);
+    }
+  };
+
   if (error) return <div className="panel empty-block" role="alert"><p>{error}</p><button className="secondary" onClick={onRetry}>Reintentar</button></div>;
   if (loading) return <div className="panel empty-block" role="status">Cargando catálogo y personal…</div>;
   return (
@@ -120,6 +151,58 @@ export function SettingsTab({ medicines, pharmacists, onCreate, onEdit, onSetAct
           </div>
         )) : <div className="empty-block">Aún no hay cambios administrativos registrados.</div>}
       </div>
+      <div className="panel">
+        <div className="panel-title">
+          <div>
+            <h2>Respaldo y reinicio de base de datos</h2>
+            <p>Descargue una copia completa de todas las colecciones en formato JSON o limpie toda la información para iniciar el registro desde cero.</p>
+          </div>
+          <div className="row-actions" role="group" aria-label="Acciones de base de datos">
+            <button type="button" onClick={() => void handleBackup()} disabled={backupBusy || !onBackupDatabase}>
+              <Icon name="download" size={15} /> {backupBusy ? "Preparando JSON…" : "Descargar copia JSON"}
+            </button>
+            <button type="button" className="danger" onClick={() => { setConfirmWord(""); setResetOpen(true); }} disabled={!onResetDatabase}>
+              <Icon name="alert" size={15} /> Limpiar base de datos
+            </button>
+          </div>
+        </div>
+      </div>
+      {resetOpen && (
+        <AccessibleDialog
+          title="Limpiar toda la base de datos"
+          description="Se eliminarán todos los medicamentos, farmacéuticos, movimientos y bitácoras para iniciar el registro desde cero. Esta acción no se puede deshacer."
+          onClose={() => setResetOpen(false)}
+          danger
+        >
+          <div className="form-section">
+            <p className="form-context">
+              Antes de continuar, se recomienda descargar una copia de respaldo en JSON. Para confirmar la limpieza total, escriba <strong>{RESET_CONFIRMATION_WORD}</strong> a continuación.
+            </p>
+            <label>
+              Escriba {RESET_CONFIRMATION_WORD} para confirmar
+              <input
+                name="confirmReset"
+                value={confirmWord}
+                onChange={(e) => setConfirmWord(e.target.value)}
+                placeholder={RESET_CONFIRMATION_WORD}
+                autoComplete="off"
+                data-autofocus
+              />
+            </label>
+          </div>
+          <div className="dialog-actions">
+            <button type="button" className="secondary" onClick={() => setResetOpen(false)}>Cancelar</button>
+            <button
+              type="button"
+              className="danger-action"
+              onClick={() => void handleConfirmReset()}
+              disabled={resetBusy || confirmWord.trim().toUpperCase() !== RESET_CONFIRMATION_WORD}
+            >
+              {resetBusy ? "Limpiando…" : "Eliminar todo y reiniciar"}
+            </button>
+          </div>
+        </AccessibleDialog>
+      )}
     </div>
   );
 }

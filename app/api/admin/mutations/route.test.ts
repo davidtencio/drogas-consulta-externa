@@ -3,11 +3,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const verifyIdToken = vi.fn();
 const batchSet = vi.fn();
 const batchUpdate = vi.fn();
+const batchDelete = vi.fn();
 const batchCommit = vi.fn(async () => undefined);
 const docGet = vi.fn<() => Promise<{ data: () => Record<string, unknown> | undefined }>>(async () => ({ data: () => undefined }));
+const colGet = vi.fn<() => Promise<{ docs: { id: string; ref: { id: string }; data: () => Record<string, unknown> }[] }>>(async () => ({ docs: [] }));
 const fakeDb = {
-  collection: (name: string) => ({ doc: (id?: string) => ({ id: id ?? `auto-${name}`, get: docGet }) }),
-  batch: () => ({ set: batchSet, update: batchUpdate, commit: batchCommit }),
+  collection: (name: string) => ({
+    doc: (id?: string) => ({ id: id ?? `auto-${name}`, get: docGet }),
+    get: colGet,
+  }),
+  batch: () => ({ set: batchSet, update: batchUpdate, delete: batchDelete, commit: batchCommit }),
 };
 
 vi.mock("firebase-admin/auth", () => ({ getAuth: () => ({ verifyIdToken }) }));
@@ -32,9 +37,12 @@ beforeEach(() => {
   verifyIdToken.mockReset();
   batchSet.mockClear();
   batchUpdate.mockClear();
+  batchDelete.mockClear();
   batchCommit.mockClear();
   docGet.mockReset();
   docGet.mockResolvedValue({ data: () => undefined });
+  colGet.mockReset();
+  colGet.mockResolvedValue({ docs: [] });
 });
 
 describe("POST /api/admin/mutations — enforcement", () => {
@@ -85,6 +93,34 @@ describe("POST /api/admin/mutations — enforcement", () => {
     expect(res.status).toBe(200);
     expect(batchUpdate).toHaveBeenCalledOnce();
     expect(batchUpdate.mock.calls[0][1]).toMatchObject({ lot: "LOTE-REAL", expiresAt: "2027-08-15" });
+  });
+
+  it("200 admin en database.backup: devuelve todas las colecciones en JSON", async () => {
+    verifyIdToken.mockResolvedValue({ email: "davidtencio@gmail.com", email_verified: true });
+    colGet.mockResolvedValueOnce({
+      docs: [{ id: "m1", ref: { id: "m1" }, data: () => ({ name: "Metformina", stock: 10 }) }],
+    });
+    const res = await POST(request("Bearer x", { op: "database.backup" }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; backup: { exportedBy: string; collections: Record<string, unknown[]> } };
+    expect(body.ok).toBe(true);
+    expect(body.backup.exportedBy).toBe("davidtencio@gmail.com");
+    expect(body.backup.collections.medicines).toEqual([{ id: "m1", name: "Metformina", stock: 10 }]);
+  });
+
+  it("database.reset exige la palabra LIMPIAR y borra todos los documentos existentes", async () => {
+    verifyIdToken.mockResolvedValue({ email: "davidtencio@gmail.com", email_verified: true });
+    const bad = await POST(request("Bearer x", { op: "database.reset", confirm: "NO" }));
+    expect(bad.status).toBe(400);
+    expect(batchDelete).not.toHaveBeenCalled();
+
+    colGet.mockResolvedValueOnce({
+      docs: [{ id: "m1", ref: { id: "m1" }, data: () => ({ name: "Metformina" }) }],
+    });
+    const ok = await POST(request("Bearer x", { op: "database.reset", confirm: "LIMPIAR" }));
+    expect(ok.status).toBe(200);
+    expect(batchDelete).toHaveBeenCalledOnce();
+    expect(batchCommit).toHaveBeenCalledOnce();
   });
 
   it("400 admin con operación inválida (datos que el planificador rechaza)", async () => {

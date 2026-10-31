@@ -116,3 +116,26 @@ export function demoRegisterMovement(
 export function demoRegisterCount(record: Omit<Movement, "id">) {
   state = { ...state, movements: [{ ...record, id: id("demo-count") }, ...state.movements] }; emit();
 }
+
+export function demoClearDatabase() {
+  state = { medicines: [], pharmacists: [], movements: [] };
+  emit();
+}
+
+export function demoExportDatabase(): Record<string, unknown> {
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    exportedBy: DEMO_EMAIL,
+    collections: {
+      medicines: state.medicines,
+      pharmacists: state.pharmacists,
+      authorizedOperators: state.pharmacists
+        .filter((p) => p.active !== false)
+        .map((p) => ({ id: p.email, email: p.email, pharmacistId: p.id, active: true })),
+      movements: state.movements,
+      auditLogs: [],
+      operationalEvents: [],
+    },
+  };
+}

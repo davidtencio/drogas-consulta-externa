@@ -94,6 +94,22 @@ describe("SettingsTab", () => {
     expect(screen.getByText("Metformina 500 mg")).toBeInTheDocument();
   });
 
+  it("permite descargar respaldo JSON y limpiar la base de datos previa confirmación con LIMPIAR", async () => {
+    const onBackupDatabase = vi.fn();
+    const onResetDatabase = vi.fn();
+    setup({ onBackupDatabase, onResetDatabase });
+    await userEvent.click(screen.getByRole("button", { name: /Descargar copia JSON/ }));
+    expect(onBackupDatabase).toHaveBeenCalledOnce();
+
+    await userEvent.click(screen.getByRole("button", { name: /Limpiar base de datos/ }));
+    const confirmBtn = screen.getByRole("button", { name: "Eliminar todo y reiniciar" });
+    expect(confirmBtn).toBeDisabled();
+    await userEvent.type(screen.getByLabelText("Escriba LIMPIAR para confirmar"), "LIMPIAR");
+    expect(confirmBtn).toBeEnabled();
+    await userEvent.click(confirmBtn);
+    expect(onResetDatabase).toHaveBeenCalledWith("LIMPIAR");
+  });
+
   it("distingue error de catálogo vacío y permite reintentar", async () => {
     const retry = vi.fn();
     setup({ medicines: [], error: "Catálogo no disponible", onRetry: retry });

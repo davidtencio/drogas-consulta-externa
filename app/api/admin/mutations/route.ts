@@ -8,13 +8,40 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAuth } from "firebase-admin/auth";
 import { adminApp, adminDb } from "../../../server/adminApp";
-import { planAdminMutation, type AdminOp } from "../../../lib/adminMutations";
+import { planAdminMutation, validateResetConfirmation, type AdminOp } from "../../../lib/adminMutations";
 import { canManageCatalog, roleForEmail } from "../../../lib/authz";
 import type { InventoryLot } from "../../../lib/inventory";
 
 // El Admin SDK requiere el runtime de Node (no Edge) y ejecución dinámica.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const BACKUP_COLLECTIONS = [
+  "medicines",
+  "pharmacists",
+  "authorizedOperators",
+  "movements",
+  "auditLogs",
+  "operationalEvents",
+] as const;
+
+type QueryDocLike = {
+  id: string;
+  ref?: unknown;
+  data: () => Record<string, unknown>;
+};
+
+type CollectionWithGet = {
+  doc: (id?: string) => unknown;
+  get?: () => Promise<{ docs: QueryDocLike[] }>;
+};
+
+type BatchWithDelete = {
+  set: (ref: unknown, data: Record<string, unknown>) => void;
+  update: (ref: unknown, data: Record<string, unknown>) => void;
+  delete?: (ref: unknown) => void;
+  commit: () => Promise<unknown>;
+};
 
 function bearerToken(req: NextRequest): string {
   const header = req.headers.get("authorization") ?? "";
@@ -67,6 +94,68 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const db = adminDb();
+  const actorEmail = (email ?? "").trim().toLowerCase();
+  const now = new Date().toISOString();
+
+  if (op?.op === "database.backup") {
+    try {
+      const collections: Record<string, Record<string, unknown>[]> = {};
+      for (const colName of BACKUP_COLLECTIONS) {
+        const colRef = db.collection(colName) as unknown as CollectionWithGet;
+        const snap = typeof colRef.get === "function" ? await colRef.get() : { docs: [] };
+        collections[colName] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      }
+      return NextResponse.json({
+        ok: true,
+        backup: {
+          version: 1,
+          exportedAt: now,
+          exportedBy: actorEmail,
+          collections,
+        },
+      });
+    } catch {
+      return NextResponse.json({ error: "No se pudo generar la copia de respaldo." }, { status: 500 });
+    }
+  }
+
+  if (op?.op === "database.reset") {
+    try {
+      validateResetConfirmation(op.confirm);
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Confirmación inválida." }, { status: 400 });
+    }
+    try {
+      const emailsToRevoke = new Set<string>();
+      const refsToDelete: unknown[] = [];
+      for (const colName of BACKUP_COLLECTIONS) {
+        const colRef = db.collection(colName) as unknown as CollectionWithGet;
+        const snap = typeof colRef.get === "function" ? await colRef.get() : { docs: [] };
+        for (const docSnap of snap.docs) {
+          const data = docSnap.data();
+          if ((colName === "pharmacists" || colName === "authorizedOperators") && typeof data?.email === "string") {
+            emailsToRevoke.add(data.email.trim().toLowerCase());
+          }
+          refsToDelete.push(docSnap.ref ?? colRef.doc(docSnap.id));
+        }
+      }
+      for (let i = 0; i < refsToDelete.length; i += 400) {
+        const chunk = refsToDelete.slice(i, i + 400);
+        const batch = db.batch() as unknown as BatchWithDelete;
+        for (const ref of chunk) {
+          if (typeof batch.delete === "function") batch.delete(ref);
+        }
+        await batch.commit();
+      }
+      for (const targetEmail of emailsToRevoke) {
+        await syncOperatorClaim(targetEmail, false);
+      }
+      return NextResponse.json({ ok: true });
+    } catch {
+      return NextResponse.json({ error: "No se pudo limpiar la base de datos." }, { status: 500 });
+    }
+  }
+
   const entityCollection = typeof op?.op === "string" && op.op.startsWith("pharmacist") ? "pharmacists" : "medicines";
 
   let existingLots: InventoryLot[] | undefined;
@@ -104,8 +193,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const ctx = {
-    actorEmail: (email ?? "").trim().toLowerCase(),
-    now: new Date().toISOString(),
+    actorEmail,
+    now,
     newId: db.collection(entityCollection).doc().id,
     existingLots,
     existingPharmacistEmail,

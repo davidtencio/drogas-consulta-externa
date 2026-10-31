@@ -37,6 +37,7 @@ export function useInventoryData(enabled: boolean, includeAudit = false) {
   const retryInventory = useCallback(() => {
     setInventoryError(null);
     setReady(false);
+    setHistoricalCounts([]);
     setCollectionErrors({ pharmacists: "", movements: "", audit: "" });
     setCollectionReady({ pharmacists: false, movements: false, audit: false });
     setRetryAttempt((attempt) => attempt + 1);

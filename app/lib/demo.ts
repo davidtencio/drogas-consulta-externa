@@ -1,4 +1,5 @@
 import { prepareMovement, type InventoryLot, type LotAllocation, type Medicine, type Movement, type Pharmacist, type ReceivedLot } from "./inventory";
+import { primaryLotSummary } from "./adminMutations";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 export const DEMO_EMAIL = "demo@consulta-externa.local";
@@ -47,11 +48,27 @@ export const resetDemoStore = () => { state = structuredClone(initialState); emi
 const id = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 export function demoUpdateMedicine(medicineId: string, fields: Partial<Medicine>) {
-  state = { ...state, medicines: state.medicines.map((m) => m.id === medicineId ? { ...m, ...fields } : m) }; emit();
+  state = {
+    ...state,
+    medicines: state.medicines.map((m) => {
+      if (m.id !== medicineId) return m;
+      const lotSummary = m.lots?.length ? primaryLotSummary(m.lots) : {};
+      return { ...m, ...fields, ...lotSummary };
+    }),
+  };
+  emit();
 }
 
-export function demoCreateMedicine(fields: Omit<Medicine, "id" | "unit" | "stock">, stock: number) {
-  state = { ...state, medicines: [...state.medicines, { ...fields, id: id("demo-med"), unit: "unidades", stock }] }; emit();
+export function demoCreateMedicine(fields: Omit<Medicine, "id" | "unit" | "stock">, stock: number, pharmacistEmail = "") {
+  const newId = id("demo-med");
+  const now = new Date().toISOString();
+  const initialLot: InventoryLot | null = stock > 0 ? { id: `initial-${newId}`, lot: fields.lot, expiresAt: fields.expiresAt, quantity: stock, receivedAt: now } : null;
+  const created: Medicine = { ...fields, id: newId, unit: "unidades", stock, lots: initialLot ? [initialLot] : [] };
+  const initialMovements: Movement[] = initialLot
+    ? [{ id: id("demo-mov"), medicineId: newId, medicineName: fields.name, type: "IN", quantity: stock, prescriptionRef: "Existencia inicial", pharmacistEmail, createdAt: now, lotAllocations: [{ lotId: initialLot.id, lot: initialLot.lot, expiresAt: initialLot.expiresAt, quantity: stock }] }]
+    : [];
+  state = { ...state, medicines: [...state.medicines, created], movements: [...initialMovements, ...state.movements] };
+  emit();
 }
 
 export function demoCreatePharmacist(fields: Omit<Pharmacist, "id">) {

@@ -4,8 +4,9 @@ const verifyIdToken = vi.fn();
 const batchSet = vi.fn();
 const batchUpdate = vi.fn();
 const batchCommit = vi.fn(async () => undefined);
+const docGet = vi.fn<() => Promise<{ data: () => Record<string, unknown> | undefined }>>(async () => ({ data: () => undefined }));
 const fakeDb = {
-  collection: (name: string) => ({ doc: (id?: string) => ({ id: id ?? `auto-${name}` }) }),
+  collection: (name: string) => ({ doc: (id?: string) => ({ id: id ?? `auto-${name}`, get: docGet }) }),
   batch: () => ({ set: batchSet, update: batchUpdate, commit: batchCommit }),
 };
 
@@ -32,6 +33,8 @@ beforeEach(() => {
   batchSet.mockClear();
   batchUpdate.mockClear();
   batchCommit.mockClear();
+  docGet.mockReset();
+  docGet.mockResolvedValue({ data: () => undefined });
 });
 
 describe("POST /api/admin/mutations — enforcement", () => {
@@ -69,6 +72,19 @@ describe("POST /api/admin/mutations — enforcement", () => {
     expect(batchCommit).toHaveBeenCalledOnce();
     const audit = batchSet.mock.calls.map((c) => c[1] as Record<string, unknown>).find((d) => d.action === "medicine.create");
     expect(audit).toMatchObject({ actorEmail: "davidtencio@gmail.com", entityType: "medicine" });
+  });
+
+  it("200 admin en medicine.update: sincroniza lot y expiresAt con los lotes existentes del documento", async () => {
+    verifyIdToken.mockResolvedValue({ email: "davidtencio@gmail.com", email_verified: true });
+    docGet.mockResolvedValueOnce({
+      data: () => ({
+        lots: [{ id: "lot-1", lot: "LOTE-REAL", expiresAt: "2027-08-15", quantity: 12, receivedAt: "2026-01-01T00:00:00.000Z" }],
+      }),
+    });
+    const res = await POST(request("Bearer x", { op: "medicine.update", id: "m1", fields: { ...medOp.fields, lot: "OTRO", expiresAt: "2099-01-01" } }));
+    expect(res.status).toBe(200);
+    expect(batchUpdate).toHaveBeenCalledOnce();
+    expect(batchUpdate.mock.calls[0][1]).toMatchObject({ lot: "LOTE-REAL", expiresAt: "2027-08-15" });
   });
 
   it("400 admin con operación inválida (datos que el planificador rechaza)", async () => {

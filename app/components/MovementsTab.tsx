@@ -20,11 +20,11 @@ type Props = {
   initialMedicineId?: string;
   onMedicineFilterChange?: (medicineId: string) => void;
   error?: string | null;
-  onRetry?: () => void;
+  onRetry?: () => void; hasMore?: boolean; onLoadMore?: () => void;
 };
 
 /** Pestaña de Movimientos: filtros, resumen del período, tabla y paginación. */
-export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, loading = false, initialMedicineId = "", onMedicineFilterChange, error, onRetry }: Props) {
+export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, loading = false, initialMedicineId = "", onMedicineFilterChange, error, onRetry, hasMore = false, onLoadMore }: Props) {
   const [type, setType] = useState<MovementTypeFilter>("ALL");
   const [text, setText] = useState("");
   const [medicineId, setMedicineId] = useState(initialMedicineId);
@@ -124,7 +124,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
           <div className="pager-nav">
             <button onClick={() => setPage(pageNum - 1)} disabled={pageNum <= 1} aria-label="Página anterior"><Icon name="chevron-left" size={18} /></button>
             <span>Página {pageNum} de {totalPages}</span>
-            <button onClick={() => setPage(pageNum + 1)} disabled={pageNum >= totalPages} aria-label="Página siguiente"><Icon name="chevron-right" size={18} /></button>
+            <button onClick={() => setPage(pageNum + 1)} disabled={pageNum >= totalPages} aria-label="Página siguiente"><Icon name="chevron-right" size={18} /></button>{hasMore && onLoadMore && <button type="button" className="secondary" onClick={onLoadMore}>Cargar más historial</button>}
           </div>
         </div>
       )}

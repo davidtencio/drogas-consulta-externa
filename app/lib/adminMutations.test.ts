@@ -8,23 +8,52 @@ const phFields = { name: "Ana", email: "ana@h.cr", license: "CF-1" };
 const audit = (writes: WriteOp[]) => writes.find((w) => w.collection === "auditLogs");
 
 describe("planAdminMutation — medicine.create", () => {
-  it("sin existencia inicial: medicamento + auditoría (sin movimiento)", () => {
+  it("sin existencia inicial: medicamento con lots vacío + auditoría (sin movimiento)", () => {
     const writes = planAdminMutation({ op: "medicine.create", fields: medFields, initialStock: 0, pharmacistEmail: "" }, ctx);
     expect(writes).toHaveLength(2);
-    expect(writes[0]).toMatchObject({ kind: "set", collection: "medicines", id: "NEW1", data: { stock: 0, active: true, unit: "unidades", createdAt: ctx.now } });
+    expect(writes[0]).toMatchObject({
+      kind: "set",
+      collection: "medicines",
+      id: "NEW1",
+      data: { stock: 0, lots: [], active: true, unit: "unidades", createdAt: ctx.now },
+    });
     expect(writes.some((w) => w.collection === "movements")).toBe(false);
     expect(audit(writes)?.data).toMatchObject({ action: "medicine.create", entityId: "NEW1", actorEmail: "admin@h.cr", createdAt: ctx.now });
   });
 
-  it("con existencia inicial: medicamento + movimiento de ingreso + auditoría, todo en el lote", () => {
+  it("con existencia inicial: inicializa lots, registra movimiento con lotAllocations y auditoría en el lote", () => {
     const writes = planAdminMutation({ op: "medicine.create", fields: medFields, initialStock: 5, pharmacistEmail: "ana@h.cr" }, ctx);
     expect(writes).toHaveLength(3);
+    expect(writes[0]).toMatchObject({
+      kind: "set",
+      collection: "medicines",
+      id: "NEW1",
+      data: {
+        stock: 5,
+        lot: "L1",
+        expiresAt: "2027-01-01",
+        lots: [{ id: "initial-NEW1", lot: "L1", expiresAt: "2027-01-01", quantity: 5, receivedAt: ctx.now }],
+      },
+    });
     const movement = writes.find((w) => w.collection === "movements");
-    expect(movement).toMatchObject({ kind: "add", data: { type: "IN", quantity: 5, medicineId: "NEW1", pharmacistEmail: "ana@h.cr", prescriptionRef: "Existencia inicial", actorEmail: "admin@h.cr" } });
+    expect(movement).toMatchObject({
+      kind: "add",
+      data: {
+        type: "IN",
+        quantity: 5,
+        medicineId: "NEW1",
+        pharmacistEmail: "ana@h.cr",
+        prescriptionRef: "Existencia inicial",
+        actorEmail: "admin@h.cr",
+        lotAllocations: [{ lotId: "initial-NEW1", lot: "L1", expiresAt: "2027-01-01", quantity: 5 }],
+      },
+    });
     expect(audit(writes)?.data).toMatchObject({ details: { initialStock: 5 } });
   });
 
-  it("exige farmacéutico cuando la existencia inicial es > 0", () => {
+  it("exige lote, vencimiento y farmacéutico cuando la existencia inicial es > 0", () => {
+    expect(() => planAdminMutation({ op: "medicine.create", fields: { ...medFields, lot: "" }, initialStock: 5, pharmacistEmail: "ana@h.cr" }, ctx)).toThrow(/lote/i);
+    expect(() => planAdminMutation({ op: "medicine.create", fields: { ...medFields, expiresAt: "" }, initialStock: 5, pharmacistEmail: "ana@h.cr" }, ctx)).toThrow(/vencimiento/i);
     expect(() => planAdminMutation({ op: "medicine.create", fields: medFields, initialStock: 5, pharmacistEmail: "" }, ctx)).toThrow(/farmacéutico/i);
   });
 
@@ -44,6 +73,31 @@ describe("planAdminMutation — medicine.update", () => {
     const writes = planAdminMutation({ op: "medicine.update", id: "m1", fields: medFields }, ctx);
     expect(writes[0]).toMatchObject({ kind: "update", collection: "medicines", id: "m1", data: { name: "Metformina" } });
     expect(audit(writes)?.data).toMatchObject({ action: "medicine.update", entityId: "m1" });
+  });
+
+  it("protege lot y expiresAt derivándolos del lote vigente más próximo (FEFO) si el medicamento ya tiene lots", () => {
+    const writes = planAdminMutation(
+      { op: "medicine.update", id: "m1", fields: { ...medFields, minimumStock: 50, lot: "MANUAL-ERRONEO", expiresAt: "2099-12-31" } },
+      {
+        ...ctx,
+        existingLots: [
+          { id: "l-agotado", lot: "L-VIEJO", expiresAt: "2026-01-01", quantity: 0, receivedAt: "2025-01-01T00:00:00.000Z" },
+          { id: "l-tarde", lot: "L-2028", expiresAt: "2028-05-01", quantity: 20, receivedAt: "2026-01-01T00:00:00.000Z" },
+          { id: "l-pronto", lot: "L-2027", expiresAt: "2027-03-15", quantity: 10, receivedAt: "2026-02-01T00:00:00.000Z" },
+        ],
+      }
+    );
+    expect(writes[0]).toMatchObject({
+      kind: "update",
+      collection: "medicines",
+      id: "m1",
+      data: {
+        name: "Metformina",
+        minimumStock: 50,
+        lot: "L-2027",
+        expiresAt: "2027-03-15",
+      },
+    });
   });
 });
 

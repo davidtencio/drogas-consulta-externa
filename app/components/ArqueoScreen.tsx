@@ -19,9 +19,9 @@ import { DEMO_MODE } from "../lib/demo";
  * un solo envío. No ajusta el stock.
  */
 export function ArqueoScreen({ email }: { email: string }) {
-  const { medicines, pharmacists, movements, pendingWrites, settingsLoading: loading, settingsError: error, movementsLoading, movementsError, retryInventory } = useInventoryData(true);
+  const { medicines, pharmacists, movements, countMovements, pendingWrites, settingsLoading: loading, settingsError: error, movementsLoading, movementsError, retryInventory } = useInventoryData(true);
   const online = useOnline();
-  const lastCounts = useMemo(() => lastCountByMedicine(movements), [movements]);
+  const lastCounts = useMemo(() => lastCountByMedicine(countMovements ?? movements), [countMovements, movements]);
 
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
   const [pharmacistEmail, setPharmacistEmail] = useState("");

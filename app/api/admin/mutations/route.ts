@@ -10,6 +10,7 @@ import { getAuth } from "firebase-admin/auth";
 import { adminApp, adminDb } from "../../../server/adminApp";
 import { planAdminMutation, type AdminOp } from "../../../lib/adminMutations";
 import { canManageCatalog, roleForEmail } from "../../../lib/authz";
+import type { InventoryLot } from "../../../lib/inventory";
 
 // El Admin SDK requiere el runtime de Node (no Edge) y ejecución dinámica.
 export const runtime = "nodejs";
@@ -48,10 +49,28 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const db = adminDb();
   const entityCollection = typeof op?.op === "string" && op.op.startsWith("pharmacist") ? "pharmacists" : "medicines";
+
+  let existingLots: InventoryLot[] | undefined;
+  if (op?.op === "medicine.update" && typeof op.id === "string" && op.id.trim()) {
+    try {
+      const docRef = db.collection("medicines").doc(op.id.trim()) as {
+        get?: () => Promise<{ data?: () => Record<string, unknown> | undefined }>;
+      };
+      if (typeof docRef.get === "function") {
+        const snap = await docRef.get();
+        const rawLots = snap.data?.()?.lots;
+        if (Array.isArray(rawLots)) existingLots = rawLots as InventoryLot[];
+      }
+    } catch {
+      return NextResponse.json({ error: "No se pudo guardar el cambio." }, { status: 500 });
+    }
+  }
+
   const ctx = {
     actorEmail: (email ?? "").trim().toLowerCase(),
     now: new Date().toISOString(),
     newId: db.collection(entityCollection).doc().id,
+    existingLots,
   };
 
   let writes;

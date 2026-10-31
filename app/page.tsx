@@ -48,6 +48,8 @@ async function saveMedicine(form:FormData, editing:Medicine|null){
   const pharmacistEmail=trimmed(form,"pharmacistEmail");
   if(initial>0){
     if(!Number.isInteger(initial)) throw new Error("La existencia inicial debe ser un número entero.");
+    if(!fields.lot) throw new Error("Indique el lote del ingreso inicial.");
+    if(!fields.expiresAt) throw new Error("Indique el vencimiento del ingreso inicial.");
     if(!pharmacistEmail) throw new Error("Seleccione el farmacéutico responsable del ingreso inicial.");
   }
   await dataApi.createMedicine(fields,initial,pharmacistEmail);
@@ -95,7 +97,7 @@ export default function Home() {
   const [busy,setBusy]=useState(false);
   const [alertDismissed,setAlertDismissed]=useState(false);
 
-  const {medicines,pharmacists,movements,auditLogs,pendingWrites,loading,inventoryError,movementsLoading,movementsError,settingsLoading,settingsError,personnelMessage,retryInventory}=useInventoryData(!!user,role==="admin"&&!DEMO_MODE);
+  const {medicines,pharmacists,movements,countMovements,hasMoreMovements,loadMoreMovements,auditLogs,pendingWrites,loading,inventoryError,movementsLoading,movementsError,settingsLoading,settingsError,personnelMessage,retryInventory}=useInventoryData(!!user,role==="admin"&&!DEMO_MODE);
   const online=useOnline();
 
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
@@ -103,7 +105,7 @@ export default function Home() {
   const activePharmacists=useMemo(()=>pharmacists.filter(p=>p.active!==false),[pharmacists]);
   const pharmacistNames=useMemo(()=>pharmacistNameByEmail(pharmacists),[pharmacists]);
   const expAlert=useMemo(()=>summarizeInventory(activeMeds),[activeMeds]);
-  const lastCounts=useMemo(()=>lastCountMovementByMedicine(movements),[movements]);
+  const lastCounts=useMemo(()=>lastCountMovementByMedicine(countMovements??movements),[countMovements,movements]);
   const certifications=useMemo(()=>new Map([...lastCounts].map(([id,record])=>[id,{createdAt:record.createdAt,pharmacistName:pharmacistNames.get(record.pharmacistEmail.trim().toLowerCase())||record.pharmacistEmail}])),[lastCounts,pharmacistNames]);
 
   const closeModal=useCallback(()=>{setModal(null);setModalError(null)},[]);
@@ -173,7 +175,7 @@ export default function Home() {
       const message=err instanceof Error?err.message:"No se pudo guardar";
       const lower=message.toLowerCase();
       const field=action==="pharmacist"?(lower.includes("correo")?"email":lower.includes("código")?"license":lower.includes("nombre")?"name":undefined)
-        :lower.includes("código")?"code":lower.includes("concentración")?"strength":lower.includes("nombre")?"name":lower.includes("existencia")?(action==="movement"?"quantity":"stock"):lower.includes("cantidad")?"quantity":lower.includes("vencimiento")?"lotExpiresAt":lower.includes("lote")?"lotNumber":lower.includes("medicamento")?"medicineId":lower.includes("farmacéutico")?"pharmacistEmail":undefined;
+        :lower.includes("código")?"code":lower.includes("concentración")?"strength":lower.includes("nombre")?"name":lower.includes("existencia")?(action==="movement"?"quantity":"stock"):lower.includes("cantidad")?"quantity":lower.includes("vencimiento")?(action==="medicine"?"expiresAt":"lotExpiresAt"):lower.includes("lote")?(action==="medicine"?"lot":"lotNumber"):lower.includes("medicamento")?"medicineId":lower.includes("farmacéutico")?"pharmacistEmail":undefined;
       setModalError({message,field});
     }
     finally{setBusy(false)}
@@ -197,7 +199,7 @@ export default function Home() {
 
       {tab==="dashboard"&&<InventoryPanel medicines={activeMeds} certifications={certifications} searchRef={searchRef} loading={loading} error={inventoryError} onRetry={retryInventory} onMovement={openMovement} onCount={openCount} onViewMovements={viewMedicineMovements} onExport={exportMedicines}/>}
 
-      {tab==="movements"&&<MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId}/>}
+      {tab==="movements"&&<MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId} hasMore={hasMoreMovements} onLoadMore={loadMoreMovements}/>}
 
       {tab==="settings"&&canManageCatalog(role)&&<SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} loading={settingsLoading} error={settingsError} onRetry={retryInventory} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount}/>}
     </section>

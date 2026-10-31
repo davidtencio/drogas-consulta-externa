@@ -71,7 +71,7 @@ export async function createMedicine(
   initialStock: number,
   pharmacistEmail: string
 ): Promise<void> {
-  if (DEMO_MODE) { demoCreateMedicine({ ...fields, active: true }, initialStock); return; }
+  if (DEMO_MODE) { demoCreateMedicine({ ...fields, active: true }, initialStock, pharmacistEmail); return; }
   await postAdminMutation({ op: "medicine.create", fields, initialStock, pharmacistEmail });
 }
 

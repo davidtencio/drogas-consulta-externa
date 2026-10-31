@@ -4,7 +4,7 @@
 // este módulo libre de dependencias del servidor: los tipos también los usa el
 // cliente (app/lib/db.ts) para tipar la petición al backend.
 
-import { isValidMedicineCode, prepareMovement } from "./inventory";
+import { isValidMedicineCode, prepareMovement, type InventoryLot, type LotAllocation } from "./inventory";
 
 export type MedicineFields = {
   name: string;
@@ -40,6 +40,8 @@ export type PlanContext = {
   now: string;
   /** Id pre-generado para el documento de una operación de creación. */
   newId: string;
+  /** Lotes actuales del medicamento cuando se edita su ficha técnica. */
+  existingLots?: readonly InventoryLot[];
 };
 
 const req = (value: string, message: string): string => {
@@ -47,6 +49,17 @@ const req = (value: string, message: string): string => {
   if (!v) throw new Error(message);
   return v;
 };
+
+/** Obtiene el lote y vencimiento principales a partir de los lotes con saldo positivo (FEFO). */
+export function primaryLotSummary(lots: readonly InventoryLot[]): { lot: string; expiresAt: string } {
+  const available = [...lots]
+    .filter((item) => Number(item.quantity) > 0)
+    .sort((a, b) => (a.expiresAt || "9999-12-31").localeCompare(b.expiresAt || "9999-12-31") || (a.receivedAt || "").localeCompare(b.receivedAt || ""));
+  return {
+    lot: available[0]?.lot || "",
+    expiresAt: available[0]?.expiresAt || "",
+  };
+}
 
 function auditWrite(
   action: string,
@@ -90,30 +103,72 @@ export function planAdminMutation(op: AdminOp, ctx: PlanContext): WriteOp[] {
       if (!Number.isInteger(initial) || initial < 0) {
         throw new Error("La existencia inicial debe ser un número entero.");
       }
-      const writes: WriteOp[] = [
+      if (initial === 0) {
+        return [
+          {
+            kind: "set",
+            collection: "medicines",
+            id: ctx.newId,
+            data: { ...op.fields, unit: "unidades", stock: 0, lots: [], active: true, createdAt: ctx.now },
+          },
+          auditWrite("medicine.create", "medicine", ctx.newId, ctx, { name: op.fields.name, initialStock: 0 }),
+        ];
+      }
+
+      const lot = req(op.fields.lot, "Indique el lote del ingreso inicial.");
+      const expiresAt = req(op.fields.expiresAt, "Indique el vencimiento del ingreso inicial.");
+      const pharmacistEmail = req(op.pharmacistEmail, "Seleccione el farmacéutico responsable del ingreso inicial.");
+      const lotId = `initial-${ctx.newId}`;
+      const initialLot: InventoryLot = {
+        id: lotId,
+        lot,
+        expiresAt,
+        quantity: initial,
+        receivedAt: ctx.now,
+      };
+      const lotAllocations: LotAllocation[] = [{ lotId, lot, expiresAt, quantity: initial }];
+      const { record } = prepareMovement(
+        { name: op.fields.name, stock: 0 },
+        {
+          medicineId: ctx.newId,
+          type: "IN",
+          quantity: initial,
+          prescriptionRef: "Existencia inicial",
+          lotAllocations,
+          pharmacistEmail,
+          createdAt: ctx.now,
+        }
+      );
+
+      return [
         {
           kind: "set",
           collection: "medicines",
           id: ctx.newId,
-          data: { ...op.fields, unit: "unidades", stock: initial, active: true, createdAt: ctx.now },
+          data: {
+            ...op.fields,
+            lot,
+            expiresAt,
+            unit: "unidades",
+            stock: initial,
+            lots: [initialLot],
+            active: true,
+            createdAt: ctx.now,
+          },
         },
+        { kind: "add", collection: "movements", data: { ...record, actorEmail: ctx.actorEmail } },
+        auditWrite("medicine.create", "medicine", ctx.newId, ctx, { name: op.fields.name, initialStock: initial }),
       ];
-      if (initial > 0) {
-        const pharmacistEmail = req(op.pharmacistEmail, "Seleccione el farmacéutico responsable del ingreso inicial.");
-        const { record } = prepareMovement(
-          { name: op.fields.name, stock: 0 },
-          { medicineId: ctx.newId, type: "IN", quantity: initial, prescriptionRef: "Existencia inicial", pharmacistEmail, createdAt: ctx.now }
-        );
-        writes.push({ kind: "add", collection: "movements", data: { ...record, actorEmail: ctx.actorEmail } });
-      }
-      writes.push(auditWrite("medicine.create", "medicine", ctx.newId, ctx, { name: op.fields.name, initialStock: initial }));
-      return writes;
     }
     case "medicine.update": {
       const id = req(op.id, "Medicamento no disponible.");
       validateMedicine(op.fields);
+      const data: MedicineFields =
+        ctx.existingLots && ctx.existingLots.length > 0
+          ? { ...op.fields, ...primaryLotSummary(ctx.existingLots) }
+          : { ...op.fields };
       return [
-        { kind: "update", collection: "medicines", id, data: { ...op.fields } },
+        { kind: "update", collection: "medicines", id, data },
         auditWrite("medicine.update", "medicine", id, ctx, { name: op.fields.name }),
       ];
     }

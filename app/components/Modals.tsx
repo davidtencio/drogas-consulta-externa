@@ -99,9 +99,10 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
             <label>Stock mínimo<input name="minimumStock" type="number" min="0" step="1" defaultValue={em ? String(em.minimumStock) : "0"} /></label>
           </div>
           <div className="form-row">
-            <label>Lote<input name="lot" defaultValue={em?.lot || ""} /></label>
-            <label>Vencimiento<input name="expiresAt" type="date" lang="es-CR" defaultValue={em?.expiresAt || ""} /></label>
+            <label>Lote<input name="lot" defaultValue={em?.lot || ""} readOnly={Boolean(em?.lots?.length)} {...invalid("lot")} /></label>
+            <label>Vencimiento<input name="expiresAt" type="date" lang="es-CR" defaultValue={em?.expiresAt || ""} readOnly={Boolean(em?.lots?.length)} {...invalid("expiresAt")} /></label>
           </div>
+          {Boolean(em?.lots?.length) && <small className="form-hint">El lote y vencimiento principales se actualizan automáticamente a partir de los lotes activos (FEFO).</small>}
           {!editing && <label>Farmacéutico responsable<small className="inline-hint">Requerido si la existencia inicial es mayor a 0</small><select name="pharmacistEmail" defaultValue=""><option value="">Sin ingreso inicial</option>{pharmacistOptions}</select></label>}
           </fieldset>
           {errorMessage}

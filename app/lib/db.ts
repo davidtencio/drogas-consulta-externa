@@ -1,9 +1,10 @@
 // Capa de acceso a datos: encapsula las escrituras a Firestore para que la UI
-// no dependa directamente del SDK. La lógica de dominio vive en inventory.ts.
+// no dependa directamente del SDK. La lógica de dominio vive en inventory.ts y lots.ts.
 
 import { addDoc, collection, doc, runTransaction, writeBatch } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { prepareCount, prepareMovement, type InventoryLot, type LotAllocation, type MovementType, type ReceivedLot } from "./inventory";
+import { prepareCount, prepareMovement, type MovementType, type ReceivedLot } from "./inventory";
+import { applyLotMovement, normalizeMedicineLots } from "./lots";
 import { DEMO_MODE, demoCreateMedicine, demoCreatePharmacist, demoRegisterCount, demoRegisterMovement, demoSetActive, demoUpdateMedicine, demoUpdatePharmacist } from "./demo";
 import type { AdminOp, MedicineFields, PharmacistFields } from "./adminMutations";
 
@@ -102,43 +103,6 @@ export type MovementRequest = {
   now: string;
 };
 
-function currentLots(data: Record<string, unknown>, medicineId: string, now: string): InventoryLot[] {
-  const stored = Array.isArray(data.lots) ? data.lots as InventoryLot[] : [];
-  if (stored.length || !(Number(data.stock) > 0)) return stored.map((lot) => ({ ...lot, quantity: Number(lot.quantity) || 0 }));
-  return [{ id: `legacy-${medicineId}`, lot: String(data.lot || "SIN-LOTE"), expiresAt: String(data.expiresAt || ""), quantity: Number(data.stock), receivedAt: now }];
-}
-
-function applyLots(lots: InventoryLot[], req: MovementRequest): { lots: InventoryLot[]; allocations: LotAllocation[] } {
-  if (req.type === "IN") {
-    const incoming = req.receivedLots || [];
-    if (!incoming.length) throw new Error("Registre al menos un lote para el ingreso.");
-    const next = lots.map((lot) => ({ ...lot }));
-    const allocations = incoming.map((item, index) => {
-      const normalizedCode = item.lot.trim().toLowerCase();
-      const existing = next.find((lot) => lot.lot.trim().toLowerCase() === normalizedCode);
-      if (existing) {
-        if (existing.quantity > 0 && existing.expiresAt && item.expiresAt && existing.expiresAt !== item.expiresAt) {
-          throw new Error(`El lote ${item.lot} ya existe con vencimiento ${existing.expiresAt}. Verifique el lote o la fecha.`);
-        }
-        existing.quantity += item.quantity;
-        if (item.expiresAt) existing.expiresAt = item.expiresAt;
-        return { lotId: existing.id, lot: existing.lot, expiresAt: existing.expiresAt, quantity: item.quantity };
-      }
-      const lotId = `${req.now}-${index}-${item.lot}`;
-      next.push({ id: lotId, lot: item.lot, expiresAt: item.expiresAt, quantity: item.quantity, receivedAt: req.now });
-      return { lotId, lot: item.lot, expiresAt: item.expiresAt, quantity: item.quantity };
-    });
-    return { lots: next, allocations };
-  }
-  let remaining = req.quantity;
-  const next = lots.map((lot) => ({ ...lot }));
-  const allocations: LotAllocation[] = [];
-  const ordered = [...next].filter((lot) => lot.quantity > 0).sort((a,b)=>(a.expiresAt||"9999-12-31").localeCompare(b.expiresAt||"9999-12-31")||a.receivedAt.localeCompare(b.receivedAt));
-  for (const lot of ordered) { if (!remaining) break; const used=Math.min(lot.quantity,remaining); lot.quantity-=used;remaining-=used;allocations.push({lotId:lot.id,lot:lot.lot,expiresAt:lot.expiresAt,quantity:used}); }
-  if (remaining) throw new Error("Existencias por lote insuficientes.");
-  return { lots: next, allocations };
-}
-
 /**
  * Registra un movimiento dentro de una transacción: lee las existencias
  * actuales, calcula el nuevo stock (rechaza egresos insuficientes) y persiste
@@ -154,13 +118,17 @@ export function registerMovement(req: MovementRequest): Promise<void> {
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("Medicamento no disponible.");
     const data = snap.data();
-    const lotResult = applyLots(currentLots(data, req.medicineId, req.now), req);
+    const lotResult = applyLotMovement(normalizeMedicineLots(data, req.medicineId, req.now), {
+      type: req.type,
+      quantity: req.quantity,
+      receivedLots: req.receivedLots,
+      now: req.now,
+    });
     const { nextStock, record } = prepareMovement(
       { name: data.name, stock: Number(data.stock) || 0 },
       { medicineId: req.medicineId, type: req.type, quantity: req.quantity, prescriptionRef: req.prescriptionRef, note: req.note, lotAllocations: lotResult.allocations, pharmacistEmail: req.pharmacistEmail, createdAt: req.now }
     );
-    const available=lotResult.lots.filter((lot)=>lot.quantity>0).sort((a,b)=>(a.expiresAt||"9999-12-31").localeCompare(b.expiresAt||"9999-12-31"));
-    tx.update(ref, { stock: nextStock, lots: lotResult.lots, lot: available[0]?.lot||"", expiresAt: available[0]?.expiresAt||"" });
+    tx.update(ref, { stock: nextStock, lots: lotResult.lots, lot: lotResult.lot, expiresAt: lotResult.expiresAt });
     tx.set(doc(collection(db, "movements")), { ...record, actorEmail: actorEmail() });
   });
 }

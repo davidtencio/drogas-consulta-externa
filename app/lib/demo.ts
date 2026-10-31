@@ -1,5 +1,5 @@
-import { prepareMovement, type InventoryLot, type LotAllocation, type Medicine, type Movement, type Pharmacist, type ReceivedLot } from "./inventory";
-import { primaryLotSummary } from "./adminMutations";
+import { prepareMovement, type InventoryLot, type Medicine, type Movement, type Pharmacist, type ReceivedLot } from "./inventory";
+import { applyLotMovement, normalizeMedicineLots, primaryLotSummary } from "./lots";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 export const DEMO_EMAIL = "demo@consulta-externa.local";
@@ -24,7 +24,7 @@ const initialState: DemoState = {
       { id: "demo-cz-3", lot: "DEMO-CZ-VIGENTE", expiresAt: isoDate(198), quantity: 60, receivedAt: isoTime(300) },
     ] },
     { id: "demo-morfina", name: "Morfina", strength: "10 mg/mL", form: "Solución inyectable", unit: "ampollas", stock: 8, minimumStock: 15, lot: "MF-7805", expiresAt: isoDate(9), code: "104-10-7805", active: true },
-    { id: "demo-levotiroxina", name: "Levotiroxina", strength: "100 mcg", form: "Tableta", unit: "unidades", stock: 184, minimumStock: 50, lot: "LV-3348", expiresAt: isoDate(290), code: "105-10-3348", active: true },
+    { id: "demo-levotiroxina", name: "Levotiroxina", strength: "100 mcg", form: "Tableta", unit: "unidades", stock: 184, minimumStock: 50, lot: "LV-3348", expiresAt: isoDate(290), code: "105-10-3338", active: true },
     { id: "demo-salbutamol", name: "Salbutamol", strength: "100 mcg/dosis", form: "Inhalador", unit: "unidades", stock: 42, minimumStock: 20, lot: "SB-9087", expiresAt: isoDate(-3), code: "106-10-9087", active: true },
   ],
   pharmacists: [
@@ -91,42 +91,16 @@ export function demoRegisterMovement(input: Omit<Movement, "id" | "medicineName"
   if (!medicine) throw new Error("Medicamento no disponible.");
   if (input.type !== "IN" && input.type !== "OUT") throw new Error("Tipo de movimiento inválido.");
   const prepared = prepareMovement(medicine, { medicineId: medicine.id, type: input.type, quantity: input.quantity, prescriptionRef: input.prescriptionRef, note: input.note, pharmacistEmail: input.pharmacistEmail, createdAt: input.createdAt });
-  const lots: InventoryLot[] = medicine.lots?.length ? structuredClone(medicine.lots) : medicine.stock > 0 ? [{ id: `legacy-${medicine.id}`, lot: medicine.lot || "SIN-LOTE", expiresAt: medicine.expiresAt || "", quantity: medicine.stock, receivedAt: input.createdAt }] : [];
-  const allocations: LotAllocation[] = [];
-  if (input.type === "IN") {
-    if (!receivedLots?.length) throw new Error("Registre al menos un lote para el ingreso.");
-    if (receivedLots.reduce((sum, lot) => sum + lot.quantity, 0) !== input.quantity) throw new Error("La cantidad no coincide con los lotes recibidos.");
-    for (const incoming of receivedLots) {
-      const normalizedCode = incoming.lot.trim().toLowerCase();
-      const existing = lots.find((lot) => lot.lot.trim().toLowerCase() === normalizedCode);
-      if (existing) {
-        if (existing.quantity > 0 && existing.expiresAt && incoming.expiresAt && existing.expiresAt !== incoming.expiresAt) {
-          throw new Error(`El lote ${incoming.lot} ya existe con vencimiento ${existing.expiresAt}. Verifique el lote o la fecha.`);
-        }
-        existing.quantity += incoming.quantity;
-        if (incoming.expiresAt) existing.expiresAt = incoming.expiresAt;
-        allocations.push({ lotId: existing.id, lot: existing.lot, expiresAt: existing.expiresAt, quantity: incoming.quantity });
-        continue;
-      }
-      const lotId = id("demo-lot");
-      lots.push({ ...incoming, id: lotId, receivedAt: input.createdAt });
-      allocations.push({ ...incoming, lotId });
-    }
-  } else {
-    let remaining = input.quantity;
-    for (const lot of [...lots].filter((item) => item.quantity > 0).sort((a, b) => (a.expiresAt || "9999").localeCompare(b.expiresAt || "9999") || a.receivedAt.localeCompare(b.receivedAt))) {
-      if (!remaining) break;
-      const used = Math.min(remaining, lot.quantity);
-      lot.quantity -= used;
-      remaining -= used;
-      allocations.push({ lotId: lot.id, lot: lot.lot, expiresAt: lot.expiresAt, quantity: used });
-    }
-    if (remaining) throw new Error("Existencias por lote insuficientes.");
-  }
-  const first = lots.filter((lot) => lot.quantity > 0).sort((a, b) => (a.expiresAt || "9999").localeCompare(b.expiresAt || "9999"))[0];
-  const record: Movement = { ...input, lotAllocations: allocations, id: id("demo-mov"), medicineName: medicine.name };
+  const lotResult = applyLotMovement(normalizeMedicineLots(medicine, medicine.id, input.createdAt), {
+    type: input.type,
+    quantity: input.quantity,
+    receivedLots,
+    now: input.createdAt,
+    makeLotId: () => id("demo-lot"),
+  });
+  const record: Movement = { ...input, lotAllocations: lotResult.allocations, id: id("demo-mov"), medicineName: medicine.name };
   state = {
-    medicines: state.medicines.map((m) => m.id === medicine.id ? { ...m, stock: prepared.nextStock, lots, lot: first?.lot || "", expiresAt: first?.expiresAt || "" } : m),
+    medicines: state.medicines.map((m) => m.id === medicine.id ? { ...m, stock: prepared.nextStock, lots: lotResult.lots, lot: lotResult.lot, expiresAt: lotResult.expiresAt } : m),
     pharmacists: state.pharmacists,
     movements: [record, ...state.movements],
   };

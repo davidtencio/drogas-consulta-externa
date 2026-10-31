@@ -5,6 +5,9 @@
 // cliente (app/lib/db.ts) para tipar la petición al backend.
 
 import { isValidMedicineCode, prepareMovement, type InventoryLot, type LotAllocation } from "./inventory";
+import { primaryLotSummary } from "./lots";
+
+export { primaryLotSummary } from "./lots";
 
 export type MedicineFields = {
   name: string;
@@ -51,17 +54,6 @@ const req = (value: string, message: string): string => {
   if (!v) throw new Error(message);
   return v;
 };
-
-/** Obtiene el lote y vencimiento principales a partir de los lotes con saldo positivo (FEFO). */
-export function primaryLotSummary(lots: readonly InventoryLot[]): { lot: string; expiresAt: string } {
-  const available = [...lots]
-    .filter((item) => Number(item.quantity) > 0)
-    .sort((a, b) => (a.expiresAt || "9999-12-31").localeCompare(b.expiresAt || "9999-12-31") || (a.receivedAt || "").localeCompare(b.receivedAt || ""));
-  return {
-    lot: available[0]?.lot || "",
-    expiresAt: available[0]?.expiresAt || "",
-  };
-}
 
 function auditWrite(
   action: string,

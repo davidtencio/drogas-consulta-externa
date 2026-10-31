@@ -1,5 +1,21 @@
 {
   "firestore": {
     "rules": "firestore.rules"
+  },
+  "hosting": {
+    "site": "drogas-ce",
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "redirects": [
+      {
+        "regex": "^/(?P<path>.*)",
+        "destination": "https://drogas-consulta-externa--drogas-consulta-externa.us-east5.hosted.app/:path",
+        "type": 302
+      }
+    ]
   }
 }

@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const addDoc = vi.fn(async () => ({ id: "new-id" }));
-const runTransaction = vi.fn(async () => undefined);
+const txGet = vi.fn();
+const txUpdate = vi.fn();
+const txSet = vi.fn();
+const runTransaction = vi.fn(async (_db: unknown, cb: (tx: { get: typeof txGet; update: typeof txUpdate; set: typeof txSet }) => Promise<unknown>) =>
+  cb({ get: txGet, update: txUpdate, set: txSet })
+);
 const doc = vi.fn((_db: unknown, col?: string, id?: string) => ({ col, id }));
 const collection = vi.fn((_db: unknown, name: string) => ({ name }));
 const batchSet = vi.fn();
@@ -14,7 +19,7 @@ vi.mock("../firebase", () => ({
 }));
 vi.mock("firebase/firestore", () => ({
   addDoc: (...a: unknown[]) => addDoc(...(a as [])),
-  runTransaction: (...a: unknown[]) => runTransaction(...(a as [])),
+  runTransaction: (...a: unknown[]) => runTransaction(...(a as [unknown, (tx: { get: typeof txGet; update: typeof txUpdate; set: typeof txSet }) => Promise<unknown>])),
   doc: (...a: unknown[]) => doc(...(a as [unknown, string, string?])),
   collection: (...a: unknown[]) => collection(...(a as [unknown, string])),
   writeBatch: (...a: unknown[]) => writeBatch(...(a as [])),
@@ -29,6 +34,9 @@ const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true }
 beforeEach(() => {
   addDoc.mockClear();
   runTransaction.mockClear();
+  txGet.mockReset();
+  txUpdate.mockClear();
+  txSet.mockClear();
   doc.mockClear();
   collection.mockClear();
   batchSet.mockClear();
@@ -79,11 +87,163 @@ describe("mutaciones administrativas (vía backend)", () => {
   });
 });
 
-describe("registerMovement", () => {
-  it("se ejecuta dentro de una transacción (cliente, operador)", async () => {
-    await dbApi.registerMovement({ medicineId: "m1", type: "OUT", quantity: 3, prescriptionRef: "RX-1", pharmacistEmail: "ana@h.cr", now: "2026-07-16T10:00:00.000Z" });
+describe("registerMovement (transacción y descuento FEFO)", () => {
+  it("egresa descontando en orden FEFO entre múltiples lotes y actualiza el lote próximo a vencer", async () => {
+    txGet.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({
+        name: "Metformina",
+        stock: 15,
+        lot: "L-PRONTO",
+        expiresAt: "2026-11-15",
+        lots: [
+          { id: "lot-tarde", lot: "L-TARDE", expiresAt: "2027-06-01", quantity: 10, receivedAt: "2026-01-01T00:00:00.000Z" },
+          { id: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 5, receivedAt: "2026-02-01T00:00:00.000Z" },
+        ],
+      }),
+    });
+
+    await dbApi.registerMovement({
+      medicineId: "m1",
+      type: "OUT",
+      quantity: 8,
+      prescriptionRef: "RX-1",
+      note: "Despacho parcial",
+      pharmacistEmail: "ana@h.cr",
+      now: "2026-07-16T10:00:00.000Z",
+    });
+
     expect(runTransaction).toHaveBeenCalledOnce();
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(txUpdate).toHaveBeenCalledOnce();
+
+    const updatedMed = txUpdate.mock.calls[0][1] as Record<string, unknown>;
+    expect(updatedMed).toEqual({
+      stock: 7,
+      lot: "L-TARDE",
+      expiresAt: "2027-06-01",
+      lots: [
+        { id: "lot-tarde", lot: "L-TARDE", expiresAt: "2027-06-01", quantity: 7, receivedAt: "2026-01-01T00:00:00.000Z" },
+        { id: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 0, receivedAt: "2026-02-01T00:00:00.000Z" },
+      ],
+    });
+
+    expect(txSet).toHaveBeenCalledOnce();
+    const movementDoc = txSet.mock.calls[0][1] as Record<string, unknown>;
+    expect(movementDoc).toMatchObject({
+      medicineId: "m1",
+      medicineName: "Metformina",
+      type: "OUT",
+      quantity: 8,
+      prescriptionRef: "RX-1",
+      note: "Despacho parcial",
+      pharmacistEmail: "ana@h.cr",
+      actorEmail: "admin@h.cr",
+      lotAllocations: [
+        { lotId: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 5 },
+        { lotId: "lot-tarde", lot: "L-TARDE", expiresAt: "2027-06-01", quantity: 3 },
+      ],
+    });
+  });
+
+  it("en empate de fecha de vencimiento desempata por orden de recepción (FIFO)", async () => {
+    txGet.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({
+        name: "Ibuprofeno",
+        stock: 10,
+        lots: [
+          { id: "lot-2", lot: "L-2", expiresAt: "2027-03-01", quantity: 5, receivedAt: "2026-05-01T00:00:00.000Z" },
+          { id: "lot-1", lot: "L-1", expiresAt: "2027-03-01", quantity: 5, receivedAt: "2026-01-01T00:00:00.000Z" },
+        ],
+      }),
+    });
+
+    await dbApi.registerMovement({
+      medicineId: "m2",
+      type: "OUT",
+      quantity: 4,
+      prescriptionRef: "RX-2",
+      pharmacistEmail: "ana@h.cr",
+      now: "2026-07-16T10:00:00.000Z",
+    });
+
+    const movementDoc = txSet.mock.calls[0][1] as Record<string, unknown>;
+    expect(movementDoc.lotAllocations).toEqual([
+      { lotId: "lot-1", lot: "L-1", expiresAt: "2027-03-01", quantity: 4 },
+    ]);
+  });
+
+  it("migra documento heredado (sin arreglo lots) al descontar egreso", async () => {
+    txGet.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({ name: "Acetaminofén", stock: 10, lot: "LEG-1", expiresAt: "2027-01-10" }),
+    });
+
+    await dbApi.registerMovement({
+      medicineId: "m-legacy",
+      type: "OUT",
+      quantity: 10,
+      prescriptionRef: "RX-LEG",
+      pharmacistEmail: "ana@h.cr",
+      now: "2026-07-16T10:00:00.000Z",
+    });
+
+    const updatedMed = txUpdate.mock.calls[0][1] as Record<string, unknown>;
+    expect(updatedMed).toEqual({
+      stock: 0,
+      lot: "",
+      expiresAt: "",
+      lots: [{ id: "legacy-m-legacy", lot: "LEG-1", expiresAt: "2027-01-10", quantity: 0, receivedAt: "2026-07-16T10:00:00.000Z" }],
+    });
+  });
+
+  it("ingresa múltiples lotes recibidos y selecciona como principal el de vencimiento más próximo", async () => {
+    txGet.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({ name: "Metformina", stock: 0, lots: [] }),
+    });
+
+    await dbApi.registerMovement({
+      medicineId: "m1",
+      type: "IN",
+      quantity: 30,
+      receivedLots: [
+        { lot: "L-2028", expiresAt: "2028-01-01", quantity: 20 },
+        { lot: "L-2027", expiresAt: "2027-02-01", quantity: 10 },
+      ],
+      prescriptionRef: "FAC-10",
+      pharmacistEmail: "ana@h.cr",
+      now: "2026-07-16T10:00:00.000Z",
+    });
+
+    const updatedMed = txUpdate.mock.calls[0][1] as Record<string, unknown>;
+    expect(updatedMed).toMatchObject({
+      stock: 30,
+      lot: "L-2027",
+      expiresAt: "2027-02-01",
+    });
+    expect((updatedMed.lots as unknown[]).length).toBe(2);
+  });
+
+  it("rechaza si el medicamento no existe o si las existencias por lote son insuficientes", async () => {
+    txGet.mockResolvedValueOnce({ exists: () => false });
+    await expect(
+      dbApi.registerMovement({ medicineId: "inexistente", type: "OUT", quantity: 1, prescriptionRef: "RX", pharmacistEmail: "ana@h.cr", now: "2026-07-16T10:00:00.000Z" })
+    ).rejects.toThrow("Medicamento no disponible.");
+
+    txGet.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({
+        name: "Metformina",
+        stock: 10,
+        lots: [{ id: "l1", lot: "L1", expiresAt: "2027-01-01", quantity: 2, receivedAt: "2026-01-01T00:00:00.000Z" }],
+      }),
+    });
+    await expect(
+      dbApi.registerMovement({ medicineId: "m1", type: "OUT", quantity: 5, prescriptionRef: "RX", pharmacistEmail: "ana@h.cr", now: "2026-07-16T10:00:00.000Z" })
+    ).rejects.toThrow("Existencias por lote insuficientes.");
+    expect(txUpdate).not.toHaveBeenCalled();
   });
 });
 

@@ -112,8 +112,18 @@ function applyLots(lots: InventoryLot[], req: MovementRequest): { lots: Inventor
   if (req.type === "IN") {
     const incoming = req.receivedLots || [];
     if (!incoming.length) throw new Error("Registre al menos un lote para el ingreso.");
-    const next = [...lots];
+    const next = lots.map((lot) => ({ ...lot }));
     const allocations = incoming.map((item, index) => {
+      const normalizedCode = item.lot.trim().toLowerCase();
+      const existing = next.find((lot) => lot.lot.trim().toLowerCase() === normalizedCode);
+      if (existing) {
+        if (existing.quantity > 0 && existing.expiresAt && item.expiresAt && existing.expiresAt !== item.expiresAt) {
+          throw new Error(`El lote ${item.lot} ya existe con vencimiento ${existing.expiresAt}. Verifique el lote o la fecha.`);
+        }
+        existing.quantity += item.quantity;
+        if (item.expiresAt) existing.expiresAt = item.expiresAt;
+        return { lotId: existing.id, lot: existing.lot, expiresAt: existing.expiresAt, quantity: item.quantity };
+      }
       const lotId = `${req.now}-${index}-${item.lot}`;
       next.push({ id: lotId, lot: item.lot, expiresAt: item.expiresAt, quantity: item.quantity, receivedAt: req.now });
       return { lotId, lot: item.lot, expiresAt: item.expiresAt, quantity: item.quantity };

@@ -102,10 +102,24 @@ describe("planAdminMutation — medicine.update", () => {
 });
 
 describe("planAdminMutation — pharmacist", () => {
-  it("crea con active=true y auditoría", () => {
+  it("crea con active=true, sincroniza authorizedOperators y registra auditoría", () => {
     const writes = planAdminMutation({ op: "pharmacist.create", fields: phFields }, ctx);
     expect(writes[0]).toMatchObject({ kind: "set", collection: "pharmacists", id: "NEW1", data: { active: true, email: "ana@h.cr" } });
+    expect(writes[1]).toMatchObject({ kind: "set", collection: "authorizedOperators", id: "ana@h.cr", data: { email: "ana@h.cr", pharmacistId: "NEW1", active: true } });
     expect(audit(writes)?.data).toMatchObject({ action: "pharmacist.create" });
+  });
+
+  it("actualiza correo de farmacéutico y desactiva el correo anterior en authorizedOperators", () => {
+    const writes = planAdminMutation(
+      { op: "pharmacist.update", id: "p1", fields: { ...phFields, email: "nueva@h.cr" } },
+      { ...ctx, existingPharmacistEmail: "anterior@h.cr" }
+    );
+    expect(writes).toContainEqual(
+      expect.objectContaining({ kind: "set", collection: "authorizedOperators", id: "nueva@h.cr", data: expect.objectContaining({ active: true }) })
+    );
+    expect(writes).toContainEqual(
+      expect.objectContaining({ kind: "set", collection: "authorizedOperators", id: "anterior@h.cr", data: expect.objectContaining({ active: false }) })
+    );
   });
 
   it("valida datos requeridos del farmacéutico", () => {
@@ -114,9 +128,10 @@ describe("planAdminMutation — pharmacist", () => {
 });
 
 describe("planAdminMutation — setActive", () => {
-  it("da de baja con la acción de auditoría correcta", () => {
-    const writes = planAdminMutation({ op: "setActive", col: "pharmacists", id: "p1", active: false }, ctx);
+  it("da de baja con la acción de auditoría correcta y sincroniza authorizedOperators si se conoce el correo", () => {
+    const writes = planAdminMutation({ op: "setActive", col: "pharmacists", id: "p1", active: false }, { ...ctx, existingPharmacistEmail: "ana@h.cr" });
     expect(writes[0]).toMatchObject({ kind: "update", collection: "pharmacists", id: "p1", data: { active: false } });
+    expect(writes[1]).toMatchObject({ kind: "set", collection: "authorizedOperators", id: "ana@h.cr", data: { active: false } });
     expect(audit(writes)?.data).toMatchObject({ action: "pharmacist.deactivate", entityType: "pharmacist" });
   });
 

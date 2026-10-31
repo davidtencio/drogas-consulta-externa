@@ -97,6 +97,17 @@ export function demoRegisterMovement(input: Omit<Movement, "id" | "medicineName"
     if (!receivedLots?.length) throw new Error("Registre al menos un lote para el ingreso.");
     if (receivedLots.reduce((sum, lot) => sum + lot.quantity, 0) !== input.quantity) throw new Error("La cantidad no coincide con los lotes recibidos.");
     for (const incoming of receivedLots) {
+      const normalizedCode = incoming.lot.trim().toLowerCase();
+      const existing = lots.find((lot) => lot.lot.trim().toLowerCase() === normalizedCode);
+      if (existing) {
+        if (existing.quantity > 0 && existing.expiresAt && incoming.expiresAt && existing.expiresAt !== incoming.expiresAt) {
+          throw new Error(`El lote ${incoming.lot} ya existe con vencimiento ${existing.expiresAt}. Verifique el lote o la fecha.`);
+        }
+        existing.quantity += incoming.quantity;
+        if (incoming.expiresAt) existing.expiresAt = incoming.expiresAt;
+        allocations.push({ lotId: existing.id, lot: existing.lot, expiresAt: existing.expiresAt, quantity: incoming.quantity });
+        continue;
+      }
       const lotId = id("demo-lot");
       lots.push({ ...incoming, id: lotId, receivedAt: input.createdAt });
       allocations.push({ ...incoming, lotId });

@@ -15,7 +15,14 @@ service cloud.firestore {
 
     function isOperator() {
       return hasVerifiedEmail()
-        && request.auth.token.email in ['davidtencio@gmail.com', 'fhsvp2208@gmail.com'];
+        && (
+          request.auth.token.email in ['davidtencio@gmail.com', 'fhsvp2208@gmail.com']
+          || request.auth.token.operator == true
+          || (
+            exists(/databases/$(database)/documents/authorizedOperators/$(request.auth.token.email))
+            && get(/databases/$(database)/documents/authorizedOperators/$(request.auth.token.email)).data.active == true
+          )
+        );
     }
 
     match /medicines/{id} {
@@ -33,6 +40,11 @@ service cloud.firestore {
     match /pharmacists/{id} {
       allow read: if isOperator();
       // Altas/bajas/ediciones solo por el backend con el Admin SDK.
+      allow create, update, delete: if false;
+    }
+    match /authorizedOperators/{email} {
+      allow read: if hasVerifiedEmail() && request.auth.token.email == email;
+      // Índice de autorización sincronizado únicamente desde el backend Admin SDK.
       allow create, update, delete: if false;
     }
     match /movements/{id} {

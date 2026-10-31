@@ -55,4 +55,13 @@ describe("CountModal", () => {
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field).toHaveFocus();
   });
+
+  it("permite conciliar diferencias abriendo un ingreso o egreso del medicamento", async () => {
+    const onAdjust = vi.fn();
+    render(<CountModal {...base({ onAdjust })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Registrar faltante (egreso)" }));
+    expect(onAdjust).toHaveBeenCalledWith("m1", "OUT");
+    await userEvent.click(screen.getByRole("button", { name: "Registrar sobrante (ingreso)" }));
+    expect(onAdjust).toHaveBeenCalledWith("m1", "IN");
+  });
 });

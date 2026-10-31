@@ -21,6 +21,25 @@ function bearerToken(req: NextRequest): string {
   return header.startsWith("Bearer ") ? header.slice(7).trim() : "";
 }
 
+type AdminAuthWithClaims = {
+  getUserByEmail?: (email: string) => Promise<{ uid: string; customClaims?: Record<string, unknown> }>;
+  setCustomUserClaims?: (uid: string, claims: Record<string, unknown>) => Promise<void>;
+};
+
+async function syncOperatorClaim(targetEmail: string | undefined, active: boolean): Promise<void> {
+  const normalized = (targetEmail ?? "").trim().toLowerCase();
+  if (!normalized) return;
+  try {
+    const authClient = getAuth(adminApp()) as unknown as AdminAuthWithClaims;
+    if (typeof authClient.getUserByEmail !== "function" || typeof authClient.setCustomUserClaims !== "function") return;
+    const userRecord = await authClient.getUserByEmail(normalized);
+    await authClient.setCustomUserClaims(userRecord.uid, { ...(userRecord.customClaims ?? {}), operator: active });
+  } catch {
+    // Si el usuario aún no ha iniciado sesión con Google, el documento en
+    // authorizedOperators/{email} ya le otorga acceso por reglas de Firestore.
+  }
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const token = bearerToken(req);
   if (!token) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
@@ -51,6 +70,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const entityCollection = typeof op?.op === "string" && op.op.startsWith("pharmacist") ? "pharmacists" : "medicines";
 
   let existingLots: InventoryLot[] | undefined;
+  let existingPharmacistEmail: string | undefined;
   if (op?.op === "medicine.update" && typeof op.id === "string" && op.id.trim()) {
     try {
       const docRef = db.collection("medicines").doc(op.id.trim()) as {
@@ -64,6 +84,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     } catch {
       return NextResponse.json({ error: "No se pudo guardar el cambio." }, { status: 500 });
     }
+  } else if (
+    (op?.op === "pharmacist.update" || (op?.op === "setActive" && op.col === "pharmacists")) &&
+    typeof op.id === "string" &&
+    op.id.trim()
+  ) {
+    try {
+      const docRef = db.collection("pharmacists").doc(op.id.trim()) as {
+        get?: () => Promise<{ data?: () => Record<string, unknown> | undefined }>;
+      };
+      if (typeof docRef.get === "function") {
+        const snap = await docRef.get();
+        const rawEmail = snap.data?.()?.email;
+        if (typeof rawEmail === "string") existingPharmacistEmail = rawEmail;
+      }
+    } catch {
+      return NextResponse.json({ error: "No se pudo guardar el cambio." }, { status: 500 });
+    }
   }
 
   const ctx = {
@@ -71,6 +108,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     now: new Date().toISOString(),
     newId: db.collection(entityCollection).doc().id,
     existingLots,
+    existingPharmacistEmail,
   };
 
   let writes;
@@ -90,6 +128,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     await batch.commit();
   } catch {
     return NextResponse.json({ error: "No se pudo guardar el cambio." }, { status: 500 });
+  }
+
+  if (op.op === "pharmacist.create") {
+    await syncOperatorClaim(op.fields.email, true);
+  } else if (op.op === "pharmacist.update") {
+    if (existingPharmacistEmail && existingPharmacistEmail.trim().toLowerCase() !== op.fields.email.trim().toLowerCase()) {
+      await syncOperatorClaim(existingPharmacistEmail, false);
+    }
+    await syncOperatorClaim(op.fields.email, true);
+  } else if (op.op === "setActive" && op.col === "pharmacists") {
+    await syncOperatorClaim(existingPharmacistEmail, op.active);
   }
 
   return NextResponse.json({ ok: true });

@@ -42,6 +42,8 @@ export type PlanContext = {
   newId: string;
   /** Lotes actuales del medicamento cuando se edita su ficha técnica. */
   existingLots?: readonly InventoryLot[];
+  /** Correo registrado actualmente del farmacéutico cuando se edita o cambia su estado. */
+  existingPharmacistEmail?: string;
 };
 
 const req = (value: string, message: string): string => {
@@ -174,28 +176,47 @@ export function planAdminMutation(op: AdminOp, ctx: PlanContext): WriteOp[] {
     }
     case "pharmacist.create": {
       validatePharmacist(op.fields);
+      const normalizedEmail = op.fields.email.trim().toLowerCase();
       return [
-        { kind: "set", collection: "pharmacists", id: ctx.newId, data: { ...op.fields, active: true, createdAt: ctx.now } },
-        auditWrite("pharmacist.create", "pharmacist", ctx.newId, ctx, { email: op.fields.email }),
+        { kind: "set", collection: "pharmacists", id: ctx.newId, data: { ...op.fields, email: normalizedEmail, active: true, createdAt: ctx.now } },
+        { kind: "set", collection: "authorizedOperators", id: normalizedEmail, data: { email: normalizedEmail, pharmacistId: ctx.newId, active: true, updatedAt: ctx.now } },
+        auditWrite("pharmacist.create", "pharmacist", ctx.newId, ctx, { email: normalizedEmail }),
       ];
     }
     case "pharmacist.update": {
       const id = req(op.id, "Farmacéutico no disponible.");
       validatePharmacist(op.fields);
-      return [
-        { kind: "update", collection: "pharmacists", id, data: { ...op.fields } },
-        auditWrite("pharmacist.update", "pharmacist", id, ctx, { email: op.fields.email }),
+      const normalizedEmail = op.fields.email.trim().toLowerCase();
+      const prevEmail = ctx.existingPharmacistEmail?.trim().toLowerCase();
+      const writes: WriteOp[] = [
+        { kind: "update", collection: "pharmacists", id, data: { ...op.fields, email: normalizedEmail } },
+        { kind: "set", collection: "authorizedOperators", id: normalizedEmail, data: { email: normalizedEmail, pharmacistId: id, active: true, updatedAt: ctx.now } },
       ];
+      if (prevEmail && prevEmail !== normalizedEmail) {
+        writes.push({ kind: "set", collection: "authorizedOperators", id: prevEmail, data: { email: prevEmail, pharmacistId: id, active: false, updatedAt: ctx.now } });
+      }
+      writes.push(auditWrite("pharmacist.update", "pharmacist", id, ctx, { email: normalizedEmail }));
+      return writes;
     }
     case "setActive": {
       const id = req(op.id, "Registro no disponible.");
       if (op.col !== "medicines" && op.col !== "pharmacists") throw new Error("Colección inválida.");
       const entityType = op.col === "medicines" ? "medicine" : "pharmacist";
       const action = `${entityType}.${op.active ? "activate" : "deactivate"}`;
-      return [
+      const writes: WriteOp[] = [
         { kind: "update", collection: op.col, id, data: { active: op.active } },
-        auditWrite(action, entityType, id, ctx),
       ];
+      const existingEmail = ctx.existingPharmacistEmail?.trim().toLowerCase();
+      if (op.col === "pharmacists" && existingEmail) {
+        writes.push({
+          kind: "set",
+          collection: "authorizedOperators",
+          id: existingEmail,
+          data: { email: existingEmail, pharmacistId: id, active: op.active, updatedAt: ctx.now },
+        });
+      }
+      writes.push(auditWrite(action, entityType, id, ctx));
+      return writes;
     }
     default:
       throw new Error("Operación no reconocida.");

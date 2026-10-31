@@ -22,6 +22,9 @@ concurrency:
   group: deploy-firestore-rules
   cancel-in-progress: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: read
   # Necesario para que GitHub emita el token OIDC que consume Google.
@@ -61,7 +64,7 @@ jobs:
 
       - name: Desplegar solo las reglas de Firestore
         run: >-
-          npx --yes firebase-tools@13 deploy
+          npx --yes firebase-tools@15.22.3 deploy
           --only firestore:rules
           --project drogas-consulta-externa
           --non-interactive

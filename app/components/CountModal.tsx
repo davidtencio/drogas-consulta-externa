@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import type { Medicine, Pharmacist } from "../lib/inventory";
+import type { Medicine, MovementType, Pharmacist } from "../lib/inventory";
 import { AccessibleDialog } from "./AccessibleDialog";
 import { useFocusErrorField } from "../hooks/useFocusErrorField";
 import { ObservationField } from "./ObservationField";
@@ -9,10 +9,11 @@ type Props = {
   medicine: Medicine | undefined; activePharmacists: Pharmacist[]; busy: boolean; error?: string; errorField?: string;
   personnelMessage?: string | null;
   onClose: () => void; onSubmit: (e: FormEvent<HTMLFormElement>, action: string) => void;
+  onAdjust?: (medicineId: string, type: MovementType) => void;
 };
 
-/** Confirma que el saldo físico coincide con el sistema sin ajustar existencias. */
-export function CountModal({ medicine, activePharmacists, busy, error, errorField, personnelMessage, onClose, onSubmit }: Props) {
+/** Confirma que el saldo físico coincide con el sistema sin ajustar existencias, o permite conciliar una diferencia. */
+export function CountModal({ medicine, activePharmacists, busy, error, errorField, personnelMessage, onClose, onSubmit, onAdjust }: Props) {
   const [confirmed, setConfirmed] = useState(false);
   const system = Number(medicine?.stock) || 0;
   useFocusErrorField(errorField, error);
@@ -25,6 +26,12 @@ export function CountModal({ medicine, activePharmacists, busy, error, errorFiel
           <label>En sistema<input value={`${system.toLocaleString("es-CR")} ${medicine?.unit ?? ""}`} readOnly /></label>
         </div>
         <label className="confirm-check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} data-autofocus /> Confirmo que el saldo físico coincide con el sistema ({system.toLocaleString("es-CR")}).</label>
+        {medicine && onAdjust && (
+          <div className="form-row">
+            <button type="button" className="secondary" onClick={() => onAdjust(medicine.id, "OUT")}>Registrar faltante (egreso)</button>
+            <button type="button" className="secondary" onClick={() => onAdjust(medicine.id, "IN")}>Registrar sobrante (ingreso)</button>
+          </div>
+        )}
         <ObservationField label="Observación del saldo" />
         <label>Farmacéutico responsable<select name="pharmacistEmail" required defaultValue="" aria-invalid={errorField === "pharmacistEmail" || undefined} aria-describedby={errorField === "pharmacistEmail" ? "count-error" : undefined}><option value="" disabled>Seleccione…</option>{activePharmacists.map((p) => <option key={p.id} value={p.email}>{p.name} — {p.license}</option>)}</select></label>
         {!activePharmacists.length && <small className="form-hint" role="status">{personnelMessage ?? "Registre un farmacéutico autorizado en Configuración para poder continuar."}</small>}

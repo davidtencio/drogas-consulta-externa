@@ -226,6 +226,52 @@ describe("registerMovement (transacción y descuento FEFO)", () => {
     expect((updatedMed.lots as unknown[]).length).toBe(2);
   });
 
+  it("fusiona cantidad cuando ingresa un lote existente con igual vencimiento y rechaza vencimiento contradictorio", async () => {
+    txGet.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({
+        name: "Metformina",
+        stock: 10,
+        lots: [{ id: "lot-existente", lot: "L-100", expiresAt: "2027-05-01", quantity: 10, receivedAt: "2026-01-01T00:00:00.000Z" }],
+      }),
+    });
+
+    await dbApi.registerMovement({
+      medicineId: "m1",
+      type: "IN",
+      quantity: 5,
+      receivedLots: [{ lot: "L-100", expiresAt: "2027-05-01", quantity: 5 }],
+      prescriptionRef: "FAC-11",
+      pharmacistEmail: "ana@h.cr",
+      now: "2026-07-16T10:00:00.000Z",
+    });
+
+    const updatedMed = txUpdate.mock.calls[0][1] as Record<string, unknown>;
+    expect(updatedMed.lots).toEqual([
+      { id: "lot-existente", lot: "L-100", expiresAt: "2027-05-01", quantity: 15, receivedAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+
+    txGet.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({
+        name: "Metformina",
+        stock: 15,
+        lots: [{ id: "lot-existente", lot: "L-100", expiresAt: "2027-05-01", quantity: 15, receivedAt: "2026-01-01T00:00:00.000Z" }],
+      }),
+    });
+    await expect(
+      dbApi.registerMovement({
+        medicineId: "m1",
+        type: "IN",
+        quantity: 5,
+        receivedLots: [{ lot: "L-100", expiresAt: "2028-01-01", quantity: 5 }],
+        prescriptionRef: "FAC-12",
+        pharmacistEmail: "ana@h.cr",
+        now: "2026-07-16T10:00:00.000Z",
+      })
+    ).rejects.toThrow(/ya existe con vencimiento/i);
+  });
+
   it("rechaza si el medicamento no existe o si las existencias por lote son insuficientes", async () => {
     txGet.mockResolvedValueOnce({ exists: () => false });
     await expect(

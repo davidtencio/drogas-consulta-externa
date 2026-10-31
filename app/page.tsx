@@ -85,8 +85,8 @@ async function saveCount(form:FormData, now:string, medicine:Medicine|undefined)
 }
 
 export default function Home() {
-  const {user,authReady}=useAuthUser();
-  const role=DEMO_MODE?"admin" as const:roleForEmail(user?.email);
+  const {user,authReady,dynamicOperator}=useAuthUser();
+  const baseRole=DEMO_MODE?"admin" as const:roleForEmail(user?.email,{dynamicOperator});
   const [tab,setTab]=useState<"dashboard"|"movements"|"settings">("dashboard");
   const searchRef=useRef<HTMLInputElement>(null);
   const [movementMedicineId,setMovementMedicineId]=useState("");
@@ -97,7 +97,8 @@ export default function Home() {
   const [busy,setBusy]=useState(false);
   const [alertDismissed,setAlertDismissed]=useState(false);
 
-  const {medicines,pharmacists,movements,countMovements,hasMoreMovements,loadMoreMovements,auditLogs,pendingWrites,loading,inventoryError,movementsLoading,movementsError,settingsLoading,settingsError,personnelMessage,retryInventory}=useInventoryData(!!user,role==="admin"&&!DEMO_MODE);
+  const {medicines,pharmacists,movements,countMovements,hasMoreMovements,loadMoreMovements,auditLogs,pendingWrites,loading,inventoryError,movementsLoading,movementsError,settingsLoading,settingsError,personnelMessage,retryInventory}=useInventoryData(!!user,baseRole==="admin"&&!DEMO_MODE);
+  const role=DEMO_MODE?"admin" as const:roleForEmail(user?.email,{dynamicOperator,pharmacists});
   const online=useOnline();
 
   const today=useMemo(()=>new Date().toLocaleDateString("es-CR",{weekday:"long",day:"numeric",month:"long"}).toUpperCase(),[]);
@@ -207,7 +208,7 @@ export default function Home() {
 
     {notice&&<div className={`toast${notice.critical?" toast-critical":""}`} role={notice.critical?"alert":"status"}>{notice.message}{notice.critical&&<button type="button" onClick={()=>setNotice(null)} aria-label="Descartar mensaje"><Icon name="close" size={18} /></button>}</div>}
     {modal&&(modal.kind==="count"
-      ? <CountModal medicine={medicines.find(m=>m.id===modal.medicineId)} activePharmacists={activePharmacists} personnelMessage={personnelMessage} busy={busy} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit}/>
+      ? <CountModal medicine={medicines.find(m=>m.id===modal.medicineId)} activePharmacists={activePharmacists} personnelMessage={personnelMessage} busy={busy} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit} onAdjust={openMovement}/>
       : <Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} personnelMessage={personnelMessage} busy={busy} online={online} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit}/>)}
     {deactivation&&<ConfirmDialog label={deactivation.label} busy={busy} onCancel={()=>setDeactivation(null)} onConfirm={()=>void confirmDeactivation()}/>}
   </main>;

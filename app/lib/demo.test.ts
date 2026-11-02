@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { demoRegisterMovement, demoUpdateMovement, getDemoSnapshot, resetDemoStore } from "./demo";
+import { demoRegisterMovement, demoUpdateMovement, demoVoidMovement, getDemoSnapshot, resetDemoStore } from "./demo";
 
 describe("almacén del modo demostración", () => {
   beforeEach(() => resetDemoStore());
@@ -58,5 +58,27 @@ describe("almacén del modo demostración", () => {
       prescriptionRef: "RX-EDITADA",
       pharmacistEmail: "carlos.rodriguez@demo.local",
     });
+  });
+
+  it("anula un egreso: reintegra existencias y lotes y conserva el movimiento marcado", () => {
+    const before = getDemoSnapshot().medicines.find((m) => m.id === "demo-metformina")!;
+    demoRegisterMovement({ medicineId: "demo-metformina", type: "OUT", quantity: 5, prescriptionRef: "RX-ERROR", pharmacistEmail: "maria.gomez@demo.local", createdAt: new Date().toISOString() });
+    const mov = getDemoSnapshot().movements[0];
+    demoVoidMovement({ movementId: mov.id, reason: "Receta registrada dos veces", now: new Date().toISOString() });
+    const state = getDemoSnapshot();
+    const after = state.medicines.find((m) => m.id === "demo-metformina")!;
+    expect(after.stock).toBe(before.stock);
+    expect(after.lots?.reduce((sum, lot) => sum + lot.quantity, 0)).toBe(before.stock);
+    expect(state.movements.find((m) => m.id === mov.id)).toMatchObject({ voidReason: "Receta registrada dos veces", quantity: 5 });
+    expect(() => demoVoidMovement({ movementId: mov.id, reason: "Receta registrada dos veces", now: new Date().toISOString() })).toThrow("ya fue anulado");
+  });
+
+  it("exige motivo y solo anula egresos", () => {
+    demoRegisterMovement({ medicineId: "demo-metformina", type: "OUT", quantity: 1, prescriptionRef: "RX", pharmacistEmail: "maria.gomez@demo.local", createdAt: new Date().toISOString() });
+    const out = getDemoSnapshot().movements[0];
+    expect(() => demoVoidMovement({ movementId: out.id, reason: "corto", now: new Date().toISOString() })).toThrow(/motivo/);
+    demoRegisterMovement({ medicineId: "demo-metformina", type: "IN", quantity: 1, prescriptionRef: "RX", pharmacistEmail: "maria.gomez@demo.local", createdAt: new Date().toISOString() }, [{ lot: "X-1", quantity: 1, expiresAt: "2099-01-01" }]);
+    const inn = getDemoSnapshot().movements[0];
+    expect(() => demoVoidMovement({ movementId: inn.id, reason: "Ingreso equivocado", now: new Date().toISOString() })).toThrow("Solo se pueden anular egresos");
   });
 });

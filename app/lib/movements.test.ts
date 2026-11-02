@@ -156,7 +156,15 @@ describe("summarizeMovements", () => {
       outQuantity: 0,
       net: 0,
       medicineCount: 0,
+      voidedCount: 0,
     });
+  });
+  it("los egresos anulados se cuentan aparte y no suman al flujo", () => {
+    const s = summarizeMovements([
+      { id: "a", type: "OUT", quantity: 4, medicineName: "X", prescriptionRef: "", pharmacistEmail: "", createdAt: "2026-07-16T10:00:00.000Z" },
+      { id: "b", type: "OUT", quantity: 9, medicineName: "X", prescriptionRef: "", pharmacistEmail: "", createdAt: "2026-07-16T11:00:00.000Z", voidedAt: "2026-07-16T12:00:00.000Z", voidReason: "Receta duplicada" },
+    ]);
+    expect(s).toMatchObject({ count: 2, outCount: 1, outQuantity: 4, net: -4, voidedCount: 1 });
   });
   it("los conteos no afectan el flujo (in/out/neto) pero se cuentan aparte", () => {
     const list = [

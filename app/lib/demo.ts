@@ -1,5 +1,5 @@
 import { prepareMovement, type InventoryLot, type Medicine, type Movement, type Pharmacist, type ReceivedLot } from "./inventory";
-import { applyLotMovement, normalizeMedicineLots, prepareMovementEdit, primaryLotSummary, type MovementEditRequest } from "./lots";
+import { applyLotMovement, normalizeMedicineLots, prepareMovementEdit, prepareMovementVoid, primaryLotSummary, type MovementEditRequest, type MovementVoidRequest } from "./lots";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 export const DEMO_EMAIL = "demo@consulta-externa.local";
@@ -145,6 +145,22 @@ export function demoUpdateMovement(req: MovementEditRequest) {
       m.id === original.id
         ? { ...plan.movementRecord, id: original.id, updatedAt: req.now, updatedByEmail: DEMO_EMAIL }
         : m
+    ),
+  };
+  emit();
+}
+
+export function demoVoidMovement(req: MovementVoidRequest) {
+  const original = state.movements.find((m) => m.id === req.movementId);
+  if (!original) throw new Error("Movimiento no disponible.");
+  const medicine = state.medicines.find((m) => m.id === original.medicineId);
+  if (!medicine) throw new Error("El medicamento del egreso ya no existe.");
+  const plan = prepareMovementVoid({ original, medicine, reason: req.reason, now: req.now });
+  state = {
+    ...state,
+    medicines: state.medicines.map((m) => (m.id === medicine.id ? { ...m, ...plan.medicineUpdate } : m)),
+    movements: state.movements.map((m) =>
+      m.id === original.id ? { ...m, ...plan.voidFields, voidedByEmail: DEMO_EMAIL } : m
     ),
   };
   emit();

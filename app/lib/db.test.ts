@@ -644,3 +644,77 @@ describe("updateMovement (edición de ingresos y egresos con reconciliación de 
     ).rejects.toThrow(/saldo negativo/i);
   });
 });
+
+describe("voidMovement (anulación de egresos)", () => {
+  const outMovement = {
+    medicineId: "m1",
+    medicineName: "Metformina",
+    type: "OUT",
+    quantity: 8,
+    prescriptionRef: "RX-MAL",
+    pharmacistEmail: "ana@h.cr",
+    createdAt: "2026-07-16T10:00:00.000Z",
+    lotAllocations: [
+      { lotId: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 5 },
+      { lotId: "lot-tarde", lot: "L-TARDE", expiresAt: "2027-06-01", quantity: 3 },
+    ],
+  };
+  const medicine = {
+    name: "Metformina",
+    stock: 7,
+    lot: "L-TARDE",
+    expiresAt: "2027-06-01",
+    lots: [
+      { id: "lot-tarde", lot: "L-TARDE", expiresAt: "2027-06-01", quantity: 7, receivedAt: "2026-01-01T00:00:00.000Z" },
+      { id: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 0, receivedAt: "2026-02-01T00:00:00.000Z" },
+    ],
+  };
+
+  it("reintegra existencias y lotes y marca el egreso como anulado sin borrarlo", async () => {
+    txGet
+      .mockResolvedValueOnce({ exists: () => true, data: () => outMovement })
+      .mockResolvedValueOnce({ exists: () => true, data: () => medicine });
+
+    await dbApi.voidMovement({ movementId: "mov-1", reason: "  Receta registrada dos veces  ", now: "2026-07-17T12:00:00.000Z" });
+
+    expect(txSet).not.toHaveBeenCalled();
+    expect(txUpdate).toHaveBeenCalledTimes(2);
+    expect(txUpdate.mock.calls[0][1]).toMatchObject({
+      stock: 15,
+      lot: "L-PRONTO",
+      expiresAt: "2026-11-15",
+      lots: [
+        { id: "lot-tarde", lot: "L-TARDE", expiresAt: "2027-06-01", quantity: 10, receivedAt: "2026-01-01T00:00:00.000Z" },
+        { id: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 5, receivedAt: "2026-02-01T00:00:00.000Z" },
+      ],
+    });
+    expect(txUpdate.mock.calls[1][1]).toEqual({
+      voidedAt: "2026-07-17T12:00:00.000Z",
+      voidReason: "Receta registrada dos veces",
+      actorEmail: "admin@h.cr",
+      voidedByEmail: "admin@h.cr",
+    });
+  });
+
+  it("rechaza anular un egreso ya anulado, un ingreso o sin motivo suficiente", async () => {
+    txGet.mockResolvedValueOnce({ exists: () => true, data: () => ({ ...outMovement, voidedAt: "2026-07-17T00:00:00.000Z" }) })
+      .mockResolvedValueOnce({ exists: () => true, data: () => medicine });
+    await expect(dbApi.voidMovement({ movementId: "mov-1", reason: "Receta registrada dos veces", now: "2026-07-17T12:00:00.000Z" })).rejects.toThrow(/ya fue anulado/);
+
+    txGet.mockResolvedValueOnce({ exists: () => true, data: () => ({ ...outMovement, type: "IN" }) })
+      .mockResolvedValueOnce({ exists: () => true, data: () => medicine });
+    await expect(dbApi.voidMovement({ movementId: "mov-1", reason: "Receta registrada dos veces", now: "2026-07-17T12:00:00.000Z" })).rejects.toThrow(/Solo se pueden anular egresos/);
+
+    txGet.mockResolvedValueOnce({ exists: () => true, data: () => outMovement })
+      .mockResolvedValueOnce({ exists: () => true, data: () => medicine });
+    await expect(dbApi.voidMovement({ movementId: "mov-1", reason: "error", now: "2026-07-17T12:00:00.000Z" })).rejects.toThrow(/motivo/);
+    expect(txUpdate).not.toHaveBeenCalled();
+  });
+
+  it("impide editar un egreso anulado", async () => {
+    txGet.mockResolvedValueOnce({ exists: () => true, data: () => ({ ...outMovement, voidedAt: "2026-07-17T00:00:00.000Z" }) })
+      .mockResolvedValueOnce({ exists: () => true, data: () => medicine });
+    await expect(dbApi.updateMovement({ movementId: "mov-1", medicineId: "m1", type: "OUT", quantity: 2, prescriptionRef: "RX", pharmacistEmail: "ana@h.cr", now: "2026-07-17T12:00:00.000Z" })).rejects.toThrow(/anulado/);
+  });
+});
+

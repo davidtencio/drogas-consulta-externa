@@ -78,3 +78,15 @@ test("movimientos y eventos exigen actor propio; solo ingresos/egresos se editan
   await denied(() => updateDoc(doc(operator, "movements/mov-out"), { actorEmail: "davidtencio@gmail.com", type: "OUT", quantity: 2 }));
   await denied(() => deleteDoc(doc(operator, "movements/mov-out")));
 });
+test("un egreso se anula (no se borra) solo con motivo y actor propio, y lo anulado ya no se modifica", async () => {
+  const voidFields = { actorEmail: "fhsvp2208@gmail.com", voidedByEmail: "fhsvp2208@gmail.com", voidedAt: "2026-11-02T10:00:00.000Z", voidReason: "Receta duplicada por error" };
+  await setDoc(doc(operator, "movements/void-in"), { actorEmail: "fhsvp2208@gmail.com", type: "IN", quantity: 5 });
+  await denied(() => updateDoc(doc(operator, "movements/void-in"), voidFields));
+  await setDoc(doc(operator, "movements/void-out"), { actorEmail: "fhsvp2208@gmail.com", type: "OUT", quantity: 5 });
+  await denied(() => updateDoc(doc(operator, "movements/void-out"), { ...voidFields, voidReason: "corto" }));
+  await denied(() => updateDoc(doc(operator, "movements/void-out"), { ...voidFields, voidedByEmail: "davidtencio@gmail.com" }));
+  await denied(() => updateDoc(doc(operator, "movements/void-out"), { ...voidFields, quantity: 1 }));
+  await updateDoc(doc(operator, "movements/void-out"), voidFields);
+  await denied(() => updateDoc(doc(operator, "movements/void-out"), { actorEmail: "fhsvp2208@gmail.com", type: "OUT", quantity: 2 }));
+  await denied(() => deleteDoc(doc(operator, "movements/void-out")));
+});

@@ -88,10 +88,10 @@ describe("movementsToCsv", () => {
       mov({ type: "OUT", quantity: 3 }),
     ]);
     const lines = csv.split("\r\n");
-    expect(lines[0]).toBe("Fecha,Medicamento,Tipo,Cantidad,Sistema,Diferencia,Prescripción,Observación,Responsable");
+    expect(lines[0]).toBe("Fecha,Medicamento,Tipo,Cantidad,Sistema,Diferencia,Prescripción,Observación,Responsable,Estado,Motivo de anulación");
     // Ingreso/egreso dejan vacías las columnas de conteo (Sistema/Diferencia/Nota).
     expect(lines[1]).toBe(
-      "2026-07-16T10:00:00.000Z,Metformina,Ingreso,10,,,RX-1,,farma@hospital.cr"
+      "2026-07-16T10:00:00.000Z,Metformina,Ingreso,10,,,RX-1,,farma@hospital.cr,Vigente,"
     );
     expect(lines[2]).toContain(",Egreso,");
   });
@@ -101,16 +101,20 @@ describe("movementsToCsv", () => {
       mov({ type: "COUNT", quantity: 8, systemQuantity: 10, difference: -2, note: "faltante", prescriptionRef: "" }),
     ]);
     const row = csv.split("\r\n")[1];
-    expect(row).toBe("2026-07-16T10:00:00.000Z,Metformina,Conteo,8,10,-2,,faltante,farma@hospital.cr");
+    expect(row).toBe("2026-07-16T10:00:00.000Z,Metformina,Conteo,8,10,-2,,faltante,farma@hospital.cr,Vigente,");
   });
   it("por defecto muestra el correo del responsable", () => {
     const row = movementsToCsv([mov({ pharmacistEmail: "ana@hospital.cr" })]).split("\r\n")[1];
-    expect(row.endsWith(",ana@hospital.cr")).toBe(true);
+    expect(row.endsWith(",ana@hospital.cr,Vigente,")).toBe(true);
   });
   it("usa el resolvedor para mostrar el nombre del responsable", () => {
     const resolve = (email: string) => (email === "ana@hospital.cr" ? "Ana Rojas" : email);
     const row = movementsToCsv([mov({ pharmacistEmail: "ana@hospital.cr" })], resolve).split("\r\n")[1];
-    expect(row.endsWith(",Ana Rojas")).toBe(true);
+    expect(row.endsWith(",Ana Rojas,Vigente,")).toBe(true);
+  });
+  it("marca los egresos anulados con fecha y motivo", () => {
+    const row = movementsToCsv([mov({ type: "OUT", voidedAt: "2026-07-17T08:00:00.000Z", voidReason: "Receta duplicada" })]).split("\r\n")[1];
+    expect(row.endsWith(",Anulado 2026-07-17T08:00:00.000Z,Receta duplicada")).toBe(true);
   });
   it("con lista vacía solo devuelve los encabezados", () => {
     expect(movementsToCsv([]).split("\r\n")).toHaveLength(1);

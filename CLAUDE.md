@@ -98,6 +98,17 @@ Respaldo del ruleset anterior (`0058a2d0-662c-434f-9975-7ee29d33d8ab`, sigue viv
 Firebase) en `C:\Users\david\Documents\firestore-rules-backup-2026-07-16.rules`,
 fuera del repo a propósito.
 
+## Anulación de egresos (2026-11-02)
+
+Un egreso que no correspondía se **anula**, no se borra (trazabilidad de drogas
+controladas). Botón "Anular" en Movimientos → motivo obligatorio (≥10 caracteres)
+→ transacción que reintegra la cantidad a `stock` y a los mismos lotes de
+`lotAllocations`, y agrega `voidedAt`/`voidedByEmail`/`voidReason` al movimiento.
+Lo anulado se ve tachado, no suma en el resumen, sale en el CSV con su estado y ya
+no se puede editar ni volver a anular. Las reglas lo hacen cumplir (`isValidVoid`):
+solo `OUT`, solo esos campos + `actorEmail`, y `!('voidedAt' in resource.data)`.
+Lógica en `prepareMovementVoid` (`app/lib/lots.ts`). Los ingresos no se anulan.
+
 ## PENDIENTES para retomar
 
 1. **Probar en caliente una mutación de admin** (crear o editar un medicamento en
@@ -108,7 +119,9 @@ fuera del repo a propósito.
 2. **Acciones con Node 20 deprecado**: `actions/checkout@v4`, `actions/setup-node@v4`
    y `google-github-actions/auth@v2` se fuerzan a Node 24 en el runner. No rompe hoy;
    actualizar cuando haya versiones nuevas.
-3. **Orden de despliegue de reglas** (cuando toque publicarlas): primero
+3. **Publicar las reglas de anulación de egresos antes que la app** y comprobar el
+   ruleset activo (sin la regla nueva, "Anular" falla con permiso denegado).
+4. **Orden de despliegue de reglas** (cuando toque publicarlas): primero
    `firebase deploy --only firestore:rules` (o el workflow), luego la app.
 
 ## Verificación local

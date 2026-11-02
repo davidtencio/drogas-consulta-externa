@@ -25,6 +25,7 @@ import { MovementsTab } from "./components/MovementsTab";
 import { SettingsTab } from "./components/SettingsTab";
 import { Modals, type ModalState } from "./components/Modals";
 import { CountModal } from "./components/CountModal";
+import { VoidMovementDialog } from "./components/VoidMovementDialog";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { DEMO_MODE } from "./lib/demo";
 import { canManageCatalog, canOperateInventory, roleForEmail } from "./lib/authz";
@@ -69,6 +70,8 @@ export default function Home() {
   const [modalError, setModalError] = useState<FormIssue | null>(null);
   const [deactivation, setDeactivation] = useState<Deactivation | null>(null);
   const [busy, setBusy] = useState(false);
+  const [voiding, setVoiding] = useState<Movement | null>(null);
+  const [voidError, setVoidError] = useState<string | null>(null);
   const [alertDismissed, setAlertDismissed] = useState(false);
 
   const { medicines, pharmacists, movements, countMovements, hasMoreMovements, loadMoreMovements, auditLogs, pendingWrites, loading, inventoryError, movementsLoading, movementsError, settingsLoading, settingsError, personnelMessage, retryInventory } = useInventoryData(
@@ -156,7 +159,7 @@ export default function Home() {
   useEffect(() => {
     if (!user || !canOperateInventory(role)) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || modal || deactivation) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || modal || deactivation || voiding) return;
       const el = e.target as HTMLElement | null;
       if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
       if (e.key === "/") { e.preventDefault(); setTab("dashboard"); requestAnimationFrame(() => searchRef.current?.focus()); }
@@ -164,7 +167,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [user, role, modal, deactivation, activeMeds.length, openMovement]);
+  }, [user, role, modal, deactivation, voiding, activeMeds.length, openMovement]);
 
   const exportMedicines = useCallback((items: Medicine[]) => {
     if (!items.length) { flash("No hay medicamentos para exportar"); return; }
@@ -207,6 +210,22 @@ export default function Home() {
     finally { setBusy(false); }
   }, [deactivation, flash]);
 
+  const openVoidMovement = useCallback((movement: Movement) => { setVoidError(null); setVoiding(movement); }, []);
+  const confirmVoidMovement = useCallback(async (reason: string) => {
+    if (!voiding) return;
+    setBusy(true);
+    setVoidError(null);
+    try {
+      await dataApi.voidMovement({ movementId: voiding.id, reason, now: new Date().toISOString() });
+      flash("Egreso anulado; la cantidad se reintegró al inventario");
+      setVoiding(null);
+    } catch (err) {
+      setVoidError(err instanceof Error ? err.message : "No se pudo anular el egreso");
+    } finally {
+      setBusy(false);
+    }
+  }, [voiding, flash]);
+
   const submit = useCallback(async (e: FormEvent<HTMLFormElement>, action: string) => {
     e.preventDefault();
     setBusy(true);
@@ -246,7 +265,7 @@ export default function Home() {
 
         {tab === "dashboard" && <InventoryPanel medicines={activeMeds} certifications={certifications} searchRef={searchRef} loading={loading} error={inventoryError} onRetry={retryInventory} onMovement={openMovement} onCount={openCount} onViewMovements={viewMedicineMovements} onExport={exportMedicines} />}
 
-        {tab === "movements" && <MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} onEditMovement={openEditMovement} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId} hasMore={hasMoreMovements} onLoadMore={loadMoreMovements} />}
+        {tab === "movements" && <MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} onEditMovement={openEditMovement} onVoidMovement={openVoidMovement} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId} hasMore={hasMoreMovements} onLoadMore={loadMoreMovements} />}
 
         {tab === "settings" && canManageCatalog(role) && <SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} loading={settingsLoading} error={settingsError} onRetry={retryInventory} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount} onBackupDatabase={backupDatabase} onResetDatabase={resetDatabase} />}
       </section>
@@ -256,6 +275,7 @@ export default function Home() {
     {modal && (modal.kind === "count"
       ? <CountModal medicine={medicines.find((m) => m.id === modal.medicineId)} activePharmacists={activePharmacists} personnelMessage={personnelMessage} busy={busy} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit} onAdjust={openMovement} />
       : <Modals state={modal} activeMeds={modalMeds} activePharmacists={modalPharmacists} personnelMessage={personnelMessage} busy={busy} online={online} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit} />)}
+    {voiding && <VoidMovementDialog movement={voiding} unit={medicines.find((m) => m.id === voiding.medicineId)?.unit} busy={busy} error={voidError} onCancel={() => setVoiding(null)} onConfirm={(reason) => void confirmVoidMovement(reason)} />}
     {deactivation && <ConfirmDialog label={deactivation.label} busy={busy} onCancel={() => setDeactivation(null)} onConfirm={() => void confirmDeactivation()} />}
   </main>;
 }

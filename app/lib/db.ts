@@ -4,8 +4,8 @@
 import { addDoc, collection, doc, runTransaction, writeBatch } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { prepareCount, prepareMovement, type Medicine, type Movement, type MovementType, type ReceivedLot } from "./inventory";
-import { applyLotMovement, normalizeMedicineLots, prepareMovementEdit, type MovementEditRequest } from "./lots";
-import { DEMO_MODE, demoClearDatabase, demoCreateMedicine, demoCreatePharmacist, demoExportDatabase, demoRegisterCount, demoRegisterMovement, demoSetActive, demoUpdateMedicine, demoUpdateMovement, demoUpdatePharmacist } from "./demo";
+import { applyLotMovement, normalizeMedicineLots, prepareMovementEdit, prepareMovementVoid, type MovementEditRequest, type MovementVoidRequest } from "./lots";
+import { DEMO_MODE, demoClearDatabase, demoCreateMedicine, demoCreatePharmacist, demoExportDatabase, demoRegisterCount, demoRegisterMovement, demoSetActive, demoUpdateMedicine, demoUpdateMovement, demoUpdatePharmacist, demoVoidMovement } from "./demo";
 import { validateResetConfirmation, type AdminOp, type MedicineFields, type PharmacistFields } from "./adminMutations";
 
 export type { MedicineFields, PharmacistFields } from "./adminMutations";
@@ -200,6 +200,39 @@ export function updateMovement(req: UpdateMovementRequest): Promise<void> {
       updatedAt: req.now,
       updatedByEmail: actor,
     });
+  });
+}
+
+export type VoidMovementRequest = MovementVoidRequest;
+
+/**
+ * Anula un egreso que no correspondía, en una transacción atómica: reintegra la
+ * cantidad a existencias y a los lotes descontados, y marca el movimiento como
+ * anulado (fecha, responsable y motivo). El documento no se borra.
+ */
+export function voidMovement(req: VoidMovementRequest): Promise<void> {
+  if (DEMO_MODE) {
+    demoVoidMovement(req);
+    return Promise.resolve();
+  }
+  return runTransaction(db, async (tx) => {
+    const movRef = doc(db, "movements", req.movementId);
+    const movSnap = await tx.get(movRef);
+    if (!movSnap.exists()) throw new Error("Movimiento no disponible.");
+    const original = { id: req.movementId, ...movSnap.data() } as Movement;
+    if (!original.medicineId) throw new Error("El egreso no tiene un medicamento asociado; no puede anularse.");
+    const medRef = doc(db, "medicines", original.medicineId);
+    const medSnap = await tx.get(medRef);
+    if (!medSnap.exists()) throw new Error("El medicamento del egreso ya no existe.");
+    const plan = prepareMovementVoid({
+      original,
+      medicine: { id: original.medicineId, ...(medSnap.data() as Omit<Medicine, "id">) },
+      reason: req.reason,
+      now: req.now,
+    });
+    const actor = actorEmail();
+    tx.update(medRef, plan.medicineUpdate);
+    tx.update(movRef, { ...plan.voidFields, actorEmail: actor, voidedByEmail: actor });
   });
 }
 

@@ -18,6 +18,7 @@ type Props = {
   pharmacistNames: ReadonlyMap<string, string>;
   onNotice: (msg: string) => void;
   onEditMovement?: (movement: Movement) => void;
+  onVoidMovement?: (movement: Movement) => void;
   loading?: boolean;
   initialMedicineId?: string;
   onMedicineFilterChange?: (medicineId: string) => void;
@@ -26,7 +27,7 @@ type Props = {
 };
 
 /** Pestaña de Movimientos: filtros, resumen del período, tabla y paginación. */
-export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, onEditMovement, loading = false, initialMedicineId = "", onMedicineFilterChange, error, onRetry, hasMore = false, onLoadMore }: Props) {
+export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, onEditMovement, onVoidMovement, loading = false, initialMedicineId = "", onMedicineFilterChange, error, onRetry, hasMore = false, onLoadMore }: Props) {
   const [type, setType] = useState<MovementTypeFilter>("ALL");
   const [text, setText] = useState("");
   const [medicineId, setMedicineId] = useState(initialMedicineId);
@@ -40,6 +41,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
 
+  const hasActions = !!onEditMovement || !!onVoidMovement;
   const medicineOptions = useMemo(() => sortByName(medicines), [medicines]);
   const medicineUnits = useMemo(() => new Map(medicines.map((medicine) => [medicine.id, medicine.unit])), [medicines]);
   const resolveName = useCallback((email: string) => displayPharmacist(email, pharmacistNames), [pharmacistNames]);
@@ -119,42 +121,56 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
       <div className="mov-summary" aria-label="Resumen de los registros filtrados">
         <div><small>Registros filtrados</small><strong>{loading || error ? "—" : summary.count}</strong><em>sobre la consulta reciente</em></div>
         <div className="in"><small>Ingresos</small><strong>{loading || error ? "—" : summary.inCount}</strong><em>operaciones registradas</em></div>
-        <div className="out"><small>Egresos</small><strong>{loading || error ? "—" : summary.outCount}</strong><em>operaciones registradas</em></div>
+        <div className="out"><small>Egresos</small><strong>{loading || error ? "—" : summary.outCount}</strong><em>{!loading && !error && summary.voidedCount ? `${summary.voidedCount} anulado${summary.voidedCount === 1 ? "" : "s"} no incluido${summary.voidedCount === 1 ? "" : "s"}` : "operaciones registradas"}</em></div>
         <div><small>Conteos</small><strong>{loading || error ? "—" : summary.countEvents}</strong><em>sin ajuste de existencias</em></div>
       </div>
       <p className="mov-scope">{selectedMedicine ? `Cantidades de ${selectedMedicine.name} en ${selectedMedicine.unit}. ` : "Los indicadores cuentan operaciones; no suman cantidades de medicamentos diferentes. "}Las fechas de los filtros corresponden a la fecha UTC del registro.</p>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th>{onEditMovement && <th>Acciones</th>}</tr></thead>
+          <thead><tr><th>Fecha</th><th>Medicamento</th><th>Tipo</th><th>Cantidad</th><th>Prescripción</th><th>Responsable</th>{hasActions && <th>Acciones</th>}</tr></thead>
           <tbody>
-            {error ? <tr><td colSpan={onEditMovement ? 7 : 6} className="empty"><div role="alert">{error}</div><button className="secondary" onClick={onRetry}>Reintentar</button></td></tr> : loading ? <MovementRowsSkeleton cols={onEditMovement ? 7 : 6} />
-              : !movements.length ? <tr><td colSpan={onEditMovement ? 7 : 6} className="empty">Aún no hay movimientos registrados.</td></tr>
+            {error ? <tr><td colSpan={hasActions ? 7 : 6} className="empty"><div role="alert">{error}</div><button className="secondary" onClick={onRetry}>Reintentar</button></td></tr> : loading ? <MovementRowsSkeleton cols={hasActions ? 7 : 6} />
+              : !movements.length ? <tr><td colSpan={hasActions ? 7 : 6} className="empty">Aún no hay movimientos registrados.</td></tr>
               : pageItems.length ? pageItems.map((m) => (
-                <tr key={m.id}>
-                  <td data-label="Fecha"><div>{new Date(m.createdAt).toLocaleString("es-CR")}{m.updatedAt && <small className="cell-sub">Editado</small>}</div></td>
+                <tr key={m.id} className={m.voidedAt ? "mov-voided" : undefined}>
+                  <td data-label="Fecha"><div>{new Date(m.createdAt).toLocaleString("es-CR")}{m.voidedAt ? <small className="cell-sub">Anulado {new Date(m.voidedAt).toLocaleString("es-CR")}</small> : m.updatedAt && <small className="cell-sub">Editado</small>}</div></td>
                   <td data-label="Medicamento"><div><strong>{m.medicineName}</strong>{m.lotAllocations?.length ? <small className="cell-sub">{m.lotAllocations.map((lot)=>`${lot.lot}: ${lot.quantity}`).join(" · ")}</small> : null}</div></td>
-                  <td data-label="Tipo"><span className={`type ${m.type}`}>{m.type === "IN" ? "Ingreso" : m.type === "OUT" ? "Egreso" : "Conteo"}</span></td>
+                  <td data-label="Tipo"><span className={`type ${m.type}`}>{m.type === "IN" ? "Ingreso" : m.type === "OUT" ? "Egreso" : "Conteo"}</span>{m.voidedAt && <span className="type VOID">Anulado</span>}</td>
                   <td data-label="Cantidad"><div>{m.quantity.toLocaleString("es-CR")} <small>{medicineUnits.get(m.medicineId ?? "") ?? ""}</small>{m.type === "COUNT" && <small className="cell-sub">sist. {m.systemQuantity} · {m.difference === 0 ? "sin dif." : m.difference != null && m.difference > 0 ? `+${m.difference}` : m.difference}</small>}</div></td>
-                  <td data-label="Prescripción"><div>{m.prescriptionRef || "—"}{m.note && <button type="button" className="observation-icon" aria-label={`Ver observación de ${m.medicineName}`} onClick={() => setObserved(m)}><Icon name="note" size={15} /> Ver nota</button>}</div></td>
+                  <td data-label="Prescripción"><div>{m.prescriptionRef || "—"}{m.voidReason && <small className="cell-sub">Motivo de anulación: {m.voidReason}</small>}{m.note && <button type="button" className="observation-icon" aria-label={`Ver observación de ${m.medicineName}`} onClick={() => setObserved(m)}><Icon name="note" size={15} /> Ver nota</button>}</div></td>
                   <td data-label="Responsable">{resolveName(m.pharmacistEmail)}</td>
-                  {onEditMovement && (
+                  {hasActions && (
                     <td data-label="Acciones">
-                      {m.type === "IN" || m.type === "OUT" ? (
-                        <button
-                          type="button"
-                          className="secondary mov-edit-btn"
-                          aria-label={`Editar ${m.type === "IN" ? "ingreso" : "egreso"} de ${m.medicineName}`}
-                          onClick={() => onEditMovement(m)}
-                        >
-                          Editar
-                        </button>
+                      {!m.voidedAt && (m.type === "IN" || m.type === "OUT") ? (
+                        <div className="mov-actions">
+                          {onEditMovement && (
+                            <button
+                              type="button"
+                              className="secondary mov-edit-btn"
+                              aria-label={`Editar ${m.type === "IN" ? "ingreso" : "egreso"} de ${m.medicineName}`}
+                              onClick={() => onEditMovement(m)}
+                            >
+                              Editar
+                            </button>
+                          )}
+                          {onVoidMovement && m.type === "OUT" && (
+                            <button
+                              type="button"
+                              className="secondary mov-edit-btn mov-void-btn"
+                              aria-label={`Anular egreso de ${m.medicineName}`}
+                              onClick={() => onVoidMovement(m)}
+                            >
+                              Anular
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         "—"
                       )}
                     </td>
                   )}
                 </tr>
-              )) : <tr><td colSpan={onEditMovement ? 7 : 6} className="empty">Ningún movimiento coincide con los filtros.</td></tr>}
+              )) : <tr><td colSpan={hasActions ? 7 : 6} className="empty">Ningún movimiento coincide con los filtros.</td></tr>}
           </tbody>
         </table>
       </div>

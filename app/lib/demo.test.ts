@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { demoRegisterMovement, getDemoSnapshot, resetDemoStore } from "./demo";
+import { demoRegisterMovement, demoUpdateMovement, getDemoSnapshot, resetDemoStore } from "./demo";
 
 describe("almacén del modo demostración", () => {
   beforeEach(() => resetDemoStore());
@@ -33,5 +33,30 @@ describe("almacén del modo demostración", () => {
     expect(medicine.stock).toBe(99);
     expect(medicine.lots?.reduce((sum, lot) => sum + lot.quantity, 0)).toBe(99);
     expect(getDemoSnapshot().movements[0].lotAllocations?.[0].quantity).toBe(1);
+  });
+
+  it("permite editar un movimiento en modo demostración reconciliando existencias y lotes", () => {
+    const mov = getDemoSnapshot().movements.find((m) => m.id === "demo-mov-1")!;
+    // demo-mov-1 era un OUT de 30 de demo-metformina (stock actual 320). Al cambiarlo a 10 de demo-levotiroxina (stock actual 184):
+    demoUpdateMovement({
+      movementId: mov.id,
+      medicineId: "demo-levotiroxina",
+      type: "OUT",
+      quantity: 10,
+      prescriptionRef: "RX-EDITADA",
+      pharmacistEmail: "carlos.rodriguez@demo.local",
+      now: new Date().toISOString(),
+    });
+    const state = getDemoSnapshot();
+    expect(state.medicines.find((m) => m.id === "demo-metformina")!.stock).toBe(350);
+    expect(state.medicines.find((m) => m.id === "demo-levotiroxina")!.stock).toBe(174);
+    const updatedMov = state.movements.find((m) => m.id === "demo-mov-1")!;
+    expect(updatedMov).toMatchObject({
+      medicineId: "demo-levotiroxina",
+      medicineName: "Levotiroxina",
+      quantity: 10,
+      prescriptionRef: "RX-EDITADA",
+      pharmacistEmail: "carlos.rodriguez@demo.local",
+    });
   });
 });

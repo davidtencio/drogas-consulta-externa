@@ -51,8 +51,13 @@ service cloud.firestore {
       allow read: if isOperator();
       allow create: if isOperator()
         && request.resource.data.actorEmail == request.auth.token.email;
-      // Los movimientos son un registro de trazabilidad: no se editan ni borran.
-      allow update, delete: if false;
+      // Solo ingresos y egresos pueden editarse por un operador atribuible;
+      // los conteos físicos no se editan y ningún movimiento se borra.
+      allow update: if isOperator()
+        && resource.data.type in ['IN', 'OUT']
+        && request.resource.data.type in ['IN', 'OUT']
+        && request.resource.data.actorEmail == request.auth.token.email;
+      allow delete: if false;
     }
 
     match /auditLogs/{id} {

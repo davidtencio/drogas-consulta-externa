@@ -28,9 +28,12 @@ describe("reglas de producción", () => {
     expect(audit).toContain("allow create, update, delete: if false;");
   });
 
-  it("mantiene movimientos y eventos operativos inmutables y atribuibles", () => {
-    // movements y operationalEvents conservan la escritura atribuible del cliente.
-    expect(rules.match(/allow update, delete: if false;/g)).toHaveLength(2);
-    expect(rules.match(/actorEmail == request.auth.token.email/g)).toHaveLength(2);
+  it("permite editar únicamente ingresos y egresos atribuibles al operador e impide borrar movimientos", () => {
+    // operationalEvents conserva allow update, delete: if false; movements solo permite update en IN/OUT atribuibles.
+    expect(rules.match(/allow update, delete: if false;/g)).toHaveLength(1);
+    expect(rules).toContain("resource.data.type in ['IN', 'OUT']");
+    expect(rules).toContain("request.resource.data.type in ['IN', 'OUT']");
+    expect(rules).toContain("allow delete: if false;");
+    expect(rules.match(/actorEmail == request.auth.token.email/g)).toHaveLength(3);
   });
 });

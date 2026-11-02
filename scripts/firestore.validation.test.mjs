@@ -63,7 +63,7 @@ test("el operador puede actualizar saldo, lotes y última toma; se rechaza stock
   await denied(() => updateDoc(doc(operator, "medicines/seed"), { stock: -1 }));
   await denied(() => updateDoc(doc(outsider, "medicines/seed"), { stock: 8 }));
 });
-test("movimientos y eventos exigen actor propio y son inmutables para los clientes", async () => {
+test("movimientos y eventos exigen actor propio; solo ingresos/egresos se editan con actor propio y nada se borra", async () => {
   for (const collection of ["movements", "operationalEvents"]) {
     await setDoc(doc(operator, `${collection}/own`), { actorEmail: "fhsvp2208@gmail.com", type: "DEMO" });
     await denied(() => setDoc(doc(operator, `${collection}/forged`), { actorEmail: "davidtencio@gmail.com" }));
@@ -73,4 +73,8 @@ test("movimientos y eventos exigen actor propio y son inmutables para los client
       await denied(() => deleteDoc(doc(db, `${collection}/own`)));
     }
   }
+  await setDoc(doc(operator, "movements/mov-out"), { actorEmail: "fhsvp2208@gmail.com", type: "OUT", quantity: 5 });
+  await updateDoc(doc(operator, "movements/mov-out"), { actorEmail: "fhsvp2208@gmail.com", type: "OUT", quantity: 3 });
+  await denied(() => updateDoc(doc(operator, "movements/mov-out"), { actorEmail: "davidtencio@gmail.com", type: "OUT", quantity: 2 }));
+  await denied(() => deleteDoc(doc(operator, "movements/mov-out")));
 });

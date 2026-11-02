@@ -51,12 +51,14 @@
 .table-wrap th { color: var(--muted); background: var(--surface-2); font-size: 11px; font-weight: 600; }
 .table-wrap td { font-size: 12px; font-variant-numeric: tabular-nums; }
 .table-wrap td strong { font-size: 13px; font-weight: 600; }
-.table-wrap th:first-child { width: 16%; padding-left: 24px; }
-.table-wrap th:nth-child(2) { width: 23%; }
-.table-wrap th:nth-child(3) { width: 11%; }
-.table-wrap th:nth-child(4) { width: 13%; }
-.table-wrap th:nth-child(5) { width: 17%; }
-.table-wrap th:last-child { width: 20%; }
+.table-wrap th:first-child { width: 15%; padding-left: 24px; }
+.table-wrap th:nth-child(2) { width: 22%; }
+.table-wrap th:nth-child(3) { width: 10%; }
+.table-wrap th:nth-child(4) { width: 12%; }
+.table-wrap th:nth-child(5) { width: 15%; }
+.table-wrap th:nth-child(6) { width: 15%; }
+.table-wrap th:last-child { width: 11%; }
+.mov-edit-btn { min-height: 36px; padding: 6px 12px; font-size: 12px; }
 .table-wrap td:first-child { padding-left: 24px; }
 .table-wrap tr:last-child td { border-bottom: 0; }
 .table-wrap tbody tr:hover { background: var(--surface-2); }

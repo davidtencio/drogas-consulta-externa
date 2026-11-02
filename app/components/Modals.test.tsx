@@ -130,4 +130,49 @@ describe("Modals", () => {
     expect(props.onClose).toHaveBeenCalledOnce();
     expect(props.onSubmit).not.toHaveBeenCalled();
   });
+
+  it("edición de egreso: precarga medicamento, cantidad, receta y responsable y proyecta el saldo previo al movimiento", () => {
+    const editingOut = {
+      id: "mov-out-1",
+      medicineId: "m1",
+      medicineName: "Metformina",
+      type: "OUT" as const,
+      quantity: 15,
+      prescriptionRef: "RX-999",
+      pharmacistEmail: "ana@h.cr",
+      createdAt: "2026-07-16T10:00:00.000Z",
+      lotAllocations: [{ lotId: "lot-1", lot: "L1", expiresAt: "2099-01-01", quantity: 15 }],
+    };
+    render(<Modals {...base({ state: { kind: "movement", medicineId: "m1", type: "OUT", editing: editingOut } })} />);
+    expect(screen.getByText("Editar egreso")).toBeInTheDocument();
+    expect((screen.getByLabelText("Medicamento") as HTMLSelectElement).value).toBe("m1");
+    expect((screen.getByLabelText("Cantidad") as HTMLInputElement).value).toBe("15");
+    expect((screen.getByLabelText("Referencia de prescripción") as HTMLInputElement).value).toBe("RX-999");
+    expect((screen.getByLabelText("Farmacéutico responsable") as HTMLSelectElement).value).toBe("ana@h.cr");
+    expect(screen.getByText(/Saldo previo al movimiento: 65 unidades/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeInTheDocument();
+  });
+
+  it("edición de ingreso: precarga los lotes recibidos del movimiento original", () => {
+    const editingIn = {
+      id: "mov-in-1",
+      medicineId: "m1",
+      medicineName: "Metformina",
+      type: "IN" as const,
+      quantity: 25,
+      prescriptionRef: "FAC-1",
+      pharmacistEmail: "ana@h.cr",
+      createdAt: "2026-07-16T10:00:00.000Z",
+      lotAllocations: [
+        { lotId: "lot-1", lot: "L1", expiresAt: "2099-01-01", quantity: 10 },
+        { lotId: "lot-2", lot: "L2", expiresAt: "2099-06-01", quantity: 15 },
+      ],
+    };
+    render(<Modals {...base({ state: { kind: "movement", medicineId: "m1", type: "IN", editing: editingIn } })} />);
+    expect(screen.getByText("Editar ingreso")).toBeInTheDocument();
+    const lotInputs = screen.getAllByLabelText("Lote") as HTMLInputElement[];
+    expect(lotInputs.map((i) => i.value)).toEqual(["L1", "L2"]);
+    const qtyInputs = screen.getAllByLabelText("Cantidad") as HTMLInputElement[];
+    expect(qtyInputs.map((i) => i.value)).toEqual(["10", "15"]);
+  });
 });

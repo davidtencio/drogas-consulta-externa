@@ -2,7 +2,17 @@
 // fusión/validación en ingresos, descuento FEFO/FIFO en egresos y cálculo del
 // lote vigente más próximo a vencer). Compartida entre db.ts, demo.ts y adminMutations.ts.
 
-import type { InventoryLot, LotAllocation, MovementType, ReceivedLot } from "./inventory";
+import {
+  isValidQuantity,
+  prepareMovement,
+  type InventoryLot,
+  type LotAllocation,
+  type Medicine,
+  type Movement,
+  type MovementType,
+  type PreparedMovement,
+  type ReceivedLot,
+} from "./inventory";
 
 /** Obtiene el lote y vencimiento principales a partir de los lotes con saldo positivo (FEFO). */
 export function primaryLotSummary(lots: readonly InventoryLot[]): { lot: string; expiresAt: string } {
@@ -45,6 +55,7 @@ export type LotMovementOptions = {
   receivedLots?: readonly ReceivedLot[];
   targetLotId?: string;
   allowExpired?: boolean;
+  revertedLotIds?: readonly string[];
   now: string;
   makeLotId?: (index: number, item: ReceivedLot) => string;
 };
@@ -69,6 +80,7 @@ export function applyLotMovement(
   options: LotMovementOptions
 ): { lots: InventoryLot[]; allocations: LotAllocation[]; lot: string; expiresAt: string } {
   const next = lots.map((lot) => ({ ...lot }));
+  const revertedSet = new Set(options.revertedLotIds ?? []);
 
   if (options.type === "IN") {
     const incoming = options.receivedLots ?? [];
@@ -78,7 +90,17 @@ export function applyLotMovement(
     }
     const allocations = incoming.map((item, index) => {
       const normalizedCode = item.lot.trim().toLowerCase();
-      const existing = next.find((lot) => lot.lot.trim().toLowerCase() === normalizedCode);
+      let existing = next.find((lot) => lot.lot.trim().toLowerCase() === normalizedCode);
+      if (!existing && options.revertedLotIds?.[index]) {
+        const candidate = next.find((lot) => lot.id === options.revertedLotIds![index]);
+        const codeClaimedElsewhere = incoming.some(
+          (other, otherIdx) => otherIdx !== index && other.lot.trim().toLowerCase() === candidate?.lot.trim().toLowerCase()
+        );
+        if (candidate && candidate.quantity <= 0 && !codeClaimedElsewhere) {
+          existing = candidate;
+          existing.lot = item.lot.trim();
+        }
+      }
       if (existing) {
         if (existing.quantity > 0 && existing.expiresAt && item.expiresAt && existing.expiresAt !== item.expiresAt) {
           throw new Error(`El lote ${item.lot} ya existe con vencimiento ${existing.expiresAt}. Verifique el lote o la fecha.`);
@@ -91,11 +113,26 @@ export function applyLotMovement(
       next.push({ id: lotId, lot: item.lot, expiresAt: item.expiresAt, quantity: item.quantity, receivedAt: options.now });
       return { lotId, lot: item.lot, expiresAt: item.expiresAt, quantity: item.quantity };
     });
-    return { lots: next, allocations, ...primaryLotSummary(next) };
+    const negativeLot = next.find((lot) => lot.quantity < 0);
+    if (negativeLot) {
+      throw new Error(`No se puede modificar el ingreso: el lote ${negativeLot.lot} quedaría con saldo negativo porque ya tuvo egresos.`);
+    }
+    const cleaned = revertedSet.size
+      ? next.filter((lot) => !(revertedSet.has(lot.id) && lot.quantity === 0))
+      : next;
+    return { lots: cleaned, allocations, ...primaryLotSummary(cleaned) };
   }
 
+  const preNegativeLot = next.find((lot) => lot.quantity < 0);
+  if (preNegativeLot) {
+    throw new Error(`No se puede revertir el ingreso del lote ${preNegativeLot.lot} porque parte de sus existencias ya fue descargada.`);
+  }
+  const workingLots = revertedSet.size
+    ? next.filter((lot) => !(revertedSet.has(lot.id) && lot.quantity === 0))
+    : next;
+
   if (options.targetLotId) {
-    const target = next.find((lot) => lot.id === options.targetLotId || lot.lot === options.targetLotId);
+    const target = workingLots.find((lot) => lot.id === options.targetLotId || lot.lot === options.targetLotId);
     if (!target || target.quantity <= 0) {
       throw new Error("El lote seleccionado no tiene existencias disponibles.");
     }
@@ -109,12 +146,12 @@ export function applyLotMovement(
     const allocations: LotAllocation[] = [
       { lotId: target.id, lot: target.lot, expiresAt: target.expiresAt, quantity: options.quantity },
     ];
-    return { lots: next, allocations, ...primaryLotSummary(next) };
+    return { lots: workingLots, allocations, ...primaryLotSummary(workingLots) };
   }
 
   let remaining = options.quantity;
   const allocations: LotAllocation[] = [];
-  const withStock = next.filter((lot) => lot.quantity > 0);
+  const withStock = workingLots.filter((lot) => lot.quantity > 0);
   const eligible = options.allowExpired
     ? withStock
     : withStock.filter((lot) => !isLotExpired(lot, options.now));
@@ -135,7 +172,280 @@ export function applyLotMovement(
     }
     throw new Error("Existencias por lote insuficientes.");
   }
-  return { lots: next, allocations, ...primaryLotSummary(next) };
+  return { lots: workingLots, allocations, ...primaryLotSummary(workingLots) };
+}
+
+export type RevertedLotResult = {
+  lots: InventoryLot[];
+  revertedLotIds: string[];
+  lot: string;
+  expiresAt: string;
+};
+
+/**
+ * Deshace el efecto de un movimiento previo (`IN` u `OUT`) sobre la lista de lotes:
+ * - Si el movimiento original fue `OUT`, reintegra las cantidades descontadas a sus lotes.
+ * - Si el movimiento original fue `IN`, resta las cantidades ingresadas de sus lotes.
+ */
+export function revertLotMovement(
+  lots: readonly InventoryLot[],
+  original: Pick<Movement, "type" | "quantity" | "lotAllocations" | "createdAt">,
+  fallbackMedicine?: { id?: string; lot?: string; expiresAt?: string },
+  now: string = new Date().toISOString()
+): RevertedLotResult {
+  const next = lots.map((lot) => ({ ...lot }));
+  const revertedLotIds: string[] = [];
+
+  if (original.type === "OUT") {
+    if (original.lotAllocations && original.lotAllocations.length > 0) {
+      for (const alloc of original.lotAllocations) {
+        const normalizedCode = alloc.lot.trim().toLowerCase();
+        const existing =
+          next.find((lot) => lot.id === alloc.lotId) ??
+          next.find((lot) => lot.lot.trim().toLowerCase() === normalizedCode);
+        if (existing) {
+          existing.quantity += alloc.quantity;
+          if (!existing.expiresAt && alloc.expiresAt) existing.expiresAt = alloc.expiresAt;
+        } else {
+          next.push({
+            id: alloc.lotId || `${original.createdAt || now}-restored-${alloc.lot}`,
+            lot: alloc.lot,
+            expiresAt: alloc.expiresAt,
+            quantity: alloc.quantity,
+            receivedAt: original.createdAt || now,
+          });
+        }
+      }
+    } else {
+      const fallbackCode = (fallbackMedicine?.lot || "").trim().toLowerCase();
+      const existing =
+        (fallbackCode ? next.find((lot) => lot.lot.trim().toLowerCase() === fallbackCode) : undefined) ?? next[0];
+      if (existing) {
+        existing.quantity += original.quantity;
+      } else {
+        next.push({
+          id: `legacy-${fallbackMedicine?.id || "med"}`,
+          lot: String(fallbackMedicine?.lot || "SIN-LOTE"),
+          expiresAt: String(fallbackMedicine?.expiresAt || ""),
+          quantity: original.quantity,
+          receivedAt: original.createdAt || now,
+        });
+      }
+    }
+  } else if (original.type === "IN") {
+    if (original.lotAllocations && original.lotAllocations.length > 0) {
+      for (const alloc of original.lotAllocations) {
+        const normalizedCode = alloc.lot.trim().toLowerCase();
+        const existing =
+          next.find((lot) => lot.id === alloc.lotId) ??
+          next.find((lot) => lot.lot.trim().toLowerCase() === normalizedCode);
+        if (existing) {
+          existing.quantity -= alloc.quantity;
+          revertedLotIds.push(existing.id);
+        } else {
+          const missingId = alloc.lotId || `${original.createdAt || now}-missing-${alloc.lot}`;
+          next.push({
+            id: missingId,
+            lot: alloc.lot,
+            expiresAt: alloc.expiresAt,
+            quantity: -alloc.quantity,
+            receivedAt: original.createdAt || now,
+          });
+          revertedLotIds.push(missingId);
+        }
+      }
+    } else {
+      const fallbackCode = (fallbackMedicine?.lot || "").trim().toLowerCase();
+      const preferred =
+        (fallbackCode ? next.find((lot) => lot.lot.trim().toLowerCase() === fallbackCode) : undefined) ?? next[0];
+      if (preferred) {
+        preferred.quantity -= original.quantity;
+        revertedLotIds.push(preferred.id);
+      } else {
+        const missingId = `legacy-${fallbackMedicine?.id || "med"}`;
+        next.push({
+          id: missingId,
+          lot: String(fallbackMedicine?.lot || "SIN-LOTE"),
+          expiresAt: String(fallbackMedicine?.expiresAt || ""),
+          quantity: -original.quantity,
+          receivedAt: original.createdAt || now,
+        });
+        revertedLotIds.push(missingId);
+      }
+    }
+  }
+
+  return { lots: next, revertedLotIds, ...primaryLotSummary(next) };
+}
+
+/**
+ * Devuelve una proyección del medicamento con el movimiento en edición revertido,
+ * para previsualizar correctamente el saldo y los lotes disponibles en el diálogo.
+ */
+export function effectiveMedicineForMovementEdit(
+  medicine: Medicine,
+  editingMovement?: Movement | null,
+  nowIso: string = new Date().toISOString()
+): Medicine {
+  if (!editingMovement || editingMovement.medicineId !== medicine.id || (editingMovement.type !== "IN" && editingMovement.type !== "OUT")) {
+    return medicine;
+  }
+  const delta = editingMovement.type === "OUT" ? editingMovement.quantity : -editingMovement.quantity;
+  const revertedStock = Math.max(0, (Number(medicine.stock) || 0) + delta);
+  const reverted = revertLotMovement(normalizeMedicineLots(medicine, medicine.id, nowIso), editingMovement, medicine, nowIso);
+  const cleanedLots = reverted.lots
+    .filter((lot) => !(reverted.revertedLotIds.includes(lot.id) && lot.quantity <= 0))
+    .map((lot) => ({ ...lot, quantity: Math.max(0, lot.quantity) }));
+  return {
+    ...medicine,
+    stock: revertedStock,
+    lots: cleanedLots,
+    lot: reverted.lot,
+    expiresAt: reverted.expiresAt,
+  };
+}
+
+export type MovementEditRequest = {
+  movementId: string;
+  medicineId: string;
+  type: MovementType;
+  quantity: number;
+  prescriptionRef: string;
+  note?: string;
+  receivedLots?: readonly ReceivedLot[];
+  targetLotId?: string;
+  allowExpired?: boolean;
+  pharmacistEmail: string;
+  now: string;
+  makeLotId?: (index: number, item: ReceivedLot) => string;
+};
+
+export type MedicineStockUpdate = {
+  stock: number;
+  lots: InventoryLot[];
+  lot: string;
+  expiresAt: string;
+};
+
+export type PreparedMovementEdit = {
+  previousMedicineUpdate?: MedicineStockUpdate;
+  targetMedicineUpdate: MedicineStockUpdate;
+  movementRecord: PreparedMovement["record"];
+};
+
+/**
+ * Calcula de forma pura la edición de un movimiento (`IN` u `OUT`):
+ * revierte el impacto original en lotes y existencias (sobre el mismo medicamento
+ * o sobre el medicamento anterior si se cambió) y aplica el nuevo movimiento.
+ */
+export function prepareMovementEdit(params: {
+  original: Movement;
+  originalMedicine: Pick<Medicine, "id" | "name" | "stock" | "lot" | "expiresAt" | "lots">;
+  targetMedicine: Pick<Medicine, "id" | "name" | "stock" | "lot" | "expiresAt" | "lots">;
+  input: MovementEditRequest;
+}): PreparedMovementEdit {
+  const { original, originalMedicine, targetMedicine, input } = params;
+  if (original.type !== "IN" && original.type !== "OUT") {
+    throw new Error("Solo se pueden editar ingresos y egresos.");
+  }
+  if (!isValidQuantity(input.quantity)) {
+    throw new Error("Cantidad inválida.");
+  }
+
+  const origStock = Number(originalMedicine.stock) || 0;
+  const origQty = Number(original.quantity) || 0;
+  const revertedStock = origStock + (original.type === "OUT" ? origQty : -origQty);
+  const origNormalized = normalizeMedicineLots(originalMedicine, originalMedicine.id, input.now);
+  const reverted = revertLotMovement(origNormalized, original, originalMedicine, input.now);
+  const effectiveNow = original.createdAt || input.now;
+
+  if (originalMedicine.id === targetMedicine.id) {
+    const lotResult = applyLotMovement(reverted.lots, {
+      type: input.type,
+      quantity: input.quantity,
+      receivedLots: input.receivedLots,
+      targetLotId: input.targetLotId,
+      allowExpired: input.allowExpired,
+      revertedLotIds: reverted.revertedLotIds,
+      now: effectiveNow,
+      makeLotId: input.makeLotId,
+    });
+    const { nextStock, record } = prepareMovement(
+      { name: targetMedicine.name, stock: revertedStock },
+      {
+        medicineId: targetMedicine.id,
+        type: input.type,
+        quantity: input.quantity,
+        prescriptionRef: input.prescriptionRef,
+        note: input.note,
+        lotAllocations: lotResult.allocations,
+        pharmacistEmail: input.pharmacistEmail,
+        createdAt: effectiveNow,
+      }
+    );
+    return {
+      targetMedicineUpdate: {
+        stock: nextStock,
+        lots: lotResult.lots,
+        lot: lotResult.lot,
+        expiresAt: lotResult.expiresAt,
+      },
+      movementRecord: record,
+    };
+  }
+
+  const negativeLot = reverted.lots.find((lot) => lot.quantity < 0);
+  if (negativeLot || revertedStock < 0) {
+    throw new Error(
+      negativeLot
+        ? `No se puede cambiar el medicamento: el lote ${negativeLot.lot} del ingreso original ya tuvo egresos.`
+        : "No se puede cambiar el medicamento porque parte de las existencias del ingreso original ya fue descargada."
+    );
+  }
+  const cleanedPrevLots = reverted.lots.filter(
+    (lot) => !(reverted.revertedLotIds.includes(lot.id) && lot.quantity === 0)
+  );
+  const prevSummary = primaryLotSummary(cleanedPrevLots);
+  const previousMedicineUpdate: MedicineStockUpdate = {
+    stock: revertedStock,
+    lots: cleanedPrevLots,
+    lot: prevSummary.lot,
+    expiresAt: prevSummary.expiresAt,
+  };
+
+  const targetNormalized = normalizeMedicineLots(targetMedicine, targetMedicine.id, input.now);
+  const targetLotResult = applyLotMovement(targetNormalized, {
+    type: input.type,
+    quantity: input.quantity,
+    receivedLots: input.receivedLots,
+    targetLotId: input.targetLotId,
+    allowExpired: input.allowExpired,
+    now: effectiveNow,
+    makeLotId: input.makeLotId,
+  });
+  const { nextStock, record } = prepareMovement(
+    { name: targetMedicine.name, stock: Number(targetMedicine.stock) || 0 },
+    {
+      medicineId: targetMedicine.id,
+      type: input.type,
+      quantity: input.quantity,
+      prescriptionRef: input.prescriptionRef,
+      note: input.note,
+      lotAllocations: targetLotResult.allocations,
+      pharmacistEmail: input.pharmacistEmail,
+      createdAt: effectiveNow,
+    }
+  );
+  return {
+    previousMedicineUpdate,
+    targetMedicineUpdate: {
+      stock: nextStock,
+      lots: targetLotResult.lots,
+      lot: targetLotResult.lot,
+      expiresAt: targetLotResult.expiresAt,
+    },
+    movementRecord: record,
+  };
 }
 
 /** Calcula una previsualización sin efectos secundarios de los lotes que se descontarán en un egreso. */

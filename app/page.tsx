@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
-import { activeMedicines, pharmacistNameByEmail, type Medicine, type MovementType, type Pharmacist } from "./lib/inventory";
+import { activeMedicines, pharmacistNameByEmail, type Medicine, type Movement, type MovementType, type Pharmacist } from "./lib/inventory";
 import { summarizeInventory } from "./lib/inventoryView";
 import { inventoryViewToCsv } from "./lib/csv";
 import { lastCountMovementByMedicine } from "./lib/movements";
@@ -47,9 +47,10 @@ async function savePharmacist(form: FormData, editing: Pharmacist | null) {
   else await dataApi.createPharmacist(fields);
 }
 
-async function saveMovement(form: FormData, now: string) {
+async function saveMovement(form: FormData, now: string, editing: Movement | null = null) {
   const parsed = parseMovementForm(form);
-  await dataApi.registerMovement({ ...parsed, now });
+  if (editing) await dataApi.updateMovement({ ...parsed, movementId: editing.id, now });
+  else await dataApi.registerMovement({ ...parsed, now });
 }
 
 async function saveCount(form: FormData, now: string, medicine: Medicine | undefined) {
@@ -81,6 +82,21 @@ export default function Home() {
   const today = useMemo(() => new Date().toLocaleDateString("es-CR", { weekday: "long", day: "numeric", month: "long" }).toUpperCase(), []);
   const activeMeds = useMemo(() => activeMedicines(medicines), [medicines]);
   const activePharmacists = useMemo(() => pharmacists.filter((p) => p.active !== false), [pharmacists]);
+  const modalMeds = useMemo(() => {
+    if (modal?.kind === "movement" && modal.editing?.medicineId) {
+      const med = medicines.find((m) => m.id === modal.editing!.medicineId);
+      if (med && !activeMeds.some((m) => m.id === med.id)) return [...activeMeds, med];
+    }
+    return activeMeds;
+  }, [activeMeds, medicines, modal]);
+  const modalPharmacists = useMemo(() => {
+    if (modal?.kind === "movement" && modal.editing?.pharmacistEmail) {
+      const email = modal.editing.pharmacistEmail.trim().toLowerCase();
+      const pharm = pharmacists.find((p) => p.email.trim().toLowerCase() === email);
+      if (pharm && !activePharmacists.some((p) => p.id === pharm.id)) return [...activePharmacists, pharm];
+    }
+    return activePharmacists;
+  }, [activePharmacists, pharmacists, modal]);
   const pharmacistNames = useMemo(() => pharmacistNameByEmail(pharmacists), [pharmacists]);
   const expAlert = useMemo(() => summarizeInventory(activeMeds), [activeMeds]);
   const lastCounts = useMemo(() => lastCountMovementByMedicine(countMovements ?? movements), [countMovements, movements]);
@@ -116,6 +132,16 @@ export default function Home() {
     setModal(kind === "medicine" ? { kind: "medicine", editing: item as Medicine } : { kind: "pharmacist", editing: item as Pharmacist });
   }, []);
   const openMovement = useCallback((medicineId?: string, type?: MovementType) => { setModalError(null); setModal({ kind: "movement", medicineId, type }); }, []);
+  const openEditMovement = useCallback((movement: Movement) => {
+    setModalError(null);
+    const resolvedMedId = movement.medicineId || medicines.find((m) => m.name === movement.medicineName)?.id || "";
+    setModal({
+      kind: "movement",
+      medicineId: resolvedMedId,
+      type: movement.type === "IN" ? "IN" : "OUT",
+      editing: { ...movement, medicineId: resolvedMedId },
+    });
+  }, [medicines]);
   const openCount = useCallback((medicineId: string) => { setModalError(null); setModal({ kind: "count", medicineId }); }, []);
   const viewMedicineMovements = useCallback((medicineId: string) => { setMovementMedicineId(medicineId); setTab("movements"); }, []);
   const changeTab = useCallback((next: "dashboard" | "movements" | "settings") => { if (next === "movements") setMovementMedicineId(""); setTab(next); }, []);
@@ -190,7 +216,7 @@ export default function Home() {
     try {
       if (action === "medicine") await saveMedicine(form, modal?.kind === "medicine" ? modal.editing : null);
       else if (action === "pharmacist") await savePharmacist(form, modal?.kind === "pharmacist" ? modal.editing : null);
-      else if (action === "movement") await saveMovement(form, now);
+      else if (action === "movement") await saveMovement(form, now, modal?.kind === "movement" ? modal.editing ?? null : null);
       else if (action === "count") await saveCount(form, now, modal?.kind === "count" ? medicines.find((m) => m.id === modal.medicineId) : undefined);
       flash(action === "count" ? "Saldo confirmado correctamente" : "Registro guardado correctamente");
       closeModal();
@@ -220,7 +246,7 @@ export default function Home() {
 
         {tab === "dashboard" && <InventoryPanel medicines={activeMeds} certifications={certifications} searchRef={searchRef} loading={loading} error={inventoryError} onRetry={retryInventory} onMovement={openMovement} onCount={openCount} onViewMovements={viewMedicineMovements} onExport={exportMedicines} />}
 
-        {tab === "movements" && <MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId} hasMore={hasMoreMovements} onLoadMore={loadMoreMovements} />}
+        {tab === "movements" && <MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} onEditMovement={openEditMovement} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId} hasMore={hasMoreMovements} onLoadMore={loadMoreMovements} />}
 
         {tab === "settings" && canManageCatalog(role) && <SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} loading={settingsLoading} error={settingsError} onRetry={retryInventory} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount} onBackupDatabase={backupDatabase} onResetDatabase={resetDatabase} />}
       </section>
@@ -229,7 +255,7 @@ export default function Home() {
     {notice && <div className={`toast${notice.critical ? " toast-critical" : ""}`} role={notice.critical ? "alert" : "status"}>{notice.message}{notice.critical && <button type="button" onClick={() => setNotice(null)} aria-label="Descartar mensaje"><Icon name="close" size={18} /></button>}</div>}
     {modal && (modal.kind === "count"
       ? <CountModal medicine={medicines.find((m) => m.id === modal.medicineId)} activePharmacists={activePharmacists} personnelMessage={personnelMessage} busy={busy} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit} onAdjust={openMovement} />
-      : <Modals state={modal} activeMeds={activeMeds} activePharmacists={activePharmacists} personnelMessage={personnelMessage} busy={busy} online={online} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit} />)}
+      : <Modals state={modal} activeMeds={modalMeds} activePharmacists={modalPharmacists} personnelMessage={personnelMessage} busy={busy} online={online} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit} />)}
     {deactivation && <ConfirmDialog label={deactivation.label} busy={busy} onCancel={() => setDeactivation(null)} onConfirm={() => void confirmDeactivation()} />}
   </main>;
 }

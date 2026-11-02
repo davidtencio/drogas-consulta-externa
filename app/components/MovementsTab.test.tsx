@@ -132,4 +132,25 @@ describe("MovementsTab", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo exportar los movimientos");
     expect(screen.getByRole("button", { name: "Exportar CSV" })).toBeEnabled();
   });
+
+  it("permite editar ingresos y egresos (no conteos) cuando se proporciona onEditMovement", async () => {
+    const onEditMovement = vi.fn();
+    const countMov = mov({ id: "c1", type: "COUNT", medicineName: "Clonazepam", systemQuantity: 10, difference: 0 });
+    render(
+      <MovementsTab
+        movements={[...sample, countMov]}
+        medicines={[]}
+        pharmacistNames={names}
+        onNotice={noop}
+        onEditMovement={onEditMovement}
+      />
+    );
+    const editIn = screen.getByRole("button", { name: "Editar ingreso de Amoxicilina" });
+    const editOut = screen.getByRole("button", { name: "Editar egreso de Ibuprofeno" });
+    expect(screen.queryByRole("button", { name: /Editar.*Clonazepam/i })).not.toBeInTheDocument();
+    await userEvent.click(editOut);
+    expect(onEditMovement).toHaveBeenCalledWith(expect.objectContaining({ id: "b", type: "OUT" }));
+    await userEvent.click(editIn);
+    expect(onEditMovement).toHaveBeenCalledWith(expect.objectContaining({ id: "a", type: "IN" }));
+  });
 });

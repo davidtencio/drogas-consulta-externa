@@ -445,3 +445,202 @@ describe("registerCounts", () => {
     expect(batchUpdate.mock.calls[1][1]).toEqual({ lastCountAt: "2026-07-16T10:00:00.000Z", lastCountBy: "ana@h.cr" });
   });
 });
+
+describe("updateMovement (edición de ingresos y egresos con reconciliación de lotes)", () => {
+  it("edita un egreso del mismo medicamento (cantidad, receta y farmacéutico) y recalcula lotes FEFO", async () => {
+    // El movimiento original descontó 8 unidades (5 de L-PRONTO y 3 de L-TARDE), dejando L-PRONTO en 0 y L-TARDE en 7.
+    txGet
+      .mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          medicineId: "m1",
+          medicineName: "Metformina",
+          type: "OUT",
+          quantity: 8,
+          prescriptionRef: "RX-MAL",
+          pharmacistEmail: "ana@h.cr",
+          createdAt: "2026-07-16T10:00:00.000Z",
+          lotAllocations: [
+            { lotId: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 5 },
+            { lotId: "lot-tarde", lot: "L-TARDE", expiresAt: "2027-06-01", quantity: 3 },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          name: "Metformina",
+          stock: 7,
+          lot: "L-TARDE",
+          expiresAt: "2027-06-01",
+          lots: [
+            { id: "lot-tarde", lot: "L-TARDE", expiresAt: "2027-06-01", quantity: 7, receivedAt: "2026-01-01T00:00:00.000Z" },
+            { id: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 0, receivedAt: "2026-02-01T00:00:00.000Z" },
+          ],
+        }),
+      });
+
+    await dbApi.updateMovement({
+      movementId: "mov-1",
+      medicineId: "m1",
+      type: "OUT",
+      quantity: 3,
+      prescriptionRef: "RX-CORREGIDA",
+      pharmacistEmail: "carlos@h.cr",
+      now: "2026-07-17T12:00:00.000Z",
+    });
+
+    expect(txUpdate).toHaveBeenCalledOnce();
+    expect(txUpdate.mock.calls[0][1]).toEqual({
+      stock: 12,
+      lot: "L-PRONTO",
+      expiresAt: "2026-11-15",
+      lots: [
+        { id: "lot-tarde", lot: "L-TARDE", expiresAt: "2027-06-01", quantity: 10, receivedAt: "2026-01-01T00:00:00.000Z" },
+        { id: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 2, receivedAt: "2026-02-01T00:00:00.000Z" },
+      ],
+    });
+    expect(txSet).toHaveBeenCalledOnce();
+    expect(txSet.mock.calls[0][1]).toMatchObject({
+      medicineId: "m1",
+      medicineName: "Metformina",
+      type: "OUT",
+      quantity: 3,
+      prescriptionRef: "RX-CORREGIDA",
+      pharmacistEmail: "carlos@h.cr",
+      createdAt: "2026-07-16T10:00:00.000Z",
+      updatedAt: "2026-07-17T12:00:00.000Z",
+      actorEmail: "admin@h.cr",
+      updatedByEmail: "admin@h.cr",
+      lotAllocations: [{ lotId: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 3 }],
+    });
+  });
+
+  it("cambia de medicamento en un egreso: reintegra lotes al medicamento anterior y descuenta del nuevo", async () => {
+    txGet
+      .mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          medicineId: "m1",
+          medicineName: "Metformina",
+          type: "OUT",
+          quantity: 5,
+          prescriptionRef: "RX-10",
+          pharmacistEmail: "ana@h.cr",
+          createdAt: "2026-07-16T10:00:00.000Z",
+          lotAllocations: [{ lotId: "lot-m1", lot: "L-M1", expiresAt: "2027-01-01", quantity: 5 }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          name: "Metformina",
+          stock: 15,
+          lot: "L-M1",
+          expiresAt: "2027-01-01",
+          lots: [{ id: "lot-m1", lot: "L-M1", expiresAt: "2027-01-01", quantity: 15, receivedAt: "2026-01-01T00:00:00.000Z" }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          name: "Ibuprofeno",
+          stock: 10,
+          lot: "L-IBU",
+          expiresAt: "2027-05-01",
+          lots: [{ id: "lot-ibu", lot: "L-IBU", expiresAt: "2027-05-01", quantity: 10, receivedAt: "2026-01-01T00:00:00.000Z" }],
+        }),
+      });
+
+    await dbApi.updateMovement({
+      movementId: "mov-2",
+      medicineId: "m2",
+      type: "OUT",
+      quantity: 4,
+      prescriptionRef: "RX-10-B",
+      pharmacistEmail: "carlos@h.cr",
+      now: "2026-07-17T12:00:00.000Z",
+    });
+
+    expect(txUpdate).toHaveBeenCalledTimes(2);
+    // Medicamento anterior (m1) recupera las 5 unidades
+    expect(txUpdate.mock.calls[0][1]).toMatchObject({
+      stock: 20,
+      lots: [{ id: "lot-m1", lot: "L-M1", expiresAt: "2027-01-01", quantity: 20, receivedAt: "2026-01-01T00:00:00.000Z" }],
+    });
+    // Medicamento nuevo (m2) descuenta las 4 unidades
+    expect(txUpdate.mock.calls[1][1]).toMatchObject({
+      stock: 6,
+      lots: [{ id: "lot-ibu", lot: "L-IBU", expiresAt: "2027-05-01", quantity: 6, receivedAt: "2026-01-01T00:00:00.000Z" }],
+    });
+    expect(txSet.mock.calls[0][1]).toMatchObject({
+      medicineId: "m2",
+      medicineName: "Ibuprofeno",
+      quantity: 4,
+      prescriptionRef: "RX-10-B",
+      pharmacistEmail: "carlos@h.cr",
+    });
+  });
+
+  it("edita un ingreso corrigiendo lote, vencimiento y cantidad, y bloquea reducir bajo lo ya egresado", async () => {
+    // Ingreso original de 20 unidades en L-ING, de las cuales ya se egresaron 6 (quedan 14 en stock).
+    const movInSnap = () => ({
+      exists: () => true,
+      data: () => ({
+        medicineId: "m1",
+        medicineName: "Metformina",
+        type: "IN",
+        quantity: 20,
+        prescriptionRef: "Ingreso",
+        pharmacistEmail: "ana@h.cr",
+        createdAt: "2026-07-10T10:00:00.000Z",
+        lotAllocations: [{ lotId: "lot-ing", lot: "L-ING", expiresAt: "2027-01-01", quantity: 20 }],
+      }),
+    });
+    const medSnap = () => ({
+      exists: () => true,
+      data: () => ({
+        name: "Metformina",
+        stock: 14,
+        lot: "L-ING",
+        expiresAt: "2027-01-01",
+        lots: [{ id: "lot-ing", lot: "L-ING", expiresAt: "2027-01-01", quantity: 14, receivedAt: "2026-07-10T10:00:00.000Z" }],
+      }),
+    });
+
+    // Reducir a 10 (>= 6 egresadas) y corregir código de lote a L-ING-OK es válido: quedan 14 - 20 + 10 = 4 en el lote.
+    txGet.mockResolvedValueOnce(movInSnap()).mockResolvedValueOnce(medSnap());
+    await dbApi.updateMovement({
+      movementId: "mov-in",
+      medicineId: "m1",
+      type: "IN",
+      quantity: 10,
+      receivedLots: [{ lot: "L-ING-OK", expiresAt: "2027-03-01", quantity: 10 }],
+      prescriptionRef: "Ingreso",
+      pharmacistEmail: "carlos@h.cr",
+      now: "2026-07-17T12:00:00.000Z",
+    });
+
+    expect(txUpdate.mock.calls[0][1]).toEqual({
+      stock: 4,
+      lot: "L-ING-OK",
+      expiresAt: "2027-03-01",
+      lots: [{ id: "lot-ing", lot: "L-ING-OK", expiresAt: "2027-03-01", quantity: 4, receivedAt: "2026-07-10T10:00:00.000Z" }],
+    });
+
+    // Reducir a 5 (< 6 egresadas) debe fallar porque dejaría el lote con saldo negativo (-1).
+    txGet.mockResolvedValueOnce(movInSnap()).mockResolvedValueOnce(medSnap());
+    await expect(
+      dbApi.updateMovement({
+        movementId: "mov-in",
+        medicineId: "m1",
+        type: "IN",
+        quantity: 5,
+        receivedLots: [{ lot: "L-ING", expiresAt: "2027-01-01", quantity: 5 }],
+        prescriptionRef: "Ingreso",
+        pharmacistEmail: "carlos@h.cr",
+        now: "2026-07-17T12:00:00.000Z",
+      })
+    ).rejects.toThrow(/saldo negativo/i);
+  });
+});

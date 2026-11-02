@@ -59,6 +59,8 @@ export type Movement = {
   difference?: number;
   note?: string;
   lotAllocations?: LotAllocation[];
+  updatedAt?: string;
+  updatedByEmail?: string;
 };
 
 /** Tipos de operación que ajustan existencias (ingreso/egreso). */

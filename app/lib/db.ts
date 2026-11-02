@@ -3,9 +3,9 @@
 
 import { addDoc, collection, doc, runTransaction, writeBatch } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { prepareCount, prepareMovement, type MovementType, type ReceivedLot } from "./inventory";
-import { applyLotMovement, normalizeMedicineLots } from "./lots";
-import { DEMO_MODE, demoClearDatabase, demoCreateMedicine, demoCreatePharmacist, demoExportDatabase, demoRegisterCount, demoRegisterMovement, demoSetActive, demoUpdateMedicine, demoUpdatePharmacist } from "./demo";
+import { prepareCount, prepareMovement, type Medicine, type Movement, type MovementType, type ReceivedLot } from "./inventory";
+import { applyLotMovement, normalizeMedicineLots, prepareMovementEdit, type MovementEditRequest } from "./lots";
+import { DEMO_MODE, demoClearDatabase, demoCreateMedicine, demoCreatePharmacist, demoExportDatabase, demoRegisterCount, demoRegisterMovement, demoSetActive, demoUpdateMedicine, demoUpdateMovement, demoUpdatePharmacist } from "./demo";
 import { validateResetConfirmation, type AdminOp, type MedicineFields, type PharmacistFields } from "./adminMutations";
 
 export type { MedicineFields, PharmacistFields } from "./adminMutations";
@@ -149,6 +149,57 @@ export function registerMovement(req: MovementRequest): Promise<void> {
     );
     tx.update(ref, { stock: nextStock, lots: lotResult.lots, lot: lotResult.lot, expiresAt: lotResult.expiresAt });
     tx.set(doc(collection(db, "movements")), { ...record, actorEmail: actorEmail() });
+  });
+}
+
+export type UpdateMovementRequest = MovementEditRequest;
+
+/**
+ * Edita un movimiento de ingreso o egreso dentro de una transacción atómica:
+ * revierte el efecto previo en existencias y lotes (del mismo medicamento o del
+ * medicamento anterior si cambió), aplica el nuevo movimiento y actualiza la bitácora.
+ */
+export function updateMovement(req: UpdateMovementRequest): Promise<void> {
+  if (DEMO_MODE) {
+    demoUpdateMovement(req);
+    return Promise.resolve();
+  }
+  return runTransaction(db, async (tx) => {
+    const movRef = doc(db, "movements", req.movementId);
+    const movSnap = await tx.get(movRef);
+    if (!movSnap.exists()) throw new Error("Movimiento no disponible.");
+    const original = { id: req.movementId, ...movSnap.data() } as Movement;
+    if (original.type !== "IN" && original.type !== "OUT") {
+      throw new Error("Solo se pueden editar ingresos y egresos.");
+    }
+    const origMedId = original.medicineId || req.medicineId;
+    const sameMedicine = origMedId === req.medicineId;
+    const origMedRef = doc(db, "medicines", origMedId);
+    const nextMedRef = sameMedicine ? origMedRef : doc(db, "medicines", req.medicineId);
+
+    const origMedSnap = await tx.get(origMedRef);
+    if (!origMedSnap.exists()) throw new Error("El medicamento original del movimiento ya no existe.");
+    const nextMedSnap = sameMedicine ? origMedSnap : await tx.get(nextMedRef);
+    if (!nextMedSnap.exists()) throw new Error("Medicamento no disponible.");
+
+    const plan = prepareMovementEdit({
+      original,
+      originalMedicine: { id: origMedId, ...(origMedSnap.data() as Omit<Medicine, "id">) },
+      targetMedicine: { id: req.medicineId, ...(nextMedSnap.data() as Omit<Medicine, "id">) },
+      input: req,
+    });
+
+    if (plan.previousMedicineUpdate) {
+      tx.update(origMedRef, plan.previousMedicineUpdate);
+    }
+    tx.update(nextMedRef, plan.targetMedicineUpdate);
+    const actor = actorEmail();
+    tx.set(movRef, {
+      ...plan.movementRecord,
+      actorEmail: actor,
+      updatedAt: req.now,
+      updatedByEmail: actor,
+    });
   });
 }
 

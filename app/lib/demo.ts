@@ -1,5 +1,5 @@
 import { prepareMovement, type InventoryLot, type Medicine, type Movement, type Pharmacist, type ReceivedLot } from "./inventory";
-import { applyLotMovement, normalizeMedicineLots, primaryLotSummary } from "./lots";
+import { applyLotMovement, normalizeMedicineLots, prepareMovementEdit, primaryLotSummary, type MovementEditRequest } from "./lots";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 export const DEMO_EMAIL = "demo@consulta-externa.local";
@@ -109,6 +109,43 @@ export function demoRegisterMovement(
     medicines: state.medicines.map((m) => m.id === medicine.id ? { ...m, stock: prepared.nextStock, lots: lotResult.lots, lot: lotResult.lot, expiresAt: lotResult.expiresAt } : m),
     pharmacists: state.pharmacists,
     movements: [record, ...state.movements],
+  };
+  emit();
+}
+
+export function demoUpdateMovement(req: MovementEditRequest) {
+  const original = state.movements.find((m) => m.id === req.movementId);
+  if (!original) throw new Error("Movimiento no disponible.");
+  const originalMedicine = state.medicines.find(
+    (m) => m.id === (original.medicineId || req.medicineId) || m.name === original.medicineName
+  );
+  if (!originalMedicine) throw new Error("El medicamento original del movimiento ya no existe.");
+  const targetMedicine = state.medicines.find((m) => m.id === req.medicineId);
+  if (!targetMedicine) throw new Error("Medicamento no disponible.");
+
+  const plan = prepareMovementEdit({
+    original,
+    originalMedicine,
+    targetMedicine,
+    input: { ...req, makeLotId: () => id("demo-lot") },
+  });
+
+  state = {
+    ...state,
+    medicines: state.medicines.map((m) => {
+      if (plan.previousMedicineUpdate && m.id === originalMedicine.id) {
+        return { ...m, ...plan.previousMedicineUpdate };
+      }
+      if (m.id === targetMedicine.id) {
+        return { ...m, ...plan.targetMedicineUpdate };
+      }
+      return m;
+    }),
+    movements: state.movements.map((m) =>
+      m.id === original.id
+        ? { ...plan.movementRecord, id: original.id, updatedAt: req.now, updatedByEmail: DEMO_EMAIL }
+        : m
+    ),
   };
   emit();
 }

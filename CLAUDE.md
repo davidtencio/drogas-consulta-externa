@@ -107,7 +107,15 @@ controladas). Botón "Anular" en Movimientos → motivo obligatorio (≥10 carac
 Lo anulado se ve tachado, no suma en el resumen, sale en el CSV con su estado y ya
 no se puede editar ni volver a anular. Las reglas lo hacen cumplir (`isValidVoid`):
 solo `OUT`, solo esos campos + `actorEmail`, y `!('voidedAt' in resource.data)`.
-Lógica en `prepareMovementVoid` (`app/lib/lots.ts`). Los ingresos no se anulan.
+Lógica en `prepareMovementVoid` (`app/lib/lots.ts`). Los ingresos no se anulan
+(sus lotes pueden haber tenido egresos después); para corregirlos está "Editar".
+
+**Publicado (2026-11-02):** PR #44 fusionado en `main` (merge `276a8ae`). El workflow
+"Desplegar reglas de Firestore" (run `41537698615`) terminó en verde a las 22:31 UTC:
+validación de invariantes, autenticación WIF y `firebase deploy --only
+firestore:rules` correctos. Las reglas se publicaron antes de que terminara el build
+de la app. **No verificado aún:** el ruleset activo en la consola de Firebase (que
+contenga `isValidVoid`) ni una anulación real en producción.
 
 ## PENDIENTES para retomar
 
@@ -119,8 +127,10 @@ Lógica en `prepareMovementVoid` (`app/lib/lots.ts`). Los ingresos no se anulan.
 2. **Acciones con Node 20 deprecado**: `actions/checkout@v4`, `actions/setup-node@v4`
    y `google-github-actions/auth@v2` se fuerzan a Node 24 en el runner. No rompe hoy;
    actualizar cuando haya versiones nuevas.
-3. **Publicar las reglas de anulación de egresos antes que la app** y comprobar el
-   ruleset activo (sin la regla nueva, "Anular" falla con permiso denegado).
+3. **Probar en caliente la anulación de un egreso**: registrar un egreso de prueba,
+   anularlo con motivo y confirmar que `stock` y lotes vuelven a su valor. Antes,
+   comprobar en la consola que el ruleset activo contiene `isValidVoid`; si "Anular"
+   da permiso denegado, es que las reglas no están publicadas.
 4. **Orden de despliegue de reglas** (cuando toque publicarlas): primero
    `firebase deploy --only firestore:rules` (o el workflow), luego la app.
 

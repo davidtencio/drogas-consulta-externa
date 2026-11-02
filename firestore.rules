@@ -53,11 +53,25 @@ service cloud.firestore {
         && request.resource.data.actorEmail == request.auth.token.email;
       // Solo ingresos y egresos pueden editarse por un operador atribuible;
       // los conteos físicos no se editan y ningún movimiento se borra.
+      // Un egreso que no correspondía se ANULA (no se borra): solo se agregan
+      // fecha, responsable y motivo de la anulación. Lo anulado ya no se modifica.
       allow update: if isOperator()
+        && !('voidedAt' in resource.data)
         && resource.data.type in ['IN', 'OUT']
         && request.resource.data.type in ['IN', 'OUT']
-        && request.resource.data.actorEmail == request.auth.token.email;
+        && request.resource.data.actorEmail == request.auth.token.email
+        && (!('voidedAt' in request.resource.data) || isValidVoid());
       allow delete: if false;
+
+      function isValidVoid() {
+        return resource.data.type == 'OUT'
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['voidedAt', 'voidedByEmail', 'voidReason', 'actorEmail'])
+          && request.resource.data.voidedByEmail == request.auth.token.email
+          && request.resource.data.voidedAt is string
+          && request.resource.data.voidReason is string
+          && request.resource.data.voidReason.size() >= 10;
+      }
     }
 
     match /auditLogs/{id} {

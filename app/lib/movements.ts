@@ -119,12 +119,15 @@ export type MovementSummary = {
   net: number;
   /** Medicamentos distintos con movimientos. */
   medicineCount: number;
+  /** Egresos anulados: se listan por trazabilidad pero no suman a las cantidades. */
+  voidedCount: number;
 };
 
 /**
  * Agrega conteos y cantidades de una lista de movimientos. Los conteos físicos
  * (type "COUNT") no afectan las sumas de flujo (ingresos/egresos/neto); solo se
- * cuentan aparte. Ignora cantidades no numéricas (las trata como 0).
+ * cuentan aparte. Los movimientos anulados solo suman a `count` y `voidedCount`.
+ * Ignora cantidades no numéricas (las trata como 0).
  */
 export function summarizeMovements(movements: readonly Movement[]): MovementSummary {
   const summary: MovementSummary = {
@@ -136,11 +139,16 @@ export function summarizeMovements(movements: readonly Movement[]): MovementSumm
     outQuantity: 0,
     net: 0,
     medicineCount: 0,
+    voidedCount: 0,
   };
   const names = new Set<string>();
   for (const m of movements) {
     const qty = Number(m.quantity) || 0;
     summary.count++;
+    if (m.voidedAt) {
+      summary.voidedCount++;
+      continue;
+    }
     names.add(m.medicineName);
     if (m.type === "IN") {
       summary.inCount++;

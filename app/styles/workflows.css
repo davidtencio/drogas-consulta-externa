@@ -59,6 +59,10 @@
 .table-wrap th:nth-child(6) { width: 15%; }
 .table-wrap th:last-child { width: 11%; }
 .mov-edit-btn { min-height: 36px; padding: 6px 12px; font-size: 12px; }
+.mov-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.mov-void-btn { color: var(--out); }
+.type.VOID { background: var(--surface-2); color: var(--muted); margin-left: 6px; }
+.mov-voided td[data-label="Cantidad"] > div, .mov-voided td[data-label="Medicamento"] strong { text-decoration: line-through; color: var(--muted); }
 .table-wrap td:first-child { padding-left: 24px; }
 .table-wrap tr:last-child td { border-bottom: 0; }
 .table-wrap tbody tr:hover { background: var(--surface-2); }

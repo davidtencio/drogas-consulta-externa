@@ -153,4 +153,25 @@ describe("MovementsTab", () => {
     await userEvent.click(editIn);
     expect(onEditMovement).toHaveBeenCalledWith(expect.objectContaining({ id: "a", type: "IN" }));
   });
+
+  it("permite anular solo egresos vigentes y muestra los anulados sin acciones", async () => {
+    const onVoidMovement = vi.fn();
+    const voided = mov({ id: "v1", type: "OUT", medicineName: "Morfina", voidedAt: "2026-07-17T08:00:00.000Z", voidReason: "Receta duplicada" });
+    render(
+      <MovementsTab
+        movements={[...sample, voided]}
+        medicines={[]}
+        pharmacistNames={names}
+        onNotice={noop}
+        onEditMovement={vi.fn()}
+        onVoidMovement={onVoidMovement}
+      />
+    );
+    expect(screen.queryByRole("button", { name: /Anular egreso de Amoxicilina/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Morfina/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Anulado")).toBeInTheDocument();
+    expect(screen.getByText(/Motivo de anulación: Receta duplicada/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Anular egreso de Ibuprofeno" }));
+    expect(onVoidMovement).toHaveBeenCalledWith(expect.objectContaining({ id: "b", type: "OUT" }));
+  });
 });

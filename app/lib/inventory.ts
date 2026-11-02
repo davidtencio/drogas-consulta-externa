@@ -61,7 +61,16 @@ export type Movement = {
   lotAllocations?: LotAllocation[];
   updatedAt?: string;
   updatedByEmail?: string;
+  /** Anulación de un egreso registrado por error: el documento se conserva por trazabilidad. */
+  voidedAt?: string;
+  voidedByEmail?: string;
+  voidReason?: string;
 };
+
+/** Un movimiento anulado se conserva en la bitácora pero ya no afecta existencias. */
+export function isVoided(movement: Pick<Movement, "voidedAt">): boolean {
+  return Boolean(movement.voidedAt);
+}
 
 /** Tipos de operación que ajustan existencias (ingreso/egreso). */
 export type MovementType = "IN" | "OUT";

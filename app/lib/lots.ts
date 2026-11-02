@@ -348,6 +348,9 @@ export function prepareMovementEdit(params: {
   if (original.type !== "IN" && original.type !== "OUT") {
     throw new Error("Solo se pueden editar ingresos y egresos.");
   }
+  if (original.voidedAt) {
+    throw new Error("El movimiento está anulado y no puede editarse.");
+  }
   if (!isValidQuantity(input.quantity)) {
     throw new Error("Cantidad inválida.");
   }
@@ -445,6 +448,51 @@ export function prepareMovementEdit(params: {
       expiresAt: targetLotResult.expiresAt,
     },
     movementRecord: record,
+  };
+}
+
+export const VOID_REASON_MIN_LENGTH = 10;
+
+export type MovementVoidRequest = {
+  movementId: string;
+  reason: string;
+  now: string;
+};
+
+export type PreparedMovementVoid = {
+  medicineUpdate: MedicineStockUpdate;
+  voidFields: { voidedAt: string; voidReason: string };
+};
+
+/**
+ * Prepara la anulación de un egreso que no correspondía: reintegra la cantidad a
+ * las existencias y a los mismos lotes de los que se descontó. El movimiento no se
+ * borra; se marca como anulado con fecha y motivo para conservar la trazabilidad.
+ */
+export function prepareMovementVoid(params: {
+  original: Movement;
+  medicine: Pick<Medicine, "id" | "name" | "stock" | "lot" | "expiresAt" | "lots">;
+  reason: string;
+  now: string;
+}): PreparedMovementVoid {
+  const { original, medicine, now } = params;
+  const reason = params.reason.trim();
+  if (original.type !== "OUT") throw new Error("Solo se pueden anular egresos.");
+  if (original.voidedAt) throw new Error("El egreso ya fue anulado.");
+  if (reason.length < VOID_REASON_MIN_LENGTH) {
+    throw new Error(`Indique el motivo de la anulación (mínimo ${VOID_REASON_MIN_LENGTH} caracteres).`);
+  }
+  const quantity = Number(original.quantity) || 0;
+  const normalized = normalizeMedicineLots(medicine, medicine.id, now);
+  const reverted = revertLotMovement(normalized, original, medicine, now);
+  return {
+    medicineUpdate: {
+      stock: (Number(medicine.stock) || 0) + quantity,
+      lots: reverted.lots,
+      lot: reverted.lot,
+      expiresAt: reverted.expiresAt,
+    },
+    voidFields: { voidedAt: now, voidReason: reason },
   };
 }
 

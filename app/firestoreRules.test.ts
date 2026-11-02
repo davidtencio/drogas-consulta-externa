@@ -36,4 +36,11 @@ describe("reglas de producción", () => {
     expect(rules).toContain("allow delete: if false;");
     expect(rules.match(/actorEmail == request.auth.token.email/g)).toHaveLength(3);
   });
+
+  it("anula egresos sin borrarlos: solo campos de anulación, con motivo, y lo anulado queda inmutable", () => {
+    expect(rules).toContain("!('voidedAt' in resource.data)");
+    expect(rules).toContain("resource.data.type == 'OUT'");
+    expect(rules).toContain(".hasOnly(['voidedAt', 'voidedByEmail', 'voidReason', 'actorEmail'])");
+    expect(rules).toContain("request.resource.data.voidReason.size() >= 10");
+  });
 });

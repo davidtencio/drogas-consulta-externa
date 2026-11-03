@@ -12,10 +12,10 @@ const medicines = [
 ] as Medicine[];
 const base = { prescriptionRef: "RX", pharmacistEmail: "resp@x.cr", createdAt: daysAgo(200) };
 const movements: Movement[] = [
-  { ...base, id: "1", type: "OUT", medicineId: "morf", medicineName: "Morfina", quantity: 2, voidedAt: daysAgo(2), voidedByEmail: "ana@x.cr", voidReason: "Duplicado" },
-  { ...base, id: "2", type: "OUT", medicineId: "morf", medicineName: "Morfina", quantity: 1, voidedAt: daysAgo(5), voidedByEmail: "ana@x.cr", voidReason: "Duplicado" },
-  { ...base, id: "3", type: "OUT", medicineId: "clon", medicineName: "Clonazepam", quantity: 30, voidedAt: daysAgo(150), voidedByEmail: "beto@x.cr", voidReason: "Paciente equivocado" },
-  { ...base, id: "4", type: "IN", medicineId: "clon", medicineName: "Clonazepam", quantity: 100, updatedAt: daysAgo(1), editHistory: [{ editedAt: daysAgo(1), editedByEmail: "beto@x.cr", previous: { type: "IN", quantity: 10, medicineName: "Clonazepam", prescriptionRef: "RX", pharmacistEmail: "resp@x.cr" } }] },
+  { ...base, id: "1", type: "OUT", medicineId: "morf", medicineName: "Morfina", quantity: 2, pharmacistEmail: "ana@x.cr", voidedAt: daysAgo(2), voidedByEmail: "sesion@x.cr", voidReason: "Duplicado" },
+  { ...base, id: "2", type: "OUT", medicineId: "morf", medicineName: "Morfina", quantity: 1, pharmacistEmail: "ana@x.cr", voidedAt: daysAgo(5), voidedByEmail: "sesion@x.cr", voidReason: "Duplicado" },
+  { ...base, id: "3", type: "OUT", medicineId: "clon", medicineName: "Clonazepam", quantity: 30, pharmacistEmail: "beto@x.cr", voidedAt: daysAgo(150), voidedByEmail: "sesion@x.cr", voidReason: "Paciente equivocado" },
+  { ...base, id: "4", type: "IN", medicineId: "clon", medicineName: "Clonazepam", quantity: 100, updatedAt: daysAgo(1), editHistory: [{ editedAt: daysAgo(1), editedByEmail: "sesion@x.cr", previous: { type: "IN", quantity: 10, medicineName: "Clonazepam", prescriptionRef: "RX", pharmacistEmail: "beto@x.cr" } }] },
 ];
 const names = new Map([["ana@x.cr", "Ana Mora"], ["beto@x.cr", "Beto Solís"]]);
 
@@ -31,7 +31,8 @@ describe("AnalyticsTab", () => {
     const phRows = within(screen.getByRole("region", { name: "Farmacéuticos que más anulan" })).getAllByRole("row").slice(1);
     expect(phRows[0]).toHaveTextContent("Ana Mora");
     expect(phRows[1]).toHaveTextContent("Beto Solís");
-    expect(screen.getByText(/Quien más anula o corrige/)).toHaveTextContent("Ana Mora (2 egresos anulados y 0 ingresos corregidos)");
+    expect(screen.queryByText("sesion@x.cr")).not.toBeInTheDocument();
+    expect(screen.getByText(/Farmacéutico con más anulaciones y correcciones/)).toHaveTextContent("Ana Mora (2 egresos anulados y 0 ingresos corregidos)");
     expect((await axe(container)).violations).toHaveLength(0);
   });
 

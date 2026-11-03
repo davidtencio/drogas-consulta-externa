@@ -48,11 +48,11 @@ export function AnalyticsTab({ movements, medicines, pharmacistNames, loading = 
         <div className="out"><small>Egresos anulados</small><strong>{busy ? "—" : totals.voidedOut}</strong><em>en el período</em></div>
         <div><small>Medicamentos afectados</small><strong>{busy ? "—" : totals.medicines}</strong><em>con al menos una anulación</em></div>
         <div className="in"><small>Ingresos corregidos</small><strong>{busy ? "—" : totals.correctedIn}</strong><em>ediciones de ingresos</em></div>
-        <div><small>Personas</small><strong>{busy ? "—" : totals.people}</strong><em>que anularon o corrigieron</em></div>
+        <div><small>Farmacéuticos</small><strong>{busy ? "—" : totals.people}</strong><em>responsables con anulaciones o correcciones</em></div>
       </div>
       {!busy && (topMedicine || topPharmacist) && <p className="mov-scope analytics-highlight">
         {topMedicine && <>Medicamento con más anulaciones: <strong>{medicineLabel(topMedicine)}</strong> ({plural(topMedicine.voids, "egreso anulado", "egresos anulados")}). </>}
-        {topPharmacist && <>Quien más anula o corrige: <strong>{resolveName(topPharmacist.email)}</strong> ({plural(topPharmacist.voidedOut, "egreso anulado", "egresos anulados")} y {plural(topPharmacist.correctedIn, "ingreso corregido", "ingresos corregidos")}).</>}
+        {topPharmacist && <>Farmacéutico con más anulaciones y correcciones: <strong>{resolveName(topPharmacist.email)}</strong> ({plural(topPharmacist.voidedOut, "egreso anulado", "egresos anulados")} y {plural(topPharmacist.correctedIn, "ingreso corregido", "ingresos corregidos")}).</>}
       </p>}
     </div>
 
@@ -78,7 +78,7 @@ export function AnalyticsTab({ movements, medicines, pharmacistNames, loading = 
       </section>
 
       <section className="panel" aria-labelledby="analytics-pharmacists">
-        <div className="panel-title"><div><h2 id="analytics-pharmacists">Farmacéuticos que más anulan</h2><p>Cuenta que ejecutó la anulación del egreso o la corrección del ingreso.</p></div></div>
+        <div className="panel-title"><div><h2 id="analytics-pharmacists">Farmacéuticos que más anulan</h2><p>Responsable registrado en los egresos anulados y en los ingresos corregidos (columna Responsable de Movimientos).</p></div></div>
         <div className="table-wrap analytics-table">
           <table>
             <thead><tr><th>#</th><th>Farmacéutico</th><th>Egresos anulados</th><th>Ingresos corregidos</th><th>Total</th></tr></thead>

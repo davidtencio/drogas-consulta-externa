@@ -64,19 +64,23 @@ export function rankVoidedMedicines(movements: readonly Movement[], since: strin
 
 /** Fila del ranking de farmacéuticos por anulaciones y correcciones. */
 export type VoidingPharmacistRow = {
-  /** Correo (normalizado) de la cuenta que anuló o corrigió. */
+  /** Correo (normalizado) del farmacéutico responsable del movimiento (columna Responsable). */
   email: string;
-  /** Egresos que anuló. */
+  /** Egresos suyos que se anularon. */
   voidedOut: number;
-  /** Ediciones que hizo sobre ingresos (los ingresos no se anulan, se corrigen). */
+  /** Correcciones de ingresos suyos (los ingresos no se anulan, se editan). */
   correctedIn: number;
   total: number;
   lastAt: string;
 };
 
 /**
- * Quién anula egresos (`voidedByEmail`) y quién corrige ingresos (cada entrada de
- * `editHistory` cuya versión anterior era un ingreso, por `editedByEmail`).
+ * Farmacéutico responsable (`pharmacistEmail`, la columna Responsable de
+ * Movimientos) de los egresos anulados y de los ingresos corregidos. No se usa la
+ * cuenta con sesión iniciada que pulsó «Anular» o «Editar» (`voidedByEmail`,
+ * `editedByEmail`): esa suele ser una cuenta compartida o de supervisión.
+ * En un ingreso corregido cuenta el responsable de la versión anterior (la que
+ * tenía el error); si no se guardó, el responsable actual.
  * Orden: más acciones en total, luego más anulaciones de egresos, luego correo.
  */
 export function rankVoidingPharmacists(movements: readonly Movement[], since: string | null = null): VoidingPharmacistRow[] {
@@ -90,9 +94,9 @@ export function rankVoidingPharmacists(movements: readonly Movement[], since: st
     rows.set(key, row);
   };
   for (const m of movements) {
-    if (m.type === "OUT" && inPeriod(m.voidedAt, since)) bump(m.voidedByEmail ?? "", m.voidedAt, "voidedOut");
+    if (m.type === "OUT" && inPeriod(m.voidedAt, since)) bump(m.pharmacistEmail, m.voidedAt, "voidedOut");
     for (const entry of m.editHistory ?? []) {
-      if (entry.previous?.type === "IN" && inPeriod(entry.editedAt, since)) bump(entry.editedByEmail, entry.editedAt, "correctedIn");
+      if (entry.previous?.type === "IN" && inPeriod(entry.editedAt, since)) bump(entry.previous.pharmacistEmail || m.pharmacistEmail, entry.editedAt, "correctedIn");
     }
   }
   return [...rows.values()].sort((a, b) => b.total - a.total || b.voidedOut - a.voidedOut || a.email.localeCompare(b.email));

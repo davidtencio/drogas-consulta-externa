@@ -138,14 +138,16 @@ ingreso, egreso, edición y anulación. Los dos riesgos que quedaban se cubriero
 
 Pestaña "Analítica" (solo admin) en la barra lateral. Primera medición: anulaciones.
 Ranking de medicamentos con más egresos anulados (por fecha de anulación, con
-unidades reintegradas) y de quién más anula o corrige: egresos anulados por
-`voidedByEmail` + ingresos corregidos (entradas de `editHistory` cuya versión
-anterior era `IN`, por `editedByEmail`), porque los ingresos no se anulan, se editan.
+unidades reintegradas) y de farmacéuticos: egresos anulados + ingresos corregidos
+(entradas de `editHistory` cuya versión anterior era `IN`), porque los ingresos no
+se anulan, se editan. Se agrupa por el **Responsable** del movimiento
+(`pharmacistEmail`; en un ingreso corregido, el de la versión anterior).
 Período: 30/90 días, 12 meses o todo. Lógica pura en `app/lib/analytics.ts`; datos en
 `app/hooks/useAnalyticsData.ts` con dos consultas `where("voidedAt" | "updatedAt", ">", "")`
 (índices simples automáticos, no lee toda la colección; las reglas ya permiten leer
-`movements` a operadores). Se mide la cuenta que ejecutó la acción, no el
-farmacéutico responsable del movimiento.
+`movements` a operadores). **No** usar `voidedByEmail`/`editedByEmail`: son la cuenta
+con sesión iniciada (a menudo compartida) y la primera versión, que los usaba, mostraba
+ese correo en vez del farmacéutico (corregido 2026-11-03 a pedido del usuario).
 
 ## PENDIENTES para retomar
 

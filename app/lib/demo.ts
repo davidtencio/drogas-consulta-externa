@@ -1,4 +1,5 @@
 import { prepareMovement, type InventoryLot, type Medicine, type Movement, type Pharmacist, type ReceivedLot } from "./inventory";
+import { appendEditHistory } from "./movements";
 import { applyLotMovement, normalizeMedicineLots, prepareMovementEdit, prepareMovementVoid, primaryLotSummary, type MovementEditRequest, type MovementVoidRequest } from "./lots";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
@@ -143,7 +144,7 @@ export function demoUpdateMovement(req: MovementEditRequest) {
     }),
     movements: state.movements.map((m) =>
       m.id === original.id
-        ? { ...plan.movementRecord, id: original.id, updatedAt: req.now, updatedByEmail: DEMO_EMAIL }
+        ? { ...plan.movementRecord, id: original.id, updatedAt: req.now, updatedByEmail: DEMO_EMAIL, editHistory: appendEditHistory(original, req.now, DEMO_EMAIL) }
         : m
     ),
   };

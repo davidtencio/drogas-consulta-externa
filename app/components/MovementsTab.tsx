@@ -11,6 +11,7 @@ import { MovementRowsSkeleton } from "./Skeletons";
 import { Icon } from "./Icon";
 import { AccessibleDialog } from "./AccessibleDialog";
 import { DEMO_MODE, getDemoSnapshot } from "../lib/demo";
+import { MovementHistoryDialog } from "./MovementHistoryDialog";
 
 type Props = {
   movements: Movement[];
@@ -38,6 +39,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [observed, setObserved] = useState<Movement | null>(null);
+  const [historyOf, setHistoryOf] = useState<Movement | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
 
@@ -133,7 +135,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
               : !movements.length ? <tr><td colSpan={hasActions ? 7 : 6} className="empty">Aún no hay movimientos registrados.</td></tr>
               : pageItems.length ? pageItems.map((m) => (
                 <tr key={m.id} className={m.voidedAt ? "mov-voided" : undefined}>
-                  <td data-label="Fecha"><div>{new Date(m.createdAt).toLocaleString("es-CR")}{m.voidedAt ? <small className="cell-sub">Anulado {new Date(m.voidedAt).toLocaleString("es-CR")}</small> : m.updatedAt && <small className="cell-sub">Editado</small>}</div></td>
+                  <td data-label="Fecha"><div>{new Date(m.createdAt).toLocaleString("es-CR")}{m.voidedAt && <small className="cell-sub">Anulado {new Date(m.voidedAt).toLocaleString("es-CR")}</small>}{m.editHistory?.length ? <button type="button" className="observation-icon" aria-label={`Ver historial de ediciones de ${m.medicineName}`} onClick={() => setHistoryOf(m)}><Icon name="note" size={15} /> Editado {m.editHistory.length === 1 ? "1 vez" : `${m.editHistory.length} veces`}</button> : m.updatedAt && !m.voidedAt && <small className="cell-sub">Editado (sin historial)</small>}</div></td>
                   <td data-label="Medicamento"><div><strong>{m.medicineName}</strong>{m.lotAllocations?.length ? <small className="cell-sub">{m.lotAllocations.map((lot)=>`${lot.lot}: ${lot.quantity}`).join(" · ")}</small> : null}</div></td>
                   <td data-label="Tipo"><span className={`type ${m.type}`}>{m.type === "IN" ? "Ingreso" : m.type === "OUT" ? "Egreso" : "Conteo"}</span>{m.voidedAt && <span className="type VOID">Anulado</span>}</td>
                   <td data-label="Cantidad"><div>{m.quantity.toLocaleString("es-CR")} <small>{medicineUnits.get(m.medicineId ?? "") ?? ""}</small>{m.type === "COUNT" && <small className="cell-sub">sist. {m.systemQuantity} · {m.difference === 0 ? "sin dif." : m.difference != null && m.difference > 0 ? `+${m.difference}` : m.difference}</small>}</div></td>
@@ -186,6 +188,7 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
         </div>
       )}
     </div>
+    {historyOf && <MovementHistoryDialog movement={historyOf} unit={medicineUnits.get(historyOf.medicineId ?? "") ?? ""} resolveName={resolveName} onClose={() => setHistoryOf(null)} />}
     {observed?.note && <AccessibleDialog title="Observación del movimiento" description="Detalle registrado como parte de la trazabilidad." onClose={() => setObserved(null)}>
       <div className="observation-context"><div><small>Medicamento</small><strong>{observed.medicineName}</strong></div><div><small>Operación</small><strong>{observed.type === "IN" ? "Ingreso" : observed.type === "OUT" ? "Egreso" : "Toma Inventario / saldo"}</strong></div><div><small>Fecha</small><strong>{new Date(observed.createdAt).toLocaleString("es-CR")}</strong></div><div><small>Responsable</small><strong>{resolveName(observed.pharmacistEmail)}</strong></div></div>
       <div className="observation-detail">{observed.note}</div>

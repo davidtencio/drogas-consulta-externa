@@ -43,4 +43,12 @@ describe("reglas de producción", () => {
     expect(rules).toContain(".hasOnly(['voidedAt', 'voidedByEmail', 'voidReason', 'actorEmail'])");
     expect(rules).toContain("request.resource.data.voidReason.size() >= 10");
   });
+
+  it("cada edición agrega al historial la versión anterior y no reescribe entradas previas", () => {
+    expect(rules).toContain("isValidVoid() : isValidEdit()");
+    expect(rules).toContain("after.size() == before.size() + 1");
+    expect(rules).toContain("(before.size() == 0 || after[0:before.size()] == before)");
+    expect(rules).toContain("entry.editedByEmail == request.auth.token.email");
+    expect(rules).toContain("prev.quantity == resource.data.quantity");
+  });
 });

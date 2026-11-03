@@ -1,7 +1,7 @@
 // Filtro y orden de movimientos: lógica pura (sin React ni Firestore) para que
 // la vista de Movimientos pueda combinarlos y sea fácil de probar.
 
-import type { Movement } from "./inventory";
+import type { Movement, MovementEditEntry, MovementSnapshot } from "./inventory";
 
 /** Filtro por tipo: todos, ingresos, egresos o conteos. */
 export type MovementTypeFilter = "ALL" | "IN" | "OUT" | "COUNT";
@@ -163,4 +163,36 @@ export function summarizeMovements(movements: readonly Movement[]): MovementSumm
   summary.net = summary.inQuantity - summary.outQuantity;
   summary.medicineCount = names.size;
   return summary;
+}
+
+/**
+ * Copia los datos vigentes del movimiento (sin campos indefinidos, que Firestore
+ * no admite) para guardarlos como versión anterior antes de editarlo.
+ */
+export function movementSnapshot(movement: Movement): MovementSnapshot {
+  return {
+    type: movement.type,
+    quantity: movement.quantity,
+    medicineName: movement.medicineName,
+    prescriptionRef: movement.prescriptionRef ?? "",
+    pharmacistEmail: movement.pharmacistEmail ?? "",
+    ...(movement.medicineId ? { medicineId: movement.medicineId } : {}),
+    ...(movement.note ? { note: movement.note } : {}),
+    ...(movement.lotAllocations?.length ? { lotAllocations: movement.lotAllocations } : {}),
+  };
+}
+
+/** Historial con la versión actual agregada al final; nunca reescribe entradas previas. */
+export function appendEditHistory(original: Movement, editedAt: string, editedByEmail: string): MovementEditEntry[] {
+  return [...(original.editHistory ?? []), { editedAt, editedByEmail, previous: movementSnapshot(original) }];
+}
+
+/**
+ * Fecha de la última toma de inventario posterior al movimiento, o `null` si el
+ * movimiento es posterior (o no hay toma). Corregir un movimiento anterior a una
+ * toma puede duplicar un ajuste que ya compensó la diferencia encontrada.
+ */
+export function countAfterMovement(movement: Pick<Movement, "createdAt">, lastCountAt?: string | null): string | null {
+  if (!lastCountAt || !movement.createdAt) return null;
+  return movement.createdAt < lastCountAt ? lastCountAt : null;
 }

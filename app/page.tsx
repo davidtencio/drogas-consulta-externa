@@ -103,6 +103,14 @@ export default function Home() {
   const pharmacistNames = useMemo(() => pharmacistNameByEmail(pharmacists), [pharmacists]);
   const expAlert = useMemo(() => summarizeInventory(activeMeds), [activeMeds]);
   const lastCounts = useMemo(() => lastCountMovementByMedicine(countMovements ?? movements), [countMovements, movements]);
+  const lastCountAtByMedicine = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [id, record] of lastCounts) map.set(id, record.createdAt);
+    for (const m of medicines) {
+      if (m.lastCountAt && (!map.has(m.id) || m.lastCountAt > map.get(m.id)!)) map.set(m.id, m.lastCountAt);
+    }
+    return map;
+  }, [lastCounts, medicines]);
   const certifications = useMemo(() => {
     const map = new Map<string, { createdAt: string; pharmacistName: string }>();
     for (const [id, record] of lastCounts) {
@@ -274,8 +282,8 @@ export default function Home() {
     {notice && <div className={`toast${notice.critical ? " toast-critical" : ""}`} role={notice.critical ? "alert" : "status"}>{notice.message}{notice.critical && <button type="button" onClick={() => setNotice(null)} aria-label="Descartar mensaje"><Icon name="close" size={18} /></button>}</div>}
     {modal && (modal.kind === "count"
       ? <CountModal medicine={medicines.find((m) => m.id === modal.medicineId)} activePharmacists={activePharmacists} personnelMessage={personnelMessage} busy={busy} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit} onAdjust={openMovement} />
-      : <Modals state={modal} activeMeds={modalMeds} activePharmacists={modalPharmacists} personnelMessage={personnelMessage} busy={busy} online={online} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit} />)}
-    {voiding && <VoidMovementDialog movement={voiding} unit={medicines.find((m) => m.id === voiding.medicineId)?.unit} busy={busy} error={voidError} onCancel={() => setVoiding(null)} onConfirm={(reason) => void confirmVoidMovement(reason)} />}
+      : <Modals state={modal} activeMeds={modalMeds} activePharmacists={modalPharmacists} personnelMessage={personnelMessage} lastCountAtByMedicine={lastCountAtByMedicine} busy={busy} online={online} error={modalError?.message} errorField={modalError?.field} onClose={closeModal} onSubmit={submit} />)}
+    {voiding && <VoidMovementDialog movement={voiding} unit={medicines.find((m) => m.id === voiding.medicineId)?.unit} lastCountAt={voiding.medicineId ? lastCountAtByMedicine.get(voiding.medicineId) : undefined} busy={busy} error={voidError} onCancel={() => setVoiding(null)} onConfirm={(reason) => void confirmVoidMovement(reason)} />}
     {deactivation && <ConfirmDialog label={deactivation.label} busy={busy} onCancel={() => setDeactivation(null)} onConfirm={() => void confirmDeactivation()} />}
   </main>;
 }

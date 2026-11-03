@@ -175,4 +175,28 @@ describe("Modals", () => {
     const qtyInputs = screen.getAllByLabelText("Cantidad") as HTMLInputElement[];
     expect(qtyInputs.map((i) => i.value)).toEqual(["10", "15"]);
   });
+
+  it("edición anterior a la última toma: avisa y exige confirmar antes de guardar", async () => {
+    const editingOut = {
+      id: "mov-out-2", medicineId: "m1", medicineName: "Metformina", type: "OUT" as const, quantity: 5,
+      prescriptionRef: "RX-1", pharmacistEmail: "ana@h.cr", createdAt: "2026-07-16T10:00:00.000Z",
+      lotAllocations: [{ lotId: "lot-1", lot: "L1", expiresAt: "2099-01-01", quantity: 5 }],
+    };
+    const counts = new Map([["m1", "2026-07-20T09:00:00.000Z"]]);
+    render(<Modals {...base({ state: { kind: "movement", medicineId: "m1", type: "OUT", editing: editingOut }, lastCountAtByMedicine: counts })} />);
+    expect(screen.getByText(/Hay una toma de inventario posterior/)).toBeInTheDocument();
+    const save = screen.getByRole("button", { name: "Guardar cambios" });
+    expect(save).toBeDisabled();
+    await userEvent.click(screen.getByLabelText(/Confirmo que la diferencia de esa toma no se ajustó ya/));
+    expect(save).toBeEnabled();
+  });
+
+  it("edición posterior a la última toma: no muestra el aviso", () => {
+    const editingOut = {
+      id: "mov-out-3", medicineId: "m1", medicineName: "Metformina", type: "OUT" as const, quantity: 5,
+      prescriptionRef: "RX-1", pharmacistEmail: "ana@h.cr", createdAt: "2026-07-25T10:00:00.000Z",
+    };
+    render(<Modals {...base({ state: { kind: "movement", medicineId: "m1", type: "OUT", editing: editingOut }, lastCountAtByMedicine: new Map([["m1", "2026-07-20T09:00:00.000Z"]]) })} />);
+    expect(screen.queryByText(/Hay una toma de inventario posterior/)).not.toBeInTheDocument();
+  });
 });

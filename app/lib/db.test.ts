@@ -513,6 +513,24 @@ describe("updateMovement (edición de ingresos y egresos con reconciliación de 
       actorEmail: "admin@h.cr",
       updatedByEmail: "admin@h.cr",
       lotAllocations: [{ lotId: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 3 }],
+      editHistory: [
+        {
+          editedAt: "2026-07-17T12:00:00.000Z",
+          editedByEmail: "admin@h.cr",
+          previous: {
+            medicineId: "m1",
+            medicineName: "Metformina",
+            type: "OUT",
+            quantity: 8,
+            prescriptionRef: "RX-MAL",
+            pharmacistEmail: "ana@h.cr",
+            lotAllocations: [
+              { lotId: "lot-pronto", lot: "L-PRONTO", expiresAt: "2026-11-15", quantity: 5 },
+              { lotId: "lot-tarde", lot: "L-TARDE", expiresAt: "2027-06-01", quantity: 3 },
+            ],
+          },
+        },
+      ],
     });
   });
 

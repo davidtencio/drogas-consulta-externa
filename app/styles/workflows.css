@@ -96,6 +96,9 @@
 .inline-hint { font-size: 11px; font-weight: 400; color: var(--muted); }
 .form-error, .auth-error { border: 1px solid var(--crit-line); border-radius: 7px; padding: 12px; background: var(--crit-tint); color: var(--crit); font-size: 13px; line-height: 1.6; }
 .modal label.confirm-check { display: flex; flex-direction: row; align-items: flex-start; gap: 12px; padding: 16px; border-radius: 8px; border: 1px solid var(--primary-line); background: var(--primary-tint); color: var(--primary-ink); font-weight: 400; line-height: 1.6; }
+.count-warning { display: grid; gap: 8px; padding: 14px 16px; border-radius: 8px; border: 1px solid var(--warn-line); background: var(--warn-tint); color: var(--warn-ink); line-height: 1.6; margin-bottom: 12px; }
+.count-warning p { margin: 0; }
+.modal .count-warning label.confirm-check { background: transparent; border: 0; padding: 0; color: inherit; }
 .modal label.confirm-check input { width: 22px; min-height: 22px; height: 22px; margin-top: 1px; flex: none; accent-color: var(--primary); }
 .lot-entry-item { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
 .lot-entry-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 12px; }
@@ -229,3 +232,10 @@
   .table-wrap td, .table-wrap td:first-child { display: table-cell; }
   .table-wrap td::before { content: none; }
 }
+
+.history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; max-height: 60vh; overflow: auto; }
+.history-list li { border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
+.history-list h3 { margin: 0 0 4px; font-size: 14px; }
+.history-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px 16px; margin: 8px 0 0; }
+.history-details dt { color: var(--muted); font-size: 11px; }
+.history-details dd { margin: 0; overflow-wrap: anywhere; }

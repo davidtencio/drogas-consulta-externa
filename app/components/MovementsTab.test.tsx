@@ -174,4 +174,18 @@ describe("MovementsTab", () => {
     await userEvent.click(screen.getByRole("button", { name: "Anular egreso de Ibuprofeno" }));
     expect(onVoidMovement).toHaveBeenCalledWith(expect.objectContaining({ id: "b", type: "OUT" }));
   });
+
+  it("muestra el historial de ediciones con la versión vigente y las anteriores", async () => {
+    const edited = mov({
+      id: "e1", type: "OUT", medicineName: "Tramadol", quantity: 2, prescriptionRef: "RX-NUEVA", updatedAt: "2026-07-18T08:00:00.000Z",
+      editHistory: [{ editedAt: "2026-07-18T08:00:00.000Z", editedByEmail: "ana@h.cr", previous: { type: "OUT", quantity: 9, medicineName: "Tramadol", prescriptionRef: "RX-VIEJA", pharmacistEmail: "ana@h.cr" } }],
+    });
+    render(<MovementsTab movements={[edited]} medicines={[]} pharmacistNames={names} onNotice={noop} />);
+    await userEvent.click(screen.getByRole("button", { name: "Ver historial de ediciones de Tramadol" }));
+    const dialog = screen.getByRole("dialog", { name: "Historial de ediciones" });
+    expect(within(dialog).getByText("Versión vigente")).toBeInTheDocument();
+    expect(within(dialog).getByText("RX-NUEVA")).toBeInTheDocument();
+    expect(within(dialog).getByText("RX-VIEJA")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Antes de la edición del/)).toBeInTheDocument();
+  });
 });

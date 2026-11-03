@@ -117,6 +117,23 @@ firestore:rules` correctos. Las reglas se publicaron antes de que terminara el b
 de la app. **No verificado aún:** el ruleset activo en la consola de Firebase (que
 contenga `isValidVoid`) ni una anulación real en producción.
 
+## Aviso de toma posterior e historial de ediciones (2026-11-03)
+
+Revisión de conciliación (prueba de estrés de ~7.200 operaciones aleatorias en demo):
+`stock == Σlotes` y `stock − (ingresos − egresos no anulados)` constante tras cada
+ingreso, egreso, edición y anulación. Los dos riesgos que quedaban se cubrieron así:
+
+- **Toma posterior:** editar o anular un movimiento anterior a la última toma del
+  medicamento (`countAfterMovement`, `app/lib/movements.ts`) muestra un aviso y exige
+  confirmar que la diferencia de esa toma no se ajustó ya; si no, se duplica el ajuste.
+  Al editar se miran el medicamento original y el destino.
+- **Historial de ediciones:** cada edición agrega a `editHistory` la versión anterior
+  (`appendEditHistory`). Las reglas (`isValidEdit`) exigen que el historial solo crezca,
+  que la nueva entrada copie fielmente el documento anterior, que la firme quien edita
+  y que `createdAt` no cambie. Ojo: en reglas, `list[0:0]` lanza error; por eso el
+  `before.size() == 0 ||`. Movimientos editados antes de esto muestran "Editado (sin
+  historial)". En Movimientos, "Editado N veces" abre el historial; CSV con "Ediciones".
+
 ## PENDIENTES para retomar
 
 1. **Probar en caliente una mutación de admin** (crear o editar un medicamento en

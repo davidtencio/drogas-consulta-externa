@@ -61,10 +61,23 @@ export type Movement = {
   lotAllocations?: LotAllocation[];
   updatedAt?: string;
   updatedByEmail?: string;
+  /** Versiones anteriores del movimiento, una por cada edición (solo se agregan). */
+  editHistory?: MovementEditEntry[];
   /** Anulación de un egreso registrado por error: el documento se conserva por trazabilidad. */
   voidedAt?: string;
   voidedByEmail?: string;
   voidReason?: string;
+};
+
+/** Datos de un movimiento tal como estaban antes de una edición. */
+export type MovementSnapshot = Pick<Movement, "type" | "quantity" | "medicineName" | "prescriptionRef" | "pharmacistEmail"> &
+  Partial<Pick<Movement, "medicineId" | "note" | "lotAllocations">>;
+
+/** Una edición: quién y cuándo la hizo, y cómo estaba el movimiento antes. */
+export type MovementEditEntry = {
+  editedAt: string;
+  editedByEmail: string;
+  previous: MovementSnapshot;
 };
 
 /** Un movimiento anulado se conserva en la bitácora pero ya no afecta existencias. */

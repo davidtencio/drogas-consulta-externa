@@ -35,6 +35,9 @@ const initialState: DemoState = {
   movements: [
     { id: "demo-mov-1", medicineId: "demo-metformina", medicineName: "Metformina", type: "OUT", quantity: 30, prescriptionRef: "RX-DEMO-00481", pharmacistEmail: "maria.gomez@demo.local", createdAt: isoTime(1) },
     { id: "demo-mov-2", medicineId: "demo-insulina", medicineName: "Insulina glargina", type: "IN", quantity: 10, prescriptionRef: "Ingreso de proveedor", pharmacistEmail: "carlos.rodriguez@demo.local", createdAt: isoTime(3) },
+    // Ejemplos para Analítica: un egreso anulado (no afecta existencias) y un ingreso corregido.
+    { id: "demo-mov-4", medicineId: "demo-morfina", medicineName: "Morfina", type: "OUT", quantity: 2, prescriptionRef: "RX-DEMO-00476", pharmacistEmail: "carlos.rodriguez@demo.local", createdAt: isoTime(30), voidedAt: isoTime(29), voidedByEmail: "maria.gomez@demo.local", voidReason: "Egreso duplicado por error de digitación" },
+    { id: "demo-mov-5", medicineId: "demo-levotiroxina", medicineName: "Levotiroxina", type: "IN", quantity: 100, prescriptionRef: "Ingreso de proveedor", pharmacistEmail: "carlos.rodriguez@demo.local", createdAt: isoTime(52), updatedAt: isoTime(50), updatedByEmail: "carlos.rodriguez@demo.local", editHistory: [{ editedAt: isoTime(50), editedByEmail: "carlos.rodriguez@demo.local", previous: { type: "IN", quantity: 1000, medicineId: "demo-levotiroxina", medicineName: "Levotiroxina", prescriptionRef: "Ingreso de proveedor", pharmacistEmail: "carlos.rodriguez@demo.local" } }] },
     { id: "demo-mov-3", medicineId: "demo-clonazepam", medicineName: "Clonazepam", type: "COUNT", quantity: 96, systemQuantity: 96, difference: 0, note: "Saldo confirmado", prescriptionRef: "", pharmacistEmail: "maria.gomez@demo.local", createdAt: isoTime(22) },
   ],
 };

@@ -11,7 +11,7 @@ export type IconName =
   | "grid" | "movements" | "settings" | "arqueo" | "pill" | "search"
   | "download" | "plus" | "minus" | "count" | "close" | "logout"
   | "moon" | "sun" | "alert" | "clock" | "shield" | "box"
-  | "chevron-left" | "chevron-right" | "arrow-left" | "audit" | "check" | "note";
+  | "chevron-left" | "chevron-right" | "arrow-left" | "audit" | "check" | "note" | "chart";
 
 const PATHS: Record<IconName, ReactNode> = {
   grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
@@ -31,6 +31,7 @@ const PATHS: Record<IconName, ReactNode> = {
   alert: <><path d="M10.3 3.7 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0z" /><path d="M12 9v4" /><path d="M12 17h.01" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></>,
+  chart: <><path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" rx=".5" /><rect x="12" y="8" width="3" height="10" rx=".5" /><rect x="17" y="5" width="3" height="13" rx=".5" /></>,
   box: <><path d="M20.5 7 12 12 3.5 7 12 2z" /><path d="M20.5 7v10L12 22 3.5 17V7" /><path d="M12 12v10" /></>,
   "chevron-left": <path d="m15 6-6 6 6 6" />,
   "chevron-right": <path d="m9 6 6 6-6 6" />,

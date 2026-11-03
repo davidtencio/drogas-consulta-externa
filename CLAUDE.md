@@ -134,6 +134,19 @@ ingreso, egreso, edición y anulación. Los dos riesgos que quedaban se cubriero
   `before.size() == 0 ||`. Movimientos editados antes de esto muestran "Editado (sin
   historial)". En Movimientos, "Editado N veces" abre el historial; CSV con "Ediciones".
 
+## Módulo Analítica (2026-11-03)
+
+Pestaña "Analítica" (solo admin) en la barra lateral. Primera medición: anulaciones.
+Ranking de medicamentos con más egresos anulados (por fecha de anulación, con
+unidades reintegradas) y de quién más anula o corrige: egresos anulados por
+`voidedByEmail` + ingresos corregidos (entradas de `editHistory` cuya versión
+anterior era `IN`, por `editedByEmail`), porque los ingresos no se anulan, se editan.
+Período: 30/90 días, 12 meses o todo. Lógica pura en `app/lib/analytics.ts`; datos en
+`app/hooks/useAnalyticsData.ts` con dos consultas `where("voidedAt" | "updatedAt", ">", "")`
+(índices simples automáticos, no lee toda la colección; las reglas ya permiten leer
+`movements` a operadores). Se mide la cuenta que ejecutó la acción, no el
+farmacéutico responsable del movimiento.
+
 ## PENDIENTES para retomar
 
 1. **Probar en caliente una mutación de admin** (crear o editar un medicamento en

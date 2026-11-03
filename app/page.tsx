@@ -13,8 +13,9 @@ import * as dataApi from "./lib/db";
 import { useInventoryData } from "./hooks/useInventoryData";
 import { useOnline } from "./hooks/useOnline";
 import { useAuthUser } from "./hooks/useAuthUser";
+import { useAnalyticsData } from "./hooks/useAnalyticsData";
 import { Login } from "./components/Login";
-import { Sidebar } from "./components/Sidebar";
+import { Sidebar, type Tab } from "./components/Sidebar";
 import { PageHeader } from "./components/PageHeader";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { ConnectionBanner } from "./components/ConnectionBanner";
@@ -23,6 +24,7 @@ import { InventoryPanel } from "./components/InventoryPanel";
 import { Icon } from "./components/Icon";
 import { MovementsTab } from "./components/MovementsTab";
 import { SettingsTab } from "./components/SettingsTab";
+import { AnalyticsTab } from "./components/AnalyticsTab";
 import { Modals, type ModalState } from "./components/Modals";
 import { CountModal } from "./components/CountModal";
 import { VoidMovementDialog } from "./components/VoidMovementDialog";
@@ -35,6 +37,13 @@ import { PILOT_MODE } from "./lib/pilot";
 type AppModal = ModalState | { kind: "count"; medicineId: string };
 type Deactivation = { col: "medicines" | "pharmacists"; id: string; label: string };
 type FormIssue = { message: string; field?: string };
+
+const PAGE_COPY: Record<Tab, { title: string; description: string }> = {
+  dashboard: { title: "Inventario de medicamentos", description: "Existencias disponibles y alertas de control" },
+  movements: { title: "Historial de movimientos", description: "Trazabilidad de ingresos y egresos por prescripción." },
+  analytics: { title: "Analítica", description: "Indicadores de calidad del registro: anulaciones y correcciones." },
+  settings: { title: "Configuración", description: "Administre el catálogo y el personal autorizado." },
+};
 
 async function saveMedicine(form: FormData, editing: Medicine | null) {
   const parsed = parseMedicineForm(form, editing);
@@ -62,7 +71,7 @@ async function saveCount(form: FormData, now: string, medicine: Medicine | undef
 export default function Home() {
   const { user, authReady, dynamicOperator } = useAuthUser();
   const baseRole = DEMO_MODE ? "admin" as const : roleForEmail(user?.email, { dynamicOperator });
-  const [tab, setTab] = useState<"dashboard" | "movements" | "settings">("dashboard");
+  const [tab, setTab] = useState<Tab>("dashboard");
   const searchRef = useRef<HTMLInputElement>(null);
   const [movementMedicineId, setMovementMedicineId] = useState("");
   const [modal, setModal] = useState<AppModal | null>(null);
@@ -80,6 +89,7 @@ export default function Home() {
     tab === "movements"
   );
   const role = DEMO_MODE ? "admin" as const : roleForEmail(user?.email, { dynamicOperator, pharmacists });
+  const analytics = useAnalyticsData(!!user && canManageCatalog(role) && tab === "analytics");
   const online = useOnline();
 
   const today = useMemo(() => new Date().toLocaleDateString("es-CR", { weekday: "long", day: "numeric", month: "long" }).toUpperCase(), []);
@@ -155,7 +165,7 @@ export default function Home() {
   }, [medicines]);
   const openCount = useCallback((medicineId: string) => { setModalError(null); setModal({ kind: "count", medicineId }); }, []);
   const viewMedicineMovements = useCallback((medicineId: string) => { setMovementMedicineId(medicineId); setTab("movements"); }, []);
-  const changeTab = useCallback((next: "dashboard" | "movements" | "settings") => { if (next === "movements") setMovementMedicineId(""); setTab(next); }, []);
+  const changeTab = useCallback((next: Tab) => { if (next === "movements") setMovementMedicineId(""); setTab(next); }, []);
 
   const flash = useCallback((message: string, critical = false) => setNotice({ message, critical }), []);
   useEffect(() => {
@@ -269,11 +279,13 @@ export default function Home() {
         {!DEMO_MODE && PILOT_MODE && <div className="pilot-banner" role="status"><strong>Piloto controlado</strong><span>Uso limitado a personal autorizado · reporte cualquier incidente antes de continuar</span></div>}
         <ConnectionBanner online={online} pendingWrites={pendingWrites} />
         {!alertDismissed && <ExpiryAlert summary={expAlert} showViewButton={tab !== "dashboard"} onView={() => { setTab("dashboard"); setAlertDismissed(true); }} onDismiss={() => setAlertDismissed(true)} />}
-        <PageHeader eyebrow={today} title={tab === "dashboard" ? "Inventario de medicamentos" : tab === "movements" ? "Historial de movimientos" : "Configuración"} description={tab === "dashboard" ? "Existencias disponibles y alertas de control" : tab === "movements" ? "Trazabilidad de ingresos y egresos por prescripción." : "Administre el catálogo y el personal autorizado."} action={tab !== "settings" ? <button className="primary" onClick={() => openMovement()} disabled={!activeMeds.length}><Icon name="plus" size={16} /> Registrar movimiento</button> : undefined} />
+        <PageHeader eyebrow={today} title={PAGE_COPY[tab].title} description={PAGE_COPY[tab].description} action={tab === "dashboard" || tab === "movements" ? <button className="primary" onClick={() => openMovement()} disabled={!activeMeds.length}><Icon name="plus" size={16} /> Registrar movimiento</button> : undefined} />
 
         {tab === "dashboard" && <InventoryPanel medicines={activeMeds} certifications={certifications} searchRef={searchRef} loading={loading} error={inventoryError} onRetry={retryInventory} onMovement={openMovement} onCount={openCount} onViewMovements={viewMedicineMovements} onExport={exportMedicines} />}
 
         {tab === "movements" && <MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} onEditMovement={openEditMovement} onVoidMovement={openVoidMovement} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId} hasMore={hasMoreMovements} onLoadMore={loadMoreMovements} />}
+
+        {tab === "analytics" && canManageCatalog(role) && <AnalyticsTab movements={analytics.movements} medicines={medicines} pharmacistNames={pharmacistNames} loading={analytics.loading} error={analytics.error} onRetry={analytics.retry} />}
 
         {tab === "settings" && canManageCatalog(role) && <SettingsTab medicines={medicines} pharmacists={pharmacists} auditLogs={auditLogs} loading={settingsLoading} error={settingsError} onRetry={retryInventory} onCreate={openCreate} onEdit={openEdit} onSetActive={setActive} onMovement={openMovement} onCount={openCount} onBackupDatabase={backupDatabase} onResetDatabase={resetDatabase} />}
       </section>

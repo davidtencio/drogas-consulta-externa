@@ -3,7 +3,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { Icon } from "./Icon";
 import type { AppRole } from "../lib/authz";
 
-export type Tab = "dashboard" | "movements" | "settings";
+export type Tab = "dashboard" | "movements" | "analytics" | "settings";
 
 type Props = {
   email: string;
@@ -27,6 +27,7 @@ export function Sidebar({ email, tab, onTab, onSignOut, demo = false, role }: Pr
         <button className={tab === "dashboard" ? "active" : ""} aria-current={tab === "dashboard" ? "page" : undefined} onClick={() => onTab("dashboard")}><span aria-hidden="true"><Icon name="grid" /></span> Inventario</button>
         <button className={tab === "movements" ? "active" : ""} aria-current={tab === "movements" ? "page" : undefined} onClick={() => onTab("movements")}><span aria-hidden="true"><Icon name="movements" /></span> Movimientos</button>
         <Link href="/arqueo"><span aria-hidden="true"><Icon name="arqueo" /></span><span>Toma de inventario</span></Link>
+        {role === "admin" && <button className={tab === "analytics" ? "active" : ""} aria-current={tab === "analytics" ? "page" : undefined} onClick={() => onTab("analytics")}><span aria-hidden="true"><Icon name="chart" /></span> Analítica</button>}
         {role === "admin" && <button className={tab === "settings" ? "active" : ""} aria-current={tab === "settings" ? "page" : undefined} onClick={() => onTab("settings")}><span aria-hidden="true"><Icon name="settings" /></span> Configuración</button>}
       </nav>
       <div className="sidebar-bottom">

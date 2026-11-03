@@ -73,10 +73,29 @@ test("movimientos y eventos exigen actor propio; solo ingresos/egresos se editan
       await denied(() => deleteDoc(doc(db, `${collection}/own`)));
     }
   }
-  await setDoc(doc(operator, "movements/mov-out"), { actorEmail: "fhsvp2208@gmail.com", type: "OUT", quantity: 5 });
-  await updateDoc(doc(operator, "movements/mov-out"), { actorEmail: "fhsvp2208@gmail.com", type: "OUT", quantity: 3 });
+  await setDoc(doc(operator, "movements/mov-out"), { actorEmail: "fhsvp2208@gmail.com", type: "OUT", quantity: 5, medicineName: "X", createdAt: "2026-11-01T10:00:00.000Z" });
+  const firstEdit = { editedAt: "2026-11-02T10:00:00.000Z", editedByEmail: "fhsvp2208@gmail.com", previous: { type: "OUT", quantity: 5, medicineName: "X" } };
+  await updateDoc(doc(operator, "movements/mov-out"), { actorEmail: "fhsvp2208@gmail.com", type: "OUT", quantity: 3, editHistory: [firstEdit] });
   await denied(() => updateDoc(doc(operator, "movements/mov-out"), { actorEmail: "davidtencio@gmail.com", type: "OUT", quantity: 2 }));
   await denied(() => deleteDoc(doc(operator, "movements/mov-out")));
+});
+test("cada edición agrega la versión anterior fiel al historial y no reescribe el pasado", async () => {
+  const actor = "fhsvp2208@gmail.com";
+  const ref = doc(operator, "movements/hist");
+  await setDoc(ref, { actorEmail: actor, type: "OUT", quantity: 5, medicineName: "X", prescriptionRef: "RX-1", createdAt: "2026-11-01T10:00:00.000Z" });
+  const e1 = { editedAt: "2026-11-02T10:00:00.000Z", editedByEmail: actor, previous: { type: "OUT", quantity: 5, medicineName: "X", prescriptionRef: "RX-1" } };
+  // Sin historial, con versión anterior falsa, con otro editor o cambiando la fecha original: rechazado.
+  await denied(() => updateDoc(ref, { actorEmail: actor, quantity: 3 }));
+  await denied(() => updateDoc(ref, { actorEmail: actor, quantity: 3, editHistory: [{ ...e1, previous: { ...e1.previous, quantity: 9 } }] }));
+  await denied(() => updateDoc(ref, { actorEmail: actor, quantity: 3, editHistory: [{ ...e1, editedByEmail: "davidtencio@gmail.com" }] }));
+  await denied(() => updateDoc(ref, { actorEmail: actor, quantity: 3, createdAt: "2026-11-02T00:00:00.000Z", editHistory: [e1] }));
+  await updateDoc(ref, { actorEmail: actor, quantity: 3, editHistory: [e1] });
+  const e2 = { editedAt: "2026-11-03T10:00:00.000Z", editedByEmail: actor, previous: { type: "OUT", quantity: 3, medicineName: "X", prescriptionRef: "RX-1" } };
+  // Reescribir o borrar la entrada anterior: rechazado.
+  await denied(() => updateDoc(ref, { actorEmail: actor, quantity: 4, editHistory: [{ ...e1, editedAt: "2020-01-01T00:00:00.000Z" }, e2] }));
+  await denied(() => updateDoc(ref, { actorEmail: actor, quantity: 4, editHistory: [e2] }));
+  await updateDoc(ref, { actorEmail: actor, quantity: 4, editHistory: [e1, e2] });
+  assert.equal((await getDoc(ref)).data().editHistory.length, 2);
 });
 test("un egreso se anula (no se borra) solo con motivo y actor propio, y lo anulado ya no se modifica", async () => {
   const voidFields = { actorEmail: "fhsvp2208@gmail.com", voidedByEmail: "fhsvp2208@gmail.com", voidedAt: "2026-11-02T10:00:00.000Z", voidReason: "Receta duplicada por error" };
@@ -87,6 +106,6 @@ test("un egreso se anula (no se borra) solo con motivo y actor propio, y lo anul
   await denied(() => updateDoc(doc(operator, "movements/void-out"), { ...voidFields, voidedByEmail: "davidtencio@gmail.com" }));
   await denied(() => updateDoc(doc(operator, "movements/void-out"), { ...voidFields, quantity: 1 }));
   await updateDoc(doc(operator, "movements/void-out"), voidFields);
-  await denied(() => updateDoc(doc(operator, "movements/void-out"), { actorEmail: "fhsvp2208@gmail.com", type: "OUT", quantity: 2 }));
+  await denied(() => updateDoc(doc(operator, "movements/void-out"), { actorEmail: "fhsvp2208@gmail.com", type: "OUT", quantity: 2, editHistory: [{ editedAt: "2026-11-03T10:00:00.000Z", editedByEmail: "fhsvp2208@gmail.com", previous: { type: "OUT", quantity: 5 } }] }));
   await denied(() => deleteDoc(doc(operator, "movements/void-out")));
 });

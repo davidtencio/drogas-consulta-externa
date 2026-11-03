@@ -74,6 +74,7 @@ const MOVEMENT_HEADERS = [
   "Responsable",
   "Estado",
   "Motivo de anulación",
+  "Ediciones",
 ] as const;
 
 /** Etiqueta legible del tipo de movimiento. */
@@ -104,6 +105,7 @@ export function movementsToCsv(
       resolvePharmacist(mv.pharmacistEmail),
       mv.voidedAt ? `Anulado ${mv.voidedAt}` : "Vigente",
       mv.voidReason ?? "",
+      mv.editHistory?.length ?? 0,
     ]);
   }
   return toCsv(rows);

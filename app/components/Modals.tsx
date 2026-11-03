@@ -6,6 +6,8 @@ import { useFocusErrorField } from "../hooks/useFocusErrorField";
 import { ObservationField } from "./ObservationField";
 import { Icon } from "./Icon";
 import { FormActions } from "./FormActions";
+import { CountAfterMovementWarning } from "./CountAfterMovementWarning";
+import { countAfterMovement } from "../lib/movements";
 
 export type ModalState =
   | { kind: "movement"; medicineId?: string; type?: MovementType; editing?: Movement | null }
@@ -18,11 +20,13 @@ type Props = {
   state: ModalState; activeMeds: Medicine[]; activePharmacists: Pharmacist[];
   busy: boolean; online: boolean; error?: string; errorField?: string;
   personnelMessage?: string | null;
+  /** Última toma de inventario por medicamento (id → fecha ISO), para avisar al editar. */
+  lastCountAtByMedicine?: ReadonlyMap<string, string>;
   onClose: () => void; onSubmit: (e: FormEvent<HTMLFormElement>, action: string) => void;
 };
 
 /** Diálogos accesibles de movimiento, medicamento y farmacéutico. */
-export function Modals({ state, activeMeds, activePharmacists, busy, online, error, errorField, personnelMessage, onClose, onSubmit }: Props) {
+export function Modals({ state, activeMeds, activePharmacists, busy, online, error, errorField, personnelMessage, lastCountAtByMedicine, onClose, onSubmit }: Props) {
   const em = state.kind === "medicine" ? state.editing : null;
   const ep = state.kind === "pharmacist" ? state.editing : null;
   const editingMovement = state.kind === "movement" ? state.editing ?? null : null;
@@ -85,6 +89,7 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
   const [outQuantity, setOutQuantity] = useState(editingMovement ? String(editingMovement.quantity) : "");
   const [targetLotId, setTargetLotId] = useState(initialTargetLotId);
   const [allowExpired, setAllowExpired] = useState(initialAllowExpired);
+  const [countAcknowledged, setCountAcknowledged] = useState(false);
   const selectedMedicine = activeMeds.find((medicine) => medicine.id === medicineId);
   const effectiveMedicine = selectedMedicine
     ? effectiveMedicineForMovementEdit(selectedMedicine, editingMovement, todayIso)
@@ -103,6 +108,15 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
         targetLotId: targetLotId || undefined,
         allowExpired,
       })
+    : null;
+  // Al editar, se revierte el movimiento en su medicamento original y se aplica con su
+  // fecha original en el destino: cualquiera de las dos tomas posteriores importa.
+  const countAfterEdit = editingMovement
+    ? [editingMovement.medicineId, medicineId]
+        .map((id) => countAfterMovement(editingMovement, id ? lastCountAtByMedicine?.get(id) : undefined))
+        .filter((date): date is string => !!date)
+        .sort()
+        .pop() ?? null
     : null;
   const pharmacistOptions = activePharmacists.map((p) => <option key={p.id} value={p.email}>{p.name} — {p.license}</option>);
   const title = state.kind === "movement"
@@ -186,10 +200,11 @@ export function Modals({ state, activeMeds, activePharmacists, busy, online, err
           <ObservationField defaultValue={editingMovement?.note || ""} />
           <label>Farmacéutico responsable<select name="pharmacistEmail" required defaultValue={editingMovement?.pharmacistEmail || ""} {...invalid("pharmacistEmail")}><option value="" disabled>Seleccione…</option>{pharmacistOptions}</select></label>
           </fieldset>
+          {countAfterEdit && <CountAfterMovementWarning countAt={countAfterEdit} action="editar" name="confirmAfterCount" checked={countAcknowledged} onChange={setCountAcknowledged} />}
           {!activePharmacists.length && <small className="form-hint" role="status">{personnelMessage ?? "Registre un farmacéutico autorizado en Configuración para poder continuar."}</small>}
           {!online && <small className="form-hint">Sin conexión: el registro de movimientos requiere conexión. Se habilitará al reconectar.</small>}
           {errorMessage}
-          <FormActions busy={busy} disabled={!activePharmacists.length || !online} label={editingMovement ? "Guardar cambios" : "Confirmar movimiento"} onCancel={onClose} />
+          <FormActions busy={busy} disabled={!activePharmacists.length || !online || (!!countAfterEdit && !countAcknowledged)} label={editingMovement ? "Guardar cambios" : "Confirmar movimiento"} onCancel={onClose} />
         </form>
       )}
 

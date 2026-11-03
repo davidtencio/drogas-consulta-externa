@@ -53,6 +53,7 @@ service cloud.firestore {
         && request.resource.data.actorEmail == request.auth.token.email;
       // Solo ingresos y egresos pueden editarse por un operador atribuible;
       // los conteos físicos no se editan y ningún movimiento se borra.
+      // Cada edición conserva la versión anterior en editHistory (ver isValidEdit).
       // Un egreso que no correspondía se ANULA (no se borra): solo se agregan
       // fecha, responsable y motivo de la anulación. Lo anulado ya no se modifica.
       allow update: if isOperator()
@@ -60,8 +61,30 @@ service cloud.firestore {
         && resource.data.type in ['IN', 'OUT']
         && request.resource.data.type in ['IN', 'OUT']
         && request.resource.data.actorEmail == request.auth.token.email
-        && (!('voidedAt' in request.resource.data) || isValidVoid());
+        && (('voidedAt' in request.resource.data) ? isValidVoid() : isValidEdit());
       allow delete: if false;
+
+      // Toda edición agrega al historial la versión anterior, tal como estaba;
+      // las entradas previas no se tocan y la fecha original no cambia.
+      function isValidEdit() {
+        let before = resource.data.get('editHistory', []);
+        let after = request.resource.data.get('editHistory', []);
+        let entry = after[before.size()];
+        let prev = entry.previous;
+        return after.size() == before.size() + 1
+          && (before.size() == 0 || after[0:before.size()] == before)
+          && entry.editedByEmail == request.auth.token.email
+          && entry.editedAt is string
+          && request.resource.data.get('createdAt', '') == resource.data.get('createdAt', '')
+          && prev.type == resource.data.type
+          && prev.quantity == resource.data.quantity
+          && prev.get('medicineId', '') == resource.data.get('medicineId', '')
+          && prev.get('medicineName', '') == resource.data.get('medicineName', '')
+          && prev.get('prescriptionRef', '') == resource.data.get('prescriptionRef', '')
+          && prev.get('pharmacistEmail', '') == resource.data.get('pharmacistEmail', '')
+          && prev.get('note', '') == resource.data.get('note', '')
+          && prev.get('lotAllocations', []) == resource.data.get('lotAllocations', []);
+      }
 
       function isValidVoid() {
         return resource.data.type == 'OUT'

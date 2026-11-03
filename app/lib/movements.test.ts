@@ -6,6 +6,9 @@ import {
   summarizeMovements,
   lastCountByMedicine,
   lastCountMovementByMedicine,
+  appendEditHistory,
+  countAfterMovement,
+  movementSnapshot,
 } from "./movements";
 import type { Movement } from "./inventory";
 
@@ -213,3 +216,33 @@ describe("lastCountMovementByMedicine", () => {
     expect(lastCountMovementByMedicine([latest, older]).get("a")).toEqual(latest);
   });
 });
+
+describe("historial de ediciones", () => {
+  const original: Movement = {
+    id: "m-1", medicineId: "med", medicineName: "Morfina", type: "OUT", quantity: 4, prescriptionRef: "RX-1",
+    pharmacistEmail: "ana@h.cr", createdAt: "2026-11-01T10:00:00.000Z", note: "",
+    lotAllocations: [{ lotId: "l1", lot: "L1", expiresAt: "2027-01-01", quantity: 4 }],
+  };
+  it("guarda la versión vigente sin id, fechas ni campos vacíos", () => {
+    expect(movementSnapshot(original)).toEqual({
+      type: "OUT", quantity: 4, medicineName: "Morfina", prescriptionRef: "RX-1", pharmacistEmail: "ana@h.cr",
+      medicineId: "med", lotAllocations: original.lotAllocations,
+    });
+  });
+  it("agrega al final sin reescribir las entradas previas", () => {
+    const first = appendEditHistory(original, "2026-11-02T10:00:00.000Z", "op@h.cr");
+    const second = appendEditHistory({ ...original, quantity: 2, editHistory: first }, "2026-11-03T10:00:00.000Z", "op2@h.cr");
+    expect(second).toHaveLength(2);
+    expect(second[0]).toBe(first[0]);
+    expect(second[1]).toMatchObject({ editedAt: "2026-11-03T10:00:00.000Z", editedByEmail: "op2@h.cr", previous: { quantity: 2 } });
+  });
+});
+
+describe("countAfterMovement", () => {
+  it("devuelve la toma solo si es posterior al movimiento", () => {
+    expect(countAfterMovement({ createdAt: "2026-11-01T10:00:00.000Z" }, "2026-11-02T08:00:00.000Z")).toBe("2026-11-02T08:00:00.000Z");
+    expect(countAfterMovement({ createdAt: "2026-11-03T10:00:00.000Z" }, "2026-11-02T08:00:00.000Z")).toBeNull();
+    expect(countAfterMovement({ createdAt: "2026-11-03T10:00:00.000Z" }, undefined)).toBeNull();
+  });
+});
+

@@ -6,6 +6,7 @@ import { auth, db } from "../firebase";
 import { prepareCount, prepareMovement, type Medicine, type Movement, type MovementType, type ReceivedLot } from "./inventory";
 import { applyLotMovement, normalizeMedicineLots, prepareMovementEdit, prepareMovementVoid, type MovementEditRequest, type MovementVoidRequest } from "./lots";
 import { DEMO_MODE, demoClearDatabase, demoCreateMedicine, demoCreatePharmacist, demoExportDatabase, demoRegisterCount, demoRegisterMovement, demoSetActive, demoUpdateMedicine, demoUpdateMovement, demoUpdatePharmacist, demoVoidMovement } from "./demo";
+import { appendEditHistory } from "./movements";
 import { validateResetConfirmation, type AdminOp, type MedicineFields, type PharmacistFields } from "./adminMutations";
 
 export type { MedicineFields, PharmacistFields } from "./adminMutations";
@@ -199,6 +200,7 @@ export function updateMovement(req: UpdateMovementRequest): Promise<void> {
       actorEmail: actor,
       updatedAt: req.now,
       updatedByEmail: actor,
+      editHistory: appendEditHistory(original, req.now, actor),
     });
   });
 }

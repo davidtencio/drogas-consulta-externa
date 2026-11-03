@@ -81,4 +81,15 @@ describe("almacén del modo demostración", () => {
     const inn = getDemoSnapshot().movements[0];
     expect(() => demoVoidMovement({ movementId: inn.id, reason: "Ingreso equivocado", now: new Date().toISOString() })).toThrow("Solo se pueden anular egresos");
   });
+
+  it("cada edición en demo conserva la versión anterior en el historial", () => {
+    demoRegisterMovement({ medicineId: "demo-metformina", type: "OUT", quantity: 6, prescriptionRef: "RX-A", pharmacistEmail: "maria.gomez@demo.local", createdAt: new Date().toISOString() });
+    const mov = getDemoSnapshot().movements[0];
+    const base = { movementId: mov.id, medicineId: "demo-metformina", type: "OUT" as const, prescriptionRef: "RX-A", pharmacistEmail: "maria.gomez@demo.local" };
+    demoUpdateMovement({ ...base, quantity: 4, now: new Date().toISOString() });
+    demoUpdateMovement({ ...base, quantity: 2, now: new Date().toISOString() });
+    const edited = getDemoSnapshot().movements.find((m) => m.id === mov.id)!;
+    expect(edited.quantity).toBe(2);
+    expect(edited.editHistory?.map((e) => e.previous.quantity)).toEqual([6, 4]);
+  });
 });

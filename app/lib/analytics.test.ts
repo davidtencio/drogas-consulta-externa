@@ -3,8 +3,11 @@ import type { Movement } from "./inventory";
 import { periodStart, rankVoidedMedicines, rankVoidingPharmacists, voidTotals } from "./analytics";
 
 const base = { prescriptionRef: "RX", pharmacistEmail: "resp@x.cr", createdAt: "2026-10-01T10:00:00.000Z" };
-const out = (id: string, medicineId: string, medicineName: string, quantity: number, voidedAt?: string, voidedByEmail?: string): Movement =>
-  ({ ...base, id, type: "OUT", medicineId, medicineName, quantity, ...(voidedAt ? { voidedAt, voidedByEmail, voidReason: "Error de digitación" } : {}) });
+// La cuenta con sesión iniciada que anula o edita es siempre la misma; el ranking
+// debe contar al farmacéutico responsable del movimiento, no a esa cuenta.
+const SESSION = "sesion@x.cr";
+const out = (id: string, medicineId: string, medicineName: string, quantity: number, voidedAt?: string, pharmacistEmail = base.pharmacistEmail): Movement =>
+  ({ ...base, id, type: "OUT", medicineId, medicineName, quantity, pharmacistEmail, ...(voidedAt ? { voidedAt, voidedByEmail: SESSION, voidReason: "Error de digitación" } : {}) });
 
 const movements: Movement[] = [
   out("1", "morf", "Morfina", 2, "2026-11-01T10:00:00.000Z", "Ana@x.cr"),
@@ -16,14 +19,14 @@ const movements: Movement[] = [
     ...base, id: "6", type: "IN", medicineId: "metf", medicineName: "Metformina", quantity: 100,
     updatedAt: "2026-11-02T12:00:00.000Z",
     editHistory: [
-      { editedAt: "2026-10-30T09:00:00.000Z", editedByEmail: "beto@x.cr", previous: { type: "IN", quantity: 10, medicineName: "Metformina", prescriptionRef: "RX", pharmacistEmail: "resp@x.cr" } },
-      { editedAt: "2026-11-02T12:00:00.000Z", editedByEmail: "beto@x.cr", previous: { type: "IN", quantity: 1000, medicineName: "Metformina", prescriptionRef: "RX", pharmacistEmail: "resp@x.cr" } },
+      { editedAt: "2026-10-30T09:00:00.000Z", editedByEmail: SESSION, previous: { type: "IN", quantity: 10, medicineName: "Metformina", prescriptionRef: "RX", pharmacistEmail: "beto@x.cr" } },
+      { editedAt: "2026-11-02T12:00:00.000Z", editedByEmail: SESSION, previous: { type: "IN", quantity: 1000, medicineName: "Metformina", prescriptionRef: "RX", pharmacistEmail: "beto@x.cr" } },
     ],
   },
   {
     // egreso editado: no es un ingreso corregido
     ...base, id: "7", type: "OUT", medicineId: "metf", medicineName: "Metformina", quantity: 1,
-    editHistory: [{ editedAt: "2026-11-02T12:00:00.000Z", editedByEmail: "ana@x.cr", previous: { type: "OUT", quantity: 2, medicineName: "Metformina", prescriptionRef: "RX", pharmacistEmail: "resp@x.cr" } }],
+    editHistory: [{ editedAt: "2026-11-02T12:00:00.000Z", editedByEmail: SESSION, previous: { type: "OUT", quantity: 2, medicineName: "Metformina", prescriptionRef: "RX", pharmacistEmail: "resp@x.cr" } }],
   },
 ];
 
@@ -55,7 +58,7 @@ describe("rankVoidedMedicines", () => {
 });
 
 describe("rankVoidingPharmacists", () => {
-  it("suma egresos anulados e ingresos corregidos por cuenta, sin distinguir mayúsculas", () => {
+  it("suma egresos anulados e ingresos corregidos por responsable, sin distinguir mayúsculas ni contar la cuenta con sesión", () => {
     expect(rankVoidingPharmacists(movements, since)).toEqual([
       { email: "beto@x.cr", voidedOut: 1, correctedIn: 2, total: 3, lastAt: "2026-11-02T12:00:00.000Z" },
       { email: "ana@x.cr", voidedOut: 2, correctedIn: 0, total: 2, lastAt: "2026-11-02T10:00:00.000Z" },
@@ -65,8 +68,9 @@ describe("rankVoidingPharmacists", () => {
   it("desempata por egresos anulados", () => {
     const rows = rankVoidingPharmacists([
       out("a", "m", "M", 1, "2026-11-01T00:00:00.000Z", "z@x.cr"),
-      { ...base, id: "b", type: "IN", medicineName: "M", quantity: 1, editHistory: [{ editedAt: "2026-11-01T00:00:00.000Z", editedByEmail: "a@x.cr", previous: { type: "IN", quantity: 2, medicineName: "M", prescriptionRef: "", pharmacistEmail: "" } }] },
+      { ...base, id: "b", type: "IN", medicineName: "M", quantity: 1, pharmacistEmail: "a@x.cr", editHistory: [{ editedAt: "2026-11-01T00:00:00.000Z", editedByEmail: SESSION, previous: { type: "IN", quantity: 2, medicineName: "M", prescriptionRef: "", pharmacistEmail: "" } }] },
     ]);
+    // Sin responsable en la versión anterior, cuenta el responsable actual.
     expect(rows.map((r) => r.email)).toEqual(["z@x.cr", "a@x.cr"]);
   });
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { collection, limit, onSnapshot, orderBy, query as fbQuery, type QuerySnapshot } from "firebase/firestore";
+import { collection, limit, onSnapshot, orderBy, query as fbQuery, where, type QueryConstraint, type QuerySnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { sortByName, type Medicine, type Pharmacist, type Movement } from "../lib/inventory";
 import { DEMO_MODE, getDemoSnapshot, subscribeDemo } from "../lib/demo";
@@ -8,18 +8,41 @@ import type { AuditLog } from "../lib/authz";
 /** Paso y límite inicial de movimientos recientes que se mantienen en memoria para la vista. */
 export const MOVEMENTS_LIMIT = 50;
 
+/** Rango de fechas `YYYY-MM-DD` (UTC, inclusivo) para acotar la consulta de movimientos. */
+export type MovementsRange = { from?: string; to?: string };
+
+/**
+ * Restricciones de Firestore para traer los movimientos de un rango de fechas,
+ * del más reciente al más antiguo. El rango y el orden usan el mismo campo
+ * (`createdAt`, ISO), así que basta el índice simple automático.
+ */
+export function movementsRangeConstraints(range: MovementsRange = {}): QueryConstraint[] {
+  const constraints: QueryConstraint[] = [];
+  if (range.from) constraints.push(where("createdAt", ">=", range.from));
+  if (range.to) constraints.push(where("createdAt", "<=", `${range.to}\uf8ff`));
+  constraints.push(orderBy("createdAt", "desc"));
+  return constraints;
+}
+
 /**
  * Suscribe (mientras `enabled`) a los medicamentos y farmacéuticos en Firestore,
  * y bajo demanda a los últimos movimientos (`includeMovements`) y a la bitácora
- * administrativa (`includeAudit`). Limpia las suscripciones al desmontar o al
+ * administrativa (`includeAudit`). `movementsRange` acota los movimientos a un
+ * rango de fechas en el servidor; sin él se traen los más recientes. Limpia las suscripciones al desmontar o al
  * cambiar de pestaña para ahorrar lecturas de cuota en Firestore.
  */
-export function useInventoryData(enabled: boolean, includeAudit = false, includeMovements = true) {
+export function useInventoryData(enabled: boolean, includeAudit = false, includeMovements = true, movementsRange: MovementsRange = {}) {
+  const rangeFrom = movementsRange.from ?? "";
+  const rangeTo = movementsRange.to ?? "";
   const demo = useSyncExternalStore(subscribeDemo, getDemoSnapshot, getDemoSnapshot);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [pharmacists, setPharmacists] = useState<Pharmacist[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [movementsLimit, setMovementsLimit] = useState(MOVEMENTS_LIMIT);
+  // Al cambiar el rango de fechas, la consulta vuelve al primer bloque.
+  const rangeKey = `${rangeFrom}|${rangeTo}`;
+  const [prevRangeKey, setPrevRangeKey] = useState(rangeKey);
+  if (rangeKey !== prevRangeKey) { setPrevRangeKey(rangeKey); setMovementsLimit(MOVEMENTS_LIMIT); }
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   // Escrituras pendientes por colección; el indicador combina medicamentos y movimientos.
   const [pending, setPending] = useState({ medicines: false, movements: false });
@@ -82,7 +105,7 @@ export function useInventoryData(enabled: boolean, includeAudit = false, include
   useEffect(() => {
     if (!enabled || !includeMovements || DEMO_MODE) return;
     const unsubMov = onSnapshot(
-      fbQuery(collection(db, "movements"), orderBy("createdAt", "desc"), limit(movementsLimit)),
+      fbQuery(collection(db, "movements"), ...movementsRangeConstraints({ from: rangeFrom, to: rangeTo }), limit(movementsLimit)),
       { includeMetadataChanges: true },
       (s: QuerySnapshot) => {
         setMovements(s.docs.map((d) => ({ id: d.id, ...d.data() } as Movement)));
@@ -96,7 +119,7 @@ export function useInventoryData(enabled: boolean, includeAudit = false, include
       }
     );
     return () => unsubMov();
-  }, [enabled, includeMovements, movementsLimit, retryAttempt]);
+  }, [enabled, includeMovements, movementsLimit, rangeFrom, rangeTo, retryAttempt]);
 
   if (DEMO_MODE) return { ...demo, countMovements: demo.movements, hasMoreMovements: false, loadMoreMovements, auditLogs: [], pendingWrites: false, loading: false, movementsLoading: false, settingsLoading: false, personnelMessage: null, inventoryError: null, movementsError: null, settingsError: null, retryInventory };
   const pendingWrites = pending.medicines || pending.movements;

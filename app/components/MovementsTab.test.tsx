@@ -10,6 +10,8 @@ vi.mock("firebase/firestore", () => ({
   getDocs: vi.fn(),
   orderBy: vi.fn(),
   query: vi.fn(),
+  where: vi.fn(),
+  limit: vi.fn(),
 }));
 vi.mock("../firebase", () => ({ db: {} }));
 vi.mock("../lib/demo", async (original) => ({ ...await original<typeof import("../lib/demo")>(), DEMO_MODE: false }));
@@ -125,12 +127,25 @@ describe("MovementsTab", () => {
     expect(within(body).getByText("Ibuprofeno")).toBeInTheDocument();
   });
 
+  it("avisa el rango de fechas y permite cargar más historial aunque los registros cargados no coincidan", async () => {
+    const onDateRangeChange = vi.fn();
+    const onLoadMore = vi.fn();
+    render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} hasMore onLoadMore={onLoadMore} onDateRangeChange={onDateRangeChange} />);
+    await userEvent.type(screen.getByLabelText("Hasta"), "2026-07-05");
+    expect(onDateRangeChange).toHaveBeenLastCalledWith("", "2026-07-05");
+    expect(screen.getByText(/en los registros cargados/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cargar más historial" }));
+    expect(onLoadMore).toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Limpiar" }));
+    expect(onDateRangeChange).toHaveBeenLastCalledWith("", "");
+  });
+
   it("expone el fallo de exportación y vuelve a habilitar la acción", async () => {
     vi.mocked(getDocs).mockRejectedValueOnce(new Error("offline"));
     render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} />);
-    await userEvent.click(screen.getByRole("button", { name: "Exportar CSV" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo exportar los movimientos");
-    expect(screen.getByRole("button", { name: "Exportar CSV" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Exportar PDF" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo generar el reporte PDF");
+    expect(screen.getByRole("button", { name: "Exportar PDF" })).toBeEnabled();
   });
 
   it("permite editar ingresos y egresos (no conteos) cuando se proporciona onEditMovement", async () => {

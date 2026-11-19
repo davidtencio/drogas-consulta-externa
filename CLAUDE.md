@@ -155,7 +155,9 @@ farmacéutico responsable del movimiento.
 - "Exportar PDF" reemplaza al CSV de movimientos (el CSV del inventario y el respaldo
   JSON siguen igual). Modelo puro en `app/lib/movementsReport.ts`; maquetación con
   jsPDF + jspdf-autotable en `app/lib/movementsPdf.ts`, importados bajo demanda.
-  Carta horizontal: encabezado, período y filtros, tarjetas de resumen, tabla con
+  Carta horizontal: encabezado con "Hospital San Vicente de Paúl · CCSS" y
+  "Farmacia de Consulta Externa · Control de Drogas" (`REPORT_INSTITUTION` y
+  `REPORT_ORGANIZATION` en `movementsReport.ts`), período y filtros, tarjetas de resumen, tabla con
   detalle (lotes, conteo, anulación, ediciones), notas y firmas "Elaborado/Revisado
   por". jsPDF no usa `eval`, así que la CSP no cambia.
 

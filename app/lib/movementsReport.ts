@@ -43,6 +43,9 @@ export type MovementsReportRow = {
 
 export type MovementsReport = {
   title: string;
+  /** Institución a la que pertenece el servicio (primera línea del encabezado). */
+  institution: string;
+  /** Servicio y sistema que emiten el reporte. */
   organization: string;
   period: string;
   filters: { label: string; value: string }[];
@@ -53,6 +56,10 @@ export type MovementsReport = {
   /** Aclaraciones al pie del reporte. */
   notes: string[];
 };
+
+/** Institución y servicio que figuran en el encabezado y el pie del reporte. */
+export const REPORT_INSTITUTION = "Hospital San Vicente de Paúl · CCSS";
+export const REPORT_ORGANIZATION = "Farmacia de Consulta Externa · Control de Drogas";
 
 const TYPE_LABEL: Record<Movement["type"], string> = { IN: "Ingreso", OUT: "Egreso", COUNT: "Conteo" };
 const TYPE_FILTER_LABEL: Record<MovementTypeFilter, string> = { ALL: "Todos", IN: "Ingresos", OUT: "Egresos", COUNT: "Conteos" };
@@ -134,7 +141,8 @@ export function buildMovementsReport(movements: readonly Movement[], options: Mo
   const now = options.now ?? new Date();
   return {
     title: options.medicine ? `Movimientos de ${options.medicine.name}` : "Reporte de movimientos",
-    organization: "Control de Drogas · Consulta Externa",
+    institution: REPORT_INSTITUTION,
+    organization: REPORT_ORGANIZATION,
     period: reportPeriod(options.from, options.to),
     filters,
     generatedAt: formatDateTime(now.toISOString(), tz),

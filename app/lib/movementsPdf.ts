@@ -22,7 +22,7 @@ const TOTAL_PAGES = "{total_pages}";
 export async function renderMovementsPdf(report: MovementsReport): Promise<Blob> {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
-  doc.setProperties({ title: `${report.title} — ${report.period}`, subject: "Trazabilidad de medicamentos controlados", creator: report.organization, author: report.generatedBy });
+  doc.setProperties({ title: `${report.title} — ${report.period}`, subject: "Trazabilidad de medicamentos controlados", creator: `${report.institution} — ${report.organization}`, author: report.generatedBy });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const color = (rgb: RGB, kind: "text" | "fill" | "draw" = "text") => {
@@ -43,6 +43,8 @@ export async function renderMovementsPdf(report: MovementsReport): Promise<Blob>
     doc.text(`Página ${n} de ${TOTAL_PAGES}`, W - MARGIN - 62, H - 20);
   };
 
+  const footerText = `${report.institution} — ${report.organization}. Documento de trazabilidad de medicamentos controlados`;
+
   // ── Encabezado principal ──────────────────────────────────────────────
   color(BRAND_DARK, "fill");
   doc.rect(0, 0, W, 78, "F");
@@ -52,10 +54,12 @@ export async function renderMovementsPdf(report: MovementsReport): Promise<Blob>
   doc.roundedRect(MARGIN, 18, 42, 42, 8, 8, "F");
   font(20, "bold", BRAND_DARK);
   doc.text("Rx", MARGIN + 21, 46, { align: "center" });
+  font(8.5, "bold", [204, 238, 234]);
+  doc.text(report.institution.toUpperCase(), MARGIN + 56, 27, { charSpace: 0.6 });
   font(18, "bold", WHITE);
-  doc.text(report.title, MARGIN + 56, 36, { maxWidth: W - MARGIN * 2 - 260 });
+  doc.text(report.title, MARGIN + 56, 46, { maxWidth: W - MARGIN * 2 - 260 });
   font(10, "normal", [204, 238, 234]);
-  doc.text(report.organization, MARGIN + 56, 54);
+  doc.text(report.organization, MARGIN + 56, 62);
   font(8, "normal", [204, 238, 234]);
   doc.text("GENERADO", W - MARGIN, 30, { align: "right" });
   font(10, "bold", WHITE);
@@ -181,14 +185,15 @@ export async function renderMovementsPdf(report: MovementsReport): Promise<Blob>
         doc.text(report.title, MARGIN, 32);
         font(9, "normal", MUTED);
         doc.text(report.period, MARGIN, 46);
-        doc.text(`Generado ${report.generatedAt}`, W - MARGIN, 32, { align: "right" });
+        doc.text(report.institution, W - MARGIN, 32, { align: "right" });
+        doc.text(`Generado ${report.generatedAt}`, W - MARGIN, 46, { align: "right" });
       }
       // Pie de página.
       color(BORDER, "draw");
       doc.setLineWidth(0.5);
       doc.line(MARGIN, H - 32, W - MARGIN, H - 32);
       font(7.5, "normal", MUTED);
-      doc.text(`${report.organization} — Documento de trazabilidad de medicamentos controlados`, MARGIN, H - 20);
+      doc.text(footerText, MARGIN, H - 20);
       pageNumber(data.pageNumber);
     },
   });
@@ -204,11 +209,12 @@ export async function renderMovementsPdf(report: MovementsReport): Promise<Blob>
     doc.text(report.title, MARGIN, 32);
     font(9, "normal", MUTED);
     doc.text(report.period, MARGIN, 46);
+    doc.text(report.institution, W - MARGIN, 32, { align: "right" });
     color(BORDER, "draw");
     doc.setLineWidth(0.5);
     doc.line(MARGIN, H - 32, W - MARGIN, H - 32);
     font(7.5, "normal", MUTED);
-    doc.text(`${report.organization} — Documento de trazabilidad de medicamentos controlados`, MARGIN, H - 20);
+    doc.text(footerText, MARGIN, H - 20);
     pageNumber(doc.getNumberOfPages());
   }
   font(8, "bold", MUTED);

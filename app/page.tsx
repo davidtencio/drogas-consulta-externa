@@ -74,6 +74,12 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("dashboard");
   const searchRef = useRef<HTMLInputElement>(null);
   const [movementMedicineId, setMovementMedicineId] = useState("");
+  // Rango Desde/Hasta de la pestaña Movimientos; se limpia al cambiar de pestaña
+  // porque la pestaña se vuelve a montar con los filtros vacíos.
+  const [movementRange, setMovementRange] = useState({ from: "", to: "" });
+  const [rangeTab, setRangeTab] = useState<Tab>("dashboard");
+  if (rangeTab !== tab) { setRangeTab(tab); setMovementRange({ from: "", to: "" }); }
+  const changeMovementRange = useCallback((from: string, to: string) => setMovementRange({ from, to }), []);
   const [modal, setModal] = useState<AppModal | null>(null);
   const [notice, setNotice] = useState<{ message: string; critical: boolean } | null>(null);
   const [modalError, setModalError] = useState<FormIssue | null>(null);
@@ -86,7 +92,8 @@ export default function Home() {
   const { medicines, pharmacists, movements, countMovements, hasMoreMovements, loadMoreMovements, auditLogs, pendingWrites, loading, inventoryError, movementsLoading, movementsError, settingsLoading, settingsError, personnelMessage, retryInventory } = useInventoryData(
     !!user,
     baseRole === "admin" && !DEMO_MODE && tab === "settings",
-    tab === "movements"
+    tab === "movements",
+    movementRange
   );
   const role = DEMO_MODE ? "admin" as const : roleForEmail(user?.email, { dynamicOperator, pharmacists });
   const analytics = useAnalyticsData(!!user && canManageCatalog(role) && tab === "analytics");
@@ -283,7 +290,7 @@ export default function Home() {
 
         {tab === "dashboard" && <InventoryPanel medicines={activeMeds} certifications={certifications} searchRef={searchRef} loading={loading} error={inventoryError} onRetry={retryInventory} onMovement={openMovement} onCount={openCount} onViewMovements={viewMedicineMovements} onExport={exportMedicines} />}
 
-        {tab === "movements" && <MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} onEditMovement={openEditMovement} onVoidMovement={openVoidMovement} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId} hasMore={hasMoreMovements} onLoadMore={loadMoreMovements} />}
+        {tab === "movements" && <MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} onEditMovement={openEditMovement} onVoidMovement={openVoidMovement} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId} hasMore={hasMoreMovements} onLoadMore={loadMoreMovements} onDateRangeChange={changeMovementRange} />}
 
         {tab === "analytics" && canManageCatalog(role) && <AnalyticsTab movements={analytics.movements} medicines={medicines} pharmacistNames={pharmacistNames} loading={analytics.loading} error={analytics.error} onRetry={analytics.retry} />}
 

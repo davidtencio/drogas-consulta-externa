@@ -1,7 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { snapshot, unsubscribe, limitMock } = vi.hoisted(() => ({
+const { snapshot, unsubscribe, limitMock, whereMock } = vi.hoisted(() => ({
+  whereMock: vi.fn(),
   snapshot: vi.fn(),
   unsubscribe: vi.fn(),
   limitMock: vi.fn(),
@@ -13,6 +14,7 @@ vi.mock("firebase/firestore", () => ({
   query: (ref: unknown) => ref,
   orderBy: vi.fn(),
   limit: limitMock,
+  where: whereMock,
   onSnapshot: snapshot,
 }));
 import { useInventoryData } from "./useInventoryData";
@@ -89,5 +91,16 @@ describe("consulta del inventario", () => {
     expect(limitMock).toHaveBeenCalledWith(50);
     act(() => result.current.loadMoreMovements());
     expect(limitMock).toHaveBeenCalledWith(100);
+  });
+
+  it("acota los movimientos al rango de fechas en el servidor y reinicia el bloque al cambiarlo", () => {
+    const { result, rerender } = renderHook(({ range }) => useInventoryData(true, false, true, range), { initialProps: { range: {} as { from?: string; to?: string } } });
+    expect(whereMock).not.toHaveBeenCalled();
+    act(() => result.current.loadMoreMovements());
+    expect(limitMock).toHaveBeenLastCalledWith(100);
+    rerender({ range: { from: "2026-10-01", to: "2026-10-10" } });
+    expect(whereMock).toHaveBeenCalledWith("createdAt", ">=", "2026-10-01");
+    expect(whereMock).toHaveBeenCalledWith("createdAt", "<=", "2026-10-10\uf8ff");
+    expect(limitMock).toHaveBeenLastCalledWith(50);
   });
 });

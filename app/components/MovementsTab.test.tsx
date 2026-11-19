@@ -143,9 +143,9 @@ describe("MovementsTab", () => {
   it("expone el fallo de exportación y vuelve a habilitar la acción", async () => {
     vi.mocked(getDocs).mockRejectedValueOnce(new Error("offline"));
     render(<MovementsTab movements={sample} medicines={[]} pharmacistNames={names} onNotice={noop} />);
-    await userEvent.click(screen.getByRole("button", { name: "Exportar CSV" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo exportar los movimientos");
-    expect(screen.getByRole("button", { name: "Exportar CSV" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Exportar PDF" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo generar el reporte PDF");
+    expect(screen.getByRole("button", { name: "Exportar PDF" })).toBeEnabled();
   });
 
   it("permite editar ingresos y egresos (no conteos) cuando se proporciona onEditMovement", async () => {

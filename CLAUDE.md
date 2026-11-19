@@ -104,7 +104,7 @@ Un egreso que no correspondía se **anula**, no se borra (trazabilidad de drogas
 controladas). Botón "Anular" en Movimientos → motivo obligatorio (≥10 caracteres)
 → transacción que reintegra la cantidad a `stock` y a los mismos lotes de
 `lotAllocations`, y agrega `voidedAt`/`voidedByEmail`/`voidReason` al movimiento.
-Lo anulado se ve tachado, no suma en el resumen, sale en el CSV con su estado y ya
+Lo anulado se ve tachado, no suma en el resumen, sale en el reporte PDF con su estado y ya
 no se puede editar ni volver a anular. Las reglas lo hacen cumplir (`isValidVoid`):
 solo `OUT`, solo esos campos + `actorEmail`, y `!('voidedAt' in resource.data)`.
 Lógica en `prepareMovementVoid` (`app/lib/lots.ts`). Los ingresos no se anulan
@@ -132,7 +132,7 @@ ingreso, egreso, edición y anulación. Los dos riesgos que quedaban se cubriero
   que la nueva entrada copie fielmente el documento anterior, que la firme quien edita
   y que `createdAt` no cambie. Ojo: en reglas, `list[0:0]` lanza error; por eso el
   `before.size() == 0 ||`. Movimientos editados antes de esto muestran "Editado (sin
-  historial)". En Movimientos, "Editado N veces" abre el historial; CSV con "Ediciones".
+  historial)". En Movimientos, "Editado N veces" abre el historial; el reporte PDF lo indica.
 
 ## Módulo Analítica (2026-11-03)
 
@@ -146,6 +146,18 @@ Período: 30/90 días, 12 meses o todo. Lógica pura en `app/lib/analytics.ts`; 
 (índices simples automáticos, no lee toda la colección; las reglas ya permiten leer
 `movements` a operadores). Se mide la cuenta que ejecutó la acción, no el
 farmacéutico responsable del movimiento.
+
+## Movimientos: rango en servidor y reporte PDF (2026-11-19)
+
+- Desde/Hasta se consulta en Firestore (`movementsRangeConstraints`,
+  `app/hooks/useInventoryData.ts`): antes solo se filtraban los 50 últimos en el
+  navegador y los movimientos de semanas atrás "desaparecían".
+- "Exportar PDF" reemplaza al CSV de movimientos (el CSV del inventario y el respaldo
+  JSON siguen igual). Modelo puro en `app/lib/movementsReport.ts`; maquetación con
+  jsPDF + jspdf-autotable en `app/lib/movementsPdf.ts`, importados bajo demanda.
+  Carta horizontal: encabezado, período y filtros, tarjetas de resumen, tabla con
+  detalle (lotes, conteo, anulación, ediciones), notas y firmas "Elaborado/Revisado
+  por". jsPDF no usa `eval`, así que la CSP no cambia.
 
 ## PENDIENTES para retomar
 

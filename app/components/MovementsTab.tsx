@@ -2,10 +2,10 @@ import { useCallback, useMemo, useState } from "react";
 import { collection, getDocs, query as fbQuery } from "firebase/firestore";
 import { db } from "../firebase";
 import { displayPharmacist, sortByName, type Medicine, type Movement } from "../lib/inventory";
-import { movementsToCsv } from "../lib/csv";
+import { buildMovementsReport } from "../lib/movementsReport";
 import { filterAndSortMovements, summarizeMovements, type MovementSort, type MovementTypeFilter } from "../lib/movements";
 import { clampPage, pageCount, pageRange, paginate } from "../lib/pagination";
-import { dateStamp, downloadTextFile } from "../lib/download";
+import { dateStamp, downloadBlob } from "../lib/download";
 import { MovementRowsSkeleton } from "./Skeletons";
 import { Icon } from "./Icon";
 import { AccessibleDialog } from "./AccessibleDialog";
@@ -27,10 +27,12 @@ type Props = {
   onRetry?: () => void; hasMore?: boolean; onLoadMore?: () => void;
   /** Avisa el rango Desde/Hasta para que la consulta se acote en el servidor. */
   onDateRangeChange?: (from: string, to: string) => void;
+  /** Correo de quien genera el reporte PDF (se muestra con su nombre si es farmacéutico). */
+  reportAuthor?: string;
 };
 
 /** Pestaña de Movimientos: filtros, resumen del período, tabla y paginación. */
-export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, onEditMovement, onVoidMovement, loading = false, initialMedicineId = "", onMedicineFilterChange, error, onRetry, hasMore = false, onLoadMore, onDateRangeChange }: Props) {
+export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, onEditMovement, onVoidMovement, loading = false, initialMedicineId = "", onMedicineFilterChange, error, onRetry, hasMore = false, onLoadMore, onDateRangeChange, reportAuthor = "" }: Props) {
   const [type, setType] = useState<MovementTypeFilter>("ALL");
   const [text, setText] = useState("");
   const [medicineId, setMedicineId] = useState(initialMedicineId);
@@ -91,18 +93,28 @@ export function MovementsTab({ movements, medicines, pharmacistNames, onNotice, 
       }
       const rows = filterAndSortMovements(all, filter, sort);
       if (!rows.length) { onNotice("No hay movimientos que coincidan para exportar"); return; }
+      const report = buildMovementsReport(rows, {
+        from, to, type, text,
+        medicine: selectedMedicine ? { name: `${selectedMedicine.name} ${selectedMedicine.strength}`.trim(), unit: selectedMedicine.unit } : undefined,
+        pharmacist: pharmacistEmail ? resolveName(pharmacistEmail) : undefined,
+        units: medicineUnits,
+        generatedBy: reportAuthor ? resolveName(reportAuthor) : "Usuario de la aplicación",
+        resolvePharmacist: resolveName,
+      });
+      // jsPDF se descarga solo al exportar, no con la página.
+      const { renderMovementsPdf } = await import("../lib/movementsPdf");
       const range = [from, to].filter(Boolean).join("_");
-      downloadTextFile(`movimientos_${range || dateStamp()}.csv`, movementsToCsv(rows, resolveName));
-      onNotice(`Movimientos exportados (${rows.length})`);
-    } catch { setExportError("No se pudo exportar los movimientos. Verifique la conexión y vuelva a intentarlo."); }
+      downloadBlob(`movimientos_${range || dateStamp()}.pdf`, await renderMovementsPdf(report));
+      onNotice(`Reporte PDF generado (${rows.length} movimiento${rows.length === 1 ? "" : "s"})`);
+    } catch { setExportError("No se pudo generar el reporte PDF. Verifique la conexión y vuelva a intentarlo."); }
     finally { setExporting(false); }
-  }, [filter, sort, from, to, resolveName, onNotice]);
+  }, [filter, sort, from, to, type, text, pharmacistEmail, selectedMedicine, medicineUnits, reportAuthor, resolveName, onNotice]);
 
   return <>
     <div className="panel movements-panel" aria-busy={loading}>
       <div className="panel-title">
-        <div><h2>{selectedMedicine ? `Movimientos de ${selectedMedicine.name} ${selectedMedicine.strength}` : "Actividad reciente"}</h2><p>Registros en incrementos de 50, del más reciente al más antiguo; con Desde / Hasta se consulta ese período. El CSV consulta el período o historial elegido.</p></div>
-        <button className="secondary" onClick={onExport} disabled={loading || exporting || !!error}><Icon name="download" size={16} /> {exporting ? "Preparando CSV…" : "Exportar CSV"}</button>
+        <div><h2>{selectedMedicine ? `Movimientos de ${selectedMedicine.name} ${selectedMedicine.strength}` : "Actividad reciente"}</h2><p>Registros en incrementos de 50, del más reciente al más antiguo; con Desde / Hasta se consulta ese período. El reporte PDF incluye todo el período o historial elegido.</p></div>
+        <button className="secondary" onClick={onExport} disabled={loading || exporting || !!error}><Icon name="download" size={16} /> {exporting ? "Generando PDF…" : "Exportar PDF"}</button>
       </div>
       {exportError && <div className="form-error panel-feedback" role="alert">{exportError}</div>}
       <div className="mov-filters">

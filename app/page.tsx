@@ -290,7 +290,7 @@ export default function Home() {
 
         {tab === "dashboard" && <InventoryPanel medicines={activeMeds} certifications={certifications} searchRef={searchRef} loading={loading} error={inventoryError} onRetry={retryInventory} onMovement={openMovement} onCount={openCount} onViewMovements={viewMedicineMovements} onExport={exportMedicines} />}
 
-        {tab === "movements" && <MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} onEditMovement={openEditMovement} onVoidMovement={openVoidMovement} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId} hasMore={hasMoreMovements} onLoadMore={loadMoreMovements} onDateRangeChange={changeMovementRange} />}
+        {tab === "movements" && <MovementsTab movements={movements} medicines={medicines} pharmacistNames={pharmacistNames} onNotice={flash} onEditMovement={openEditMovement} onVoidMovement={openVoidMovement} loading={movementsLoading} error={movementsError} onRetry={retryInventory} initialMedicineId={movementMedicineId} onMedicineFilterChange={setMovementMedicineId} hasMore={hasMoreMovements} onLoadMore={loadMoreMovements} onDateRangeChange={changeMovementRange} reportAuthor={user.email || ""} />}
 
         {tab === "analytics" && canManageCatalog(role) && <AnalyticsTab movements={analytics.movements} medicines={medicines} pharmacistNames={pharmacistNames} loading={analytics.loading} error={analytics.error} onRetry={analytics.retry} />}
 

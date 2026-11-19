@@ -15,7 +15,11 @@ export function downloadTextFile(
   type = "text/csv;charset=utf-8;"
 ): void {
   const prefix = type.includes("json") ? "" : "\uFEFF";
-  const blob = new Blob([prefix + content], { type });
+  downloadBlob(filename, new Blob([prefix + content], { type }));
+}
+
+/** Descarga un `Blob` ya construido (por ejemplo, un PDF). */
+export function downloadBlob(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

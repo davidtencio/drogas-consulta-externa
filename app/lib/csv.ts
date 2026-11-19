@@ -1,7 +1,7 @@
 // Construcción de CSV pura (sin DOM ni Firestore), fácil de probar. La descarga
 // en el navegador vive en app/page.tsx; aquí solo se arma el texto.
 
-import type { Medicine, Movement } from "./inventory";
+import type { Medicine } from "./inventory";
 import { inventoryLotView } from "./inventoryView";
 
 /** Escapa un valor para CSV: entre comillas si contiene coma, comilla o salto. */
@@ -60,53 +60,4 @@ export function inventoryViewToCsv(medicines: readonly Medicine[]): string {
       return [medicine.code || "", medicine.name, medicine.strength, medicine.form, medicine.stock, medicine.unit, medicine.minimumStock, view.nearest, view.positive.map((lot) => lot.lot || "Sin identificador").join("; "), view.legacy ? "Registro general sin desglose almacenado" : view.lots.length ? "Lotes almacenados" : "Sin lotes registrados", view.unknown || view.mismatch ? "Sí" : "No"];
     }),
   ]);
-}
-
-const MOVEMENT_HEADERS = [
-  "Fecha",
-  "Medicamento",
-  "Tipo",
-  "Cantidad",
-  "Sistema",
-  "Diferencia",
-  "Prescripción",
-  "Observación",
-  "Responsable",
-  "Estado",
-  "Motivo de anulación",
-  "Ediciones",
-] as const;
-
-/** Etiqueta legible del tipo de movimiento. */
-function movementTypeLabel(type: Movement["type"]): string {
-  return type === "IN" ? "Ingreso" : type === "OUT" ? "Egreso" : "Conteo";
-}
-
-/**
- * CSV de la bitácora de movimientos (ingresos/egresos/conteos). Las columnas
- * Sistema/Diferencia/Nota solo aplican a los conteos físicos. `resolvePharmacist`
- * permite mostrar el nombre del responsable en vez del correo.
- */
-export function movementsToCsv(
-  movements: readonly Movement[],
-  resolvePharmacist: (email: string) => string = (email) => email
-): string {
-  const rows: unknown[][] = [ [...MOVEMENT_HEADERS] ];
-  for (const mv of movements) {
-    rows.push([
-      mv.createdAt,
-      mv.medicineName,
-      movementTypeLabel(mv.type),
-      mv.quantity,
-      mv.type === "COUNT" ? mv.systemQuantity ?? "" : "",
-      mv.type === "COUNT" ? mv.difference ?? "" : "",
-      mv.prescriptionRef,
-      mv.note ?? "",
-      resolvePharmacist(mv.pharmacistEmail),
-      mv.voidedAt ? `Anulado ${mv.voidedAt}` : "Vigente",
-      mv.voidReason ?? "",
-      mv.editHistory?.length ?? 0,
-    ]);
-  }
-  return toCsv(rows);
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { escapeCsvValue, toCsv, medicinesToCsv, movementsToCsv } from "./csv";
-import type { Medicine, Movement } from "./inventory";
+import { escapeCsvValue, toCsv, medicinesToCsv } from "./csv";
+import type { Medicine } from "./inventory";
 
 function med(overrides: Partial<Medicine> = {}): Medicine {
   return {
@@ -14,19 +14,6 @@ function med(overrides: Partial<Medicine> = {}): Medicine {
     lot: "L1",
     expiresAt: "2027-01-01",
     active: true,
-    ...overrides,
-  };
-}
-
-function mov(overrides: Partial<Movement> = {}): Movement {
-  return {
-    id: "m1",
-    type: "OUT",
-    quantity: 5,
-    medicineName: "Metformina",
-    prescriptionRef: "RX-1",
-    pharmacistEmail: "farma@hospital.cr",
-    createdAt: "2026-07-16T10:00:00.000Z",
     ...overrides,
   };
 }
@@ -78,45 +65,5 @@ describe("medicinesToCsv", () => {
   it("con lista vacía solo devuelve los encabezados", () => {
     const csv = medicinesToCsv([]);
     expect(csv.split("\r\n")).toHaveLength(1);
-  });
-});
-
-describe("movementsToCsv", () => {
-  it("incluye encabezados y traduce el tipo", () => {
-    const csv = movementsToCsv([
-      mov({ type: "IN", quantity: 10 }),
-      mov({ type: "OUT", quantity: 3 }),
-    ]);
-    const lines = csv.split("\r\n");
-    expect(lines[0]).toBe("Fecha,Medicamento,Tipo,Cantidad,Sistema,Diferencia,Prescripción,Observación,Responsable,Estado,Motivo de anulación,Ediciones");
-    // Ingreso/egreso dejan vacías las columnas de conteo (Sistema/Diferencia/Nota).
-    expect(lines[1]).toBe(
-      "2026-07-16T10:00:00.000Z,Metformina,Ingreso,10,,,RX-1,,farma@hospital.cr,Vigente,,0"
-    );
-    expect(lines[2]).toContain(",Egreso,");
-  });
-
-  it("incluye la evidencia del conteo (sistema, diferencia, nota)", () => {
-    const csv = movementsToCsv([
-      mov({ type: "COUNT", quantity: 8, systemQuantity: 10, difference: -2, note: "faltante", prescriptionRef: "" }),
-    ]);
-    const row = csv.split("\r\n")[1];
-    expect(row).toBe("2026-07-16T10:00:00.000Z,Metformina,Conteo,8,10,-2,,faltante,farma@hospital.cr,Vigente,,0");
-  });
-  it("por defecto muestra el correo del responsable", () => {
-    const row = movementsToCsv([mov({ pharmacistEmail: "ana@hospital.cr" })]).split("\r\n")[1];
-    expect(row.endsWith(",ana@hospital.cr,Vigente,,0")).toBe(true);
-  });
-  it("usa el resolvedor para mostrar el nombre del responsable", () => {
-    const resolve = (email: string) => (email === "ana@hospital.cr" ? "Ana Rojas" : email);
-    const row = movementsToCsv([mov({ pharmacistEmail: "ana@hospital.cr" })], resolve).split("\r\n")[1];
-    expect(row.endsWith(",Ana Rojas,Vigente,,0")).toBe(true);
-  });
-  it("marca los egresos anulados con fecha y motivo", () => {
-    const row = movementsToCsv([mov({ type: "OUT", voidedAt: "2026-07-17T08:00:00.000Z", voidReason: "Receta duplicada" })]).split("\r\n")[1];
-    expect(row.endsWith(",Anulado 2026-07-17T08:00:00.000Z,Receta duplicada,0")).toBe(true);
-  });
-  it("con lista vacía solo devuelve los encabezados", () => {
-    expect(movementsToCsv([]).split("\r\n")).toHaveLength(1);
   });
 });

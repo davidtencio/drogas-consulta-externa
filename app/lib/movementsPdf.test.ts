@@ -17,5 +17,6 @@ describe("renderMovementsPdf", () => {
     expect((text.match(/\/Type \/Page\b/g) ?? []).length).toBeGreaterThan(1);
     expect(text).not.toContain("{total_pages}");
     expect(text).toContain("RX-39");
+    expect(text).toContain("HOSPITAL SAN VICENTE DE PA");
   });
 });

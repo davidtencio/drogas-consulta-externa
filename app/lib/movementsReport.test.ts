@@ -33,6 +33,8 @@ describe("buildMovementsReport", () => {
     expect(byLabel.Anulados.value).toBe("1");
     expect(byLabel.Conteos.value).toBe("1");
     expect(report.title).toBe("Movimientos de Morfina 10 mg/mL");
+    expect(report.institution).toBe("Hospital San Vicente de Paúl · CCSS");
+    expect(report.organization).toBe("Farmacia de Consulta Externa · Control de Drogas");
     expect(report.filters).toContainEqual({ label: "Medicamento", value: "Morfina 10 mg/mL" });
     const voided = report.rows[2];
     expect(voided).toMatchObject({ status: "Anulado", voided: true });
